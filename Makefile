@@ -3,12 +3,16 @@ ifneq (,$(wildcard .env))
 	export
 endif
 
-.PHONY: help setup-tools cluster-up
+.PHONY: help setup-tools cluster-up cluster-down go-build go-run go-docker-build
 
 help:
 	@echo "Available targets:"
-	@echo "  make setup-tools    Install required tools (docker, kubectl, k3d)"
-	@echo "  make cluster-up     Create and setup a k3d cluster"
+	@echo "  make setup-tools           Install required tools (docker, kubectl, k3d)"
+	@echo "  make cluster-up            Create and setup a k3d cluster"
+	@echo "  make cluster-down          Shutdown k3d cluster"
+	@echo "  make go-build              Build the Go API application"
+	@echo "  make go-run                Run the Go API application locally"
+	@echo "  make go-docker-build       Build Go API Docker image"
 
 setup-tools:
 	@echo "Installing required tools..."
@@ -21,3 +25,14 @@ cluster-up:
 cluster-down:
 	@echo "Shutting down k3d cluster..."
 	@bash scripts/cluster-down.sh
+go-build:
+	@echo "Building Go API..."
+	@cd apps/go-api && go mod tidy && go build -o app .
+
+go-run:
+	@echo "Running Go API..."
+	@cd apps/go-api && go run main.go
+
+go-docker-build:
+	@echo "Building Go API Docker image..."
+	@docker build -t go-api:latest apps/go-api/
