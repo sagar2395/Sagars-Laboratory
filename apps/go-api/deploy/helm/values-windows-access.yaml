@@ -1,0 +1,130 @@
+# Values for Windows access - k3d cluster
+# Use: make deploy-go-api HELM_VALUES=values-windows-access.yaml
+
+# This configuration exposes the Go API service to be accessible from Windows machines
+# by using NodePort service type and bypassing hostname-based ingress
+
+global:
+  environment: k3d
+
+namespace:
+  create: true
+  name: go-api
+
+deployment:
+  name: go-api
+  replicaCount: 2
+
+image:
+  repository: go-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+port: 8080
+
+# IMPORTANT: Changed to NodePort to expose on host port
+service:
+  name: go-api
+  type: NodePort
+  port: 8080
+  targetPort: 8080
+  # Specify nodePort for consistent access (30080-32767 range)
+  nodePort: 30080
+  annotations: {}
+
+# Keep ingress for internal k3d access
+ingress:
+  enabled: true
+  className: traefik
+  ingressAnnotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+  hosts:
+    - host: go-api.k3d.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+probes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+env:
+  PORT: "8080"
+  READINESS_FAILURE: "false"
+  SHUTDOWN_TIMEOUT: "30s"
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - go-api
+          topologyKey: kubernetes.io/hostname
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+prometheus:
+  enabled: true
+  port: 8080
+  path: /metrics
+
+serviceMonitor:
+  enabled: false
+  namespace: monitoring
+  interval: 30s
+  scrapeTimeout: 10s
+
+configMap:
+  enabled: false
+  data: {}
+
+secrets:
+  enabled: false
+  data: {}
