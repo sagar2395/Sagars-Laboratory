@@ -16,7 +16,7 @@ include make/runtime.mk
 include make/app.mk
 
 .PHONY: help setup-tools runtime-up runtime-down build run deploy \
-        go-docker-import deploy undeploy helm-lint helm-validate
+        deploy undeploy helm-lint helm-validate
 
 help:
 	@echo "Available targets:"
