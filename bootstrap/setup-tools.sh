@@ -66,6 +66,19 @@ install_k3d() {
     echo -e "${GREEN}k3d installed successfully${NC}"
 }
 
+install_helm() {
+    echo -e "${YELLOW}Installing Helm (${HELM_VERSION})...${NC}"
+    
+    if command -v helm &> /dev/null; then
+        echo -e "${GREEN}Helm is already installed${NC}"
+        helm version
+        return 0
+    fi
+    
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    echo -e "${GREEN}Helm installed successfully${NC}"
+}
+
 # AKS-specific functions
 install_az_cli() {
     echo -e "${YELLOW}Installing Azure CLI (${AZ_CLI_VERSION})...${NC}"
@@ -93,6 +106,7 @@ install_k3d_profile() {
     install_common
     install_docker
     install_k3d
+    install_helm
     echo -e "${GREEN}Validating cluster details...${NC}"
     kubectl cluster-info || echo -e "${YELLOW}Cluster info not available - run 'make cluster-up' first${NC}"
     echo -e "${GREEN}========== K3D Profile Complete ==========${NC}\n"
