@@ -7,7 +7,7 @@ PROFILE ?= k3d
 CLUSTER_NAME ?= sagars-cluster
 APP_NAME ?= go-api
 HELM_RELEASE_NAME ?= go-api
-HELM_VALUES ?= values.yaml
+HELM_VALUES ?= values-windows-access.yaml # 
 
 # Include domain targets
 include make/vars.mk
@@ -15,8 +15,8 @@ include make/bootstrap.mk
 include make/runtime.mk
 include make/app.mk
 
-.PHONY: help setup-tools cluster-up cluster-down go-build go-run go-docker-build \
-        go-docker-import deploy-go-api undeploy-go-api helm-lint helm-validate
+.PHONY: help setup-tools runtime-up runtime-down build run deploy \
+        go-docker-import deploy undeploy helm-lint helm-validate
 
 help:
 	@echo "Available targets:"
@@ -31,16 +31,16 @@ help:
 	@echo "    make runtime-down        Shutdown runtime environment (k3d cluster)"
 	@echo ""
 	@echo "  Go API - Build & Run:"
-	@echo "    make go-build            Build the Go API application"
-	@echo "    make go-run              Run the Go API application locally"
-	@echo "    make go-docker-build     Build Go API Docker image"
-	@echo "    make go-docker-import    Import Go API Docker image into k3d"
+	@echo "    make build            Build the Go API application"
+	@echo "    make run              Run the Go API application locally"
+	@echo "    make docker-build     Build Go API Docker image"
+	@echo "    make docker-import    Import Go API Docker image into k3d"
 	@echo ""
 	@echo "  Go API - Kubernetes Deployment:"
-	@echo "    make deploy-go-api       Deploy Go API to k3d via Helm"
-	@echo "                             Usage: make deploy-go-api HELM_VALUES=values-dev.yaml"
-	@echo "                             Default values: values.yaml"
-	@echo "    make undeploy-go-api     Uninstall Go API from k3d"
+	@echo "    make deploy       Deploy $(APP_NAME) to k3d via Helm"
+	@echo "                             Usage: make deploy HELM_VALUES=values-dev.yaml"
+	@echo "                             Default values: values-windows-access.yaml"
+	@echo "    make undeploy     Uninstall $(APP_NAME) from k3d"
 	@echo "    make helm-lint           Validate Helm chart syntax"
 	@echo "    make helm-validate       Preview Helm manifests (dry-run)"
 

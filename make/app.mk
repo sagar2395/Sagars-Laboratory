@@ -10,7 +10,7 @@ docker-build:
 	@echo "Building Go API Docker image..."
 	@docker build -t $(APP_NAME):latest apps/$(APP_NAME)/
 
-go-docker-import:
+docker-import:
 	@echo "Importing Go API Docker image into k3d cluster..."
 	@k3d image import $(APP_NAME):latest -c $(CLUSTER_NAME)
 	@echo "Image imported successfully"
