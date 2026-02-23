@@ -1,8 +1,10 @@
-build:
+APPS := $(shell ls apps)
+
+local-build:
 	@echo "Building Go API..."
 	@cd apps/$(APP_NAME) && go mod tidy && go build -o app .
 
-run:
+local-run:
 	@echo "Running Go API..."
 	@cd apps/$(APP_NAME) && go run main.go
 
@@ -32,11 +34,21 @@ deploy:
 	@echo "  kubectl get pods -n $(APP_NAME)"
 	@echo "  kubectl get svc -n $(APP_NAME)"
 
-undeploy:
+deploy-all: $(APPS:%=deploy-%)
+
+$(APPS:%=deploy-%):
+	$(MAKE) deploy APP=$(@:deploy-%=%)
+
+destroy-app:
 	@echo "Uninstalling $(APP_NAME) from k3d cluster..."
 	@helm uninstall $(HELM_RELEASE_NAME) -n $(APP_NAME) || true
 	@kubectl delete namespace $(APP_NAME) --ignore-not-found
 	@echo "Uninstall complete"
+
+destroy-all-apps: $(APPS:%=destroy-%)
+
+$(APPS:%=destroy-%):
+	$(MAKE) destroy-app APP=$(@:destroy-%=%)
 
 helm-lint:
 	@echo "Linting Helm chart..."
