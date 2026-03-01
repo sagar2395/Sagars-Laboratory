@@ -11,7 +11,7 @@ APPS := $(shell ls apps)
 
 # build target dispatches to the chosen build strategy
 build:
-	@bash engine/build/$(BUILD_STRATEGY).sh $(APP_NAME)
+	@bash engine/build.sh $(APP_NAME)
 
 # run locally if the app is a binary
 local-run:
@@ -19,16 +19,16 @@ local-run:
 
 # deploy/destroy are completely strategy-driven
 deploy:
-	@bash engine/deploy/$(DEPLOY_STRATEGY).sh deploy $(APP_NAME)
+	@bash engine/deploy.sh deploy $(APP_NAME)
 
 destroy-app:
-	@bash engine/deploy/$(DEPLOY_STRATEGY).sh destroy $(APP_NAME)
+	@bash engine/deploy.sh destroy $(APP_NAME)
 
 lint:
-	@bash engine/deploy/$(DEPLOY_STRATEGY).sh lint $(APP_NAME)
+	@bash engine/deploy.sh lint $(APP_NAME)
 
 validate:
-	@bash engine/deploy/$(DEPLOY_STRATEGY).sh validate $(APP_NAME)
+	@bash engine/deploy.sh validate $(APP_NAME)
 
 # Bulk operations for all apps
 deploy-all: $(APPS:%=deploy-%)
