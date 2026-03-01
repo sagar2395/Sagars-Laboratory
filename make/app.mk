@@ -1,63 +1,58 @@
+# Application Build and Deployment Targets
+# ### each app provides its own configuration (apps/<name>/app.env) containing
+# BUILD_STRATEGY, DEPLOY_STRATEGY and any strategy-specific variables.  make
+# targets simply load that file and invoke the corresponding script.
+
 APPS := $(shell ls apps)
 
-local-build:
-	@echo "Building Go API..."
-	@cd apps/$(APP_NAME) && go mod tidy && go build -o app .
+# helper macro to load application-specific variables; exported in a subshell.
+define load_app_config
+	@if [ -n "$(APP_NAME)" ] && [ -f "apps/$(APP_NAME)/app.env" ]; then \
+		echo "Loading configuration for $(APP_NAME)"; \
+		set -a; . "apps/$(APP_NAME)/app.env"; set +a; \
+	fi
+endef
 
+.PHONY: build local-run deploy destroy-app lint validate \
+        deploy-all destroy-all-apps
+
+# build target dispatches to the chosen build strategy
+build:
+	@$(call load_app_config)
+	@echo "[build] app=$(APP_NAME) strategy=$(BUILD_STRATEGY)"
+	@bash engine/build/$(BUILD_STRATEGY).sh $(APP_NAME)
+
+# run locally if the app is a binary
 local-run:
-	@echo "Running Go API..."
+	@echo "Running $(APP_NAME) locally..."
 	@cd apps/$(APP_NAME) && go run main.go
 
-docker-build:
-	@echo "Building Go API Docker image..."
-	@docker build -t $(APP_NAME):latest apps/$(APP_NAME)/
-ifeq ($(PROFILE),k3d)
-	@echo "Importing Go API Docker image into k3d cluster..."
-	@k3d image import $(APP_NAME):latest -c $(CLUSTER_NAME)
-	@echo "Image imported successfully"
-endif
-
+# deploy/destroy are completely strategy-driven
 deploy:
-	@echo "Deploying Go API to k3d cluster..."
-	@helm lint apps/$(APP_NAME)/deploy/helm > /dev/null || exit 1
-	@# Use helm upgrade --install to handle both fresh installs and updates gracefully
-	@helm upgrade --install $(HELM_RELEASE_NAME) apps/$(APP_NAME)/deploy/helm \
-		-f apps/$(APP_NAME)/deploy/helm/$(HELM_VALUES) \
-		--namespace $(APP_NAME) --create-namespace
-	@echo ""
-	@echo "Deployment complete! Access the application:"
-	@echo "  - HTTP: http://$(APP_NAME).k3d.local"
-	@echo "  - Metrics: http://$(APP_NAME).k3d.local/metrics"
-	@echo ""
-	@echo "View deployment status:"
-	@echo "  kubectl get deployments -n $(APP_NAME)"
-	@echo "  kubectl get pods -n $(APP_NAME)"
-	@echo "  kubectl get svc -n $(APP_NAME)"
+	@$(call load_app_config)
+	@echo "[deploy] app=$(APP_NAME) strategy=$(DEPLOY_STRATEGY)"
+	@bash engine/deploy/$(DEPLOY_STRATEGY).sh deploy $(APP_NAME)
 
+destroy-app:
+	@$(call load_app_config)
+	@echo "[destroy] app=$(APP_NAME) strategy=$(DEPLOY_STRATEGY)"
+	@bash engine/deploy/$(DEPLOY_STRATEGY).sh destroy $(APP_NAME)
+
+lint:
+	@$(call load_app_config)
+	@bash engine/deploy/$(DEPLOY_STRATEGY).sh lint $(APP_NAME)
+
+validate:
+	@$(call load_app_config)
+	@bash engine/deploy/$(DEPLOY_STRATEGY).sh validate $(APP_NAME)
+
+# Bulk operations for all apps
 deploy-all: $(APPS:%=deploy-%)
 
 $(APPS:%=deploy-%):
-	$(MAKE) deploy APP=$(@:deploy-%=%)
-
-destroy-app:
-	@echo "Uninstalling $(APP_NAME) from k3d cluster..."
-	@helm uninstall $(HELM_RELEASE_NAME) -n $(APP_NAME) || true
-	@kubectl delete namespace $(APP_NAME) --ignore-not-found
-	@echo "Uninstall complete"
+	@$(MAKE) deploy APP_NAME=$(@:deploy-%=%)
 
 destroy-all-apps: $(APPS:%=destroy-%)
 
 $(APPS:%=destroy-%):
-	$(MAKE) destroy-app APP=$(@:destroy-%=%)
-
-helm-lint:
-	@echo "Linting Helm chart..."
-	@helm lint apps/$(APP_NAME)/deploy/helm -f apps/$(APP_NAME)/deploy/helm/$(HELM_VALUES)
-	@echo "Lint complete"
-
-helm-validate:
-	@echo "Validating Helm chart (dry-run)..."
-	@echo "Using values file: apps/$(APP_NAME)/deploy/helm/$(HELM_VALUES)"
-	@helm template $(HELM_RELEASE_NAME) apps/$(APP_NAME)/deploy/helm \
-		-f apps/$(APP_NAME)/deploy/helm/$(HELM_VALUES) \
-		--namespace $(APP_NAME)
+	@$(MAKE) destroy-app APP_NAME=$(@:destroy-%=%)

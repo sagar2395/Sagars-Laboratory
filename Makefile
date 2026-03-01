@@ -7,13 +7,14 @@ PROFILE ?= k3d
 CLUSTER_NAME ?= sagars-cluster
 APP_NAME ?= go-api
 HELM_RELEASE_NAME ?= go-api
-HELM_VALUES ?= values-windows-access.yaml # 
+HELM_VALUES ?= values-dev.yaml # 
 
 # Include domain targets
 include make/vars.mk
 include make/bootstrap.mk
 include make/runtime.mk
 include make/app.mk
+include make/platform.mk
 
 .PHONY: help setup-tools runtime-up runtime-down build run deploy \
         deploy undeploy helm-lint helm-validate

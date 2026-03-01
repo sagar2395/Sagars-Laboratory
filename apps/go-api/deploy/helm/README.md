@@ -42,10 +42,10 @@ From the repository root:
 
 ```bash
 # Basic installation with defaults
-helm install go-api apps/go-api/deploy/helm/go-api
+helm install go-api apps/go-api/deploy/helm
 
 # Or with custom values
-helm install go-api apps/go-api/deploy/helm/go-api -f custom-values.yaml
+helm install go-api apps/go-api/deploy/helm -f custom-values.yaml
 
 # Or using Make target (when implemented)
 make deploy-go-api PROFILE=k3d
