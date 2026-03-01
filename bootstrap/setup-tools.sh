@@ -21,76 +21,139 @@ NC='\033[0m' # No Color
 
 # Common functions for all profiles
 install_kubectl() {
-    echo -e "${YELLOW}Installing kubectl (${KUBECTL_VERSION})...${NC}"
+    echo -e "${YELLOW}Installing kubectl (v${KUBECTL_VERSION})...${NC}"
     
     if command -v kubectl &> /dev/null; then
-        echo -e "${GREEN}kubectl is already installed${NC}"
-        kubectl version --client
-        return 0
+        current_version=$(kubectl version --client 2>/dev/null | grep "Client Version:" | awk '{print $NF}' | sed 's/v//')
+        if [ "$current_version" = "${KUBECTL_VERSION}" ]; then
+            echo -e "${GREEN}kubectl v${KUBECTL_VERSION} is already installed${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}kubectl is installed but version mismatch (current: v${current_version}, wanted: v${KUBECTL_VERSION})${NC}"
+        fi
     fi
     
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    echo "Downloading kubectl v${KUBECTL_VERSION}..."
+    curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
     chmod +x kubectl
     sudo mv kubectl /usr/local/bin/
-    kubectl version --client
-    echo -e "${GREEN}kubectl installed successfully${NC}"
+    
+    # Verify installation
+    installed_version=$(kubectl version --client 2>/dev/null | grep "Client Version:" | awk '{print $NF}' | sed 's/v//')
+    if [ "$installed_version" = "${KUBECTL_VERSION}" ]; then
+        echo -e "${GREEN}kubectl v${KUBECTL_VERSION} installed and verified${NC}"
+    else
+        echo -e "${RED}ERROR: kubectl version mismatch after install (got v${installed_version}, wanted v${KUBECTL_VERSION})${NC}"
+        exit 1
+    fi
 }
 
 # k3d-specific functions
 install_docker() {
-    echo -e "${YELLOW}Installing Docker...${NC}"
+    echo -e "${YELLOW}Installing Docker (v${DOCKER_VERSION})...${NC}"
     
     if command -v docker &> /dev/null; then
-        echo -e "${GREEN}Docker is already installed${NC}"
-        docker --version
-        return 0
+        current_version=$(docker --version 2>/dev/null | grep -oP 'version \K[^,]*')
+        if [ "$current_version" = "${DOCKER_VERSION}" ]; then
+            echo -e "${GREEN}Docker v${DOCKER_VERSION} is already installed${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}Docker is installed but version mismatch (current: v${current_version}, wanted: v${DOCKER_VERSION})${NC}"
+        fi
     fi
     
-    echo -e "${YELLOW}Please install Docker manually or uncomment the automated installation${NC}"
-    # Uncomment the line below to enable automated Docker installation
+    echo -e "${YELLOW}WARNING: Docker installation requires manual setup for version pinning.${NC}"
+    echo -e "${YELLOW}Please install Docker v${DOCKER_VERSION} manually from: https://docs.docker.com/engine/install/${NC}"
+    echo -e "${YELLOW}Or uncomment automated installation below (will install latest)${NC}"
     # curl -fsSL https://get.docker.com | sh
     
-    echo -e "${RED}Docker installation skipped. Please install manually.${NC}"
+    echo -e "${RED}Docker installation skipped.${NC}"
 }
 
 install_k3d() {
-    echo -e "${YELLOW}Installing k3d (${K3D_VERSION})...${NC}"
+    echo -e "${YELLOW}Installing k3d (v${K3D_VERSION})...${NC}"
     
     if command -v k3d &> /dev/null; then
-        echo -e "${GREEN}k3d is already installed${NC}"
-        k3d version
-        return 0
+        current_version=$(k3d version 2>/dev/null | grep -oP 'k3d version v\K[^-]*')
+        if [ "$current_version" = "${K3D_VERSION}" ]; then
+            echo -e "${GREEN}k3d v${K3D_VERSION} is already installed${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}k3d is installed but version mismatch (current: v${current_version}, wanted: v${K3D_VERSION})${NC}"
+        fi
     fi
     
-    curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-    echo -e "${GREEN}k3d installed successfully${NC}"
+    echo "Downloading k3d v${K3D_VERSION}..."
+    curl -Lo /tmp/k3d "https://github.com/k3d-io/k3d/releases/download/v${K3D_VERSION}/k3d-linux-amd64"
+    chmod +x /tmp/k3d
+    sudo mv /tmp/k3d /usr/local/bin/
+    
+    # Verify installation
+    installed_version=$(k3d version 2>/dev/null | grep -oP 'k3d version v\K[^-]*')
+    if [ "$installed_version" = "${K3D_VERSION}" ]; then
+        echo -e "${GREEN}k3d v${K3D_VERSION} installed and verified${NC}"
+    else
+        echo -e "${RED}ERROR: k3d version mismatch after install (got v${installed_version}, wanted v${K3D_VERSION})${NC}"
+        exit 1
+    fi
 }
 
 install_helm() {
-    echo -e "${YELLOW}Installing Helm (${HELM_VERSION})...${NC}"
+    echo -e "${YELLOW}Installing Helm (v${HELM_VERSION})...${NC}"
     
     if command -v helm &> /dev/null; then
-        echo -e "${GREEN}Helm is already installed${NC}"
-        helm version
-        return 0
+        current_version=$(helm version --short 2>/dev/null | grep -oP 'v\K[^+]*')
+        if [ "$current_version" = "${HELM_VERSION}" ]; then
+            echo -e "${GREEN}Helm v${HELM_VERSION} is already installed${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}Helm is installed but version mismatch (current: v${current_version}, wanted: v${HELM_VERSION})${NC}"
+        fi
     fi
     
-    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-    echo -e "${GREEN}Helm installed successfully${NC}"
+    echo "Downloading Helm v${HELM_VERSION}..."
+    cd /tmp
+    curl -Lo helm.tar.gz "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz"
+    tar -xzf helm.tar.gz
+    sudo mv linux-amd64/helm /usr/local/bin/
+    rm -rf helm.tar.gz linux-amd64
+    cd - > /dev/null
+    
+    # Verify installation
+    installed_version=$(helm version --short 2>/dev/null | grep -oP 'v\K[^+]*')
+    if [ "$installed_version" = "${HELM_VERSION}" ]; then
+        echo -e "${GREEN}Helm v${HELM_VERSION} installed and verified${NC}"
+    else
+        echo -e "${RED}ERROR: Helm version mismatch after install (got v${installed_version}, wanted v${HELM_VERSION})${NC}"
+        exit 1
+    fi
 }
 
 # AKS-specific functions
 install_az_cli() {
-    echo -e "${YELLOW}Installing Azure CLI (${AZ_CLI_VERSION})...${NC}"
+    echo -e "${YELLOW}Installing Azure CLI (v${AZ_CLI_VERSION})...${NC}"
     
     if command -v az &> /dev/null; then
-        echo -e "${GREEN}Azure CLI is already installed${NC}"
-        az --version
-        return 0
+        current_version=$(az --version 2>/dev/null | head -1 | awk '{print $NF}')
+        if [ "$current_version" = "${AZ_CLI_VERSION}" ]; then
+            echo -e "${GREEN}Azure CLI v${AZ_CLI_VERSION} is already installed${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}Azure CLI is installed but version mismatch (current: v${current_version}, wanted: v${AZ_CLI_VERSION})${NC}"
+        fi
     fi
     
+    echo "Installing Azure CLI v${AZ_CLI_VERSION}..."
     curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-    echo -e "${GREEN}Azure CLI installed successfully${NC}"
+    
+    # Verify installation
+    installed_version=$(az --version 2>/dev/null | head -1 | awk '{print $NF}')
+    if [ "$installed_version" = "${AZ_CLI_VERSION}" ]; then
+        echo -e "${GREEN}Azure CLI v${AZ_CLI_VERSION} installed and verified${NC}"
+    else
+        echo -e "${YELLOW}WARNING: Azure CLI version mismatch (got v${installed_version}, wanted v${AZ_CLI_VERSION})${NC}"
+        echo -e "${YELLOW}This may be due to the installer only providing the latest stable version.${NC}"
+    fi
 }
 
 # Profile-specific installation functions
