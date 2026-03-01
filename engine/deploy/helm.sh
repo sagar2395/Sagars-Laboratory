@@ -29,9 +29,15 @@ case "${COMMAND}" in
     deploy)
         echo "Deploying ${APP_NAME} to ${NAMESPACE} namespace..."
         helm lint "${HELM_CHART_PATH}" > /dev/null || exit 1
+        # ensure namespace exists (kubectl apply is idempotent)
+        kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1 || true
+
+        # disable the chart's own namespace resource to avoid collision with
+        # --create-namespace or existing namespace
         helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_PATH}" \
             -f "${HELM_CHART_PATH}/${HELM_VALUES}" \
-            --namespace "${NAMESPACE}" --create-namespace
+            --namespace "${NAMESPACE}" --create-namespace \
+            --set namespace.create=false
         echo "";
         echo "✓ Deployment complete! Access the application:"
         echo "  - HTTP: http://${APP_NAME}.k3d.local"
