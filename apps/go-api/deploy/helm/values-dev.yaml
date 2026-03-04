@@ -42,3 +42,8 @@ env:
 
 podAnnotations:
   dev: "true"
+
+prometheus:
+  enabled: true
+  port: 8080
+  path: /metrics

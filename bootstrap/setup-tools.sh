@@ -171,7 +171,7 @@ install_k3d_profile() {
     install_k3d
     install_helm
     echo -e "${GREEN}Validating cluster details...${NC}"
-    kubectl cluster-info || echo -e "${YELLOW}Cluster info not available - run 'make cluster-up' first${NC}"
+    kubectl cluster-info || echo -e "${YELLOW}Cluster info not available - run 'make runtime-up' first${NC}"
     echo -e "${GREEN}========== K3D Profile Complete ==========${NC}\n"
 }
 
