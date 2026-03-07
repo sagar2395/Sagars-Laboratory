@@ -1,0 +1,35 @@
+# Sagars-Laboratory
+
+## IDE & local files
+.env
+.DS_Store
+*.swp
+*.swo
+*~
+
+## Go
+bin/
+cmd/labctl/labctl
+*.exe
+
+## Node / UI
+ui/node_modules/
+ui/dist/*
+!ui/dist/index.html
+ui/.env.local
+
+## Embedded UI in CLI (copied at build time)
+cmd/labctl/ui/dist/*
+!cmd/labctl/ui/dist/.gitkeep
+
+## Terraform
+foundation/terraform/**/.terraform/
+foundation/terraform/**/*.tfstate
+foundation/terraform/**/*.tfstate.backup
+foundation/terraform/**/.terraform.lock.hcl
+
+## Docker
+*.tar
+
+## OS
+Thumbs.db

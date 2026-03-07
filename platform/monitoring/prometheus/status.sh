@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 NAMESPACE="monitoring"
 
@@ -24,5 +25,5 @@ kubectl get ingress -n $NAMESPACE
 
 echo ""
 echo "Prometheus metrics endpoint:"
-echo "  - External: http://prometheus.k3d.local"
+echo "  - External: http://prometheus.${DOMAIN_SUFFIX:-k3d.local}"
 echo "  - Internal: http://prometheus-kube-prometheus-prometheus.$NAMESPACE.svc.cluster.local:9090"

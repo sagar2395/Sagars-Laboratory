@@ -7,7 +7,7 @@
 # All other variables (release name, values file, namespace) are read
 # from apps/<app-name>/app.env so that makefiles can stay generic.
 
-set -eu
+set -euo pipefail
 
 COMMAND="${1:?Error: COMMAND not provided (deploy|destroy|lint|validate)}"
 APP_NAME="${2:?Error: APP_NAME not provided}"
@@ -40,8 +40,8 @@ case "${COMMAND}" in
             --set namespace.create=false
         echo "";
         echo "✓ Deployment complete! Access the application:"
-        echo "  - HTTP: http://${APP_NAME}.k3d.local"
-        echo "  - Metrics: http://${APP_NAME}.k3d.local/metrics"
+        echo "  - HTTP: http://${APP_NAME}.${DOMAIN_SUFFIX:-k3d.local}"
+        echo "  - Metrics: http://${APP_NAME}.${DOMAIN_SUFFIX:-k3d.local}/metrics"
         echo "";
         echo "View deployment status:";
         echo "  kubectl get deployments -n ${NAMESPACE}";

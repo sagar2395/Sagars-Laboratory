@@ -1,6 +1,5 @@
-#!/bin/bash
-
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 NAMESPACE="monitoring"
 
@@ -28,6 +27,6 @@ kubectl apply -f "$(dirname "$0")/ingress.yaml"
 
 echo "✓ Prometheus Stack installed successfully"
 echo ""
-echo "Access Prometheus at: http://prometheus.k3d.local (via Traefik ingress)"
+echo "Access Prometheus at: http://prometheus.${DOMAIN_SUFFIX:-k3d.local} (via Traefik ingress)"
 echo "Namespace: $NAMESPACE"
 echo "Status: kubectl get pods -n $NAMESPACE"

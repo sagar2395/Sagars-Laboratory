@@ -1,6 +1,5 @@
-#!/bin/bash
-
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 # Load versions from versions.env
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -132,7 +131,7 @@ install_helm() {
 # AKS-specific functions
 install_az_cli() {
     echo -e "${YELLOW}Installing Azure CLI (v${AZ_CLI_VERSION})...${NC}"
-    
+
     if command -v az &> /dev/null; then
         current_version=$(az --version 2>/dev/null | head -1 | awk '{print $NF}')
         if [ "$current_version" = "${AZ_CLI_VERSION}" ]; then
@@ -142,10 +141,10 @@ install_az_cli() {
             echo -e "${YELLOW}Azure CLI is installed but version mismatch (current: v${current_version}, wanted: v${AZ_CLI_VERSION})${NC}"
         fi
     fi
-    
+
     echo "Installing Azure CLI v${AZ_CLI_VERSION}..."
     curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-    
+
     # Verify installation
     installed_version=$(az --version 2>/dev/null | head -1 | awk '{print $NF}')
     if [ "$installed_version" = "${AZ_CLI_VERSION}" ]; then
@@ -153,6 +152,60 @@ install_az_cli() {
     else
         echo -e "${YELLOW}WARNING: Azure CLI version mismatch (got v${installed_version}, wanted v${AZ_CLI_VERSION})${NC}"
         echo -e "${YELLOW}This may be due to the installer only providing the latest stable version.${NC}"
+    fi
+}
+
+# EKS-specific functions
+install_aws_cli() {
+    echo -e "${YELLOW}Installing AWS CLI (v${AWS_CLI_VERSION:-2})...${NC}"
+
+    if command -v aws &> /dev/null; then
+        current_version=$(aws --version 2>/dev/null | awk '{print $1}' | cut -d/ -f2)
+        echo -e "${YELLOW}AWS CLI v${current_version} is already installed${NC}"
+        return 0
+    fi
+
+    echo "Downloading AWS CLI v2..."
+    cd /tmp
+    curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+    unzip -qo awscliv2.zip
+    sudo ./aws/install --update
+    rm -rf awscliv2.zip aws
+    cd - > /dev/null
+
+    installed_version=$(aws --version 2>/dev/null | awk '{print $1}' | cut -d/ -f2)
+    echo -e "${GREEN}AWS CLI v${installed_version} installed${NC}"
+}
+
+# Terraform (used by AKS and EKS cloud runtimes)
+install_terraform() {
+    echo -e "${YELLOW}Installing Terraform (v${TERRAFORM_VERSION:-1.7.0})...${NC}"
+    local tf_version="${TERRAFORM_VERSION:-1.7.0}"
+
+    if command -v terraform &> /dev/null; then
+        current_version=$(terraform version -json 2>/dev/null | grep -o '"terraform_version":"[^"]*"' | cut -d'"' -f4)
+        if [ "$current_version" = "$tf_version" ]; then
+            echo -e "${GREEN}Terraform v${tf_version} is already installed${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}Terraform is installed (v${current_version}), wanted v${tf_version}${NC}"
+        fi
+    fi
+
+    echo "Downloading Terraform v${tf_version}..."
+    cd /tmp
+    curl -sLO "https://releases.hashicorp.com/terraform/${tf_version}/terraform_${tf_version}_linux_amd64.zip"
+    unzip -qo "terraform_${tf_version}_linux_amd64.zip"
+    sudo mv terraform /usr/local/bin/
+    rm -f "terraform_${tf_version}_linux_amd64.zip"
+    cd - > /dev/null
+
+    installed_version=$(terraform version -json 2>/dev/null | grep -o '"terraform_version":"[^"]*"' | cut -d'"' -f4)
+    if [ "$installed_version" = "$tf_version" ]; then
+        echo -e "${GREEN}Terraform v${tf_version} installed and verified${NC}"
+    else
+        echo -e "${RED}ERROR: Terraform version mismatch after install${NC}"
+        exit 1
     fi
 }
 
@@ -178,8 +231,19 @@ install_k3d_profile() {
 install_aks_profile() {
     echo -e "${GREEN}========== Installing AKS Profile ==========${NC}"
     install_common
+    install_helm
+    install_terraform
     install_az_cli
     echo -e "${GREEN}========== AKS Profile Complete ==========${NC}\n"
+}
+
+install_eks_profile() {
+    echo -e "${GREEN}========== Installing EKS Profile ==========${NC}"
+    install_common
+    install_helm
+    install_terraform
+    install_aws_cli
+    echo -e "${GREEN}========== EKS Profile Complete ==========${NC}\n"
 }
 
 # Help function
@@ -188,14 +252,16 @@ show_help() {
 Usage: setup-tools.sh [PROFILE]
 
 Available profiles:
-  k3d       - Install tools for local k3d cluster setup (kubectl, docker, k3d)
-  aks       - Install tools for Azure AKS cluster setup (kubectl, azure-cli)
+  k3d       - Install tools for local k3d cluster (kubectl, docker, k3d, helm)
+  aks       - Install tools for Azure AKS cluster (kubectl, helm, terraform, az-cli)
+  eks       - Install tools for AWS EKS cluster (kubectl, helm, terraform, aws-cli)
   common    - Install common tools only (kubectl)
-  all       - Install all tools for both profiles
+  all       - Install all tools for all profiles
 
 Examples:
   ./setup-tools.sh k3d
   ./setup-tools.sh aks
+  ./setup-tools.sh eks
   ./setup-tools.sh common
   ./setup-tools.sh all
 
@@ -218,12 +284,16 @@ main() {
         aks)
             install_aks_profile
             ;;
+        eks)
+            install_eks_profile
+            ;;
         common)
             install_common
             ;;
         all)
             install_k3d_profile
             install_aks_profile
+            install_eks_profile
             ;;
         help|--help|-h)
             show_help
