@@ -1,9 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 # Docker Build and Import Script
 # Usage: docker.sh <app-name> [--import] [--cluster-name] [--profile]
-
-set -e
 
 APP_NAME="${1:?Error: APP_NAME not provided}"
 
@@ -28,7 +27,7 @@ if [ "${PROFILE}" == "k3d" ]; then
     if k3d image list -c "${CLUSTER_NAME}" 2>/dev/null | grep -q "^${APP_NAME}:latest"; then
         need_import=false
     fi
-    if [ "$2" == "--import" ]; then
+    if [ "${2:-}" == "--import" ]; then
         need_import=true
     fi
 

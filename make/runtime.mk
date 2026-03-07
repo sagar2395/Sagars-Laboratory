@@ -1,7 +1,18 @@
+# Runtime management — dispatches to the correct runtime based on PROFILE
+# Supported profiles: k3d (local), aks (Azure), eks (AWS)
+
 runtime-up:
-	@echo "Creating k3d cluster..."
-	@bash runtimes/k3d/up.sh $(CLUSTER_NAME)
+	@echo "Creating $(PROFILE) cluster '$(CLUSTER_NAME)'..."
+	@bash runtimes/$(PROFILE)/up.sh $(CLUSTER_NAME)
 
 runtime-down:
-	@echo "Shutting down k3d cluster..."
-	@bash runtimes/k3d/down.sh
+	@echo "Shutting down $(PROFILE) cluster..."
+	@bash runtimes/$(PROFILE)/down.sh $(CLUSTER_NAME)
+
+runtime-status:
+	@echo "Runtime: $(PROFILE)"
+	@echo "Cluster: $(CLUSTER_NAME)"
+	@echo ""
+	@kubectl cluster-info 2>/dev/null || echo "Cluster not reachable"
+	@echo ""
+	@kubectl get nodes -o wide 2>/dev/null || true

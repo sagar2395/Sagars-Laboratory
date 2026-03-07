@@ -1,6 +1,5 @@
-#!/bin/bash
-
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 NAMESPACE="monitoring"
 SCRIPT_DIR="$(dirname "$0")"
@@ -32,7 +31,7 @@ kubectl rollout status deployment/grafana -n $NAMESPACE --timeout=120s || true
 
 echo "✓ Grafana installed successfully"
 echo ""
-echo "Access Grafana at: http://grafana.k3d.local"
+echo "Access Grafana at: http://grafana.${DOMAIN_SUFFIX:-k3d.local}"
 echo "Default credentials: admin / $GRAFANA_ADMIN_PASSWORD"
 echo "Namespace: $NAMESPACE"
 echo "Status: kubectl get pods -n $NAMESPACE"
