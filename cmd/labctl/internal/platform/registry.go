@@ -74,6 +74,19 @@ func (r *Registry) Install(category, name string, exec *executor.Executor) error
 	return exec.RunScript(scriptPath)
 }
 
+// InstallStreamed runs install.sh for a provider with output streaming.
+func (r *Registry) InstallStreamed(category, name string, exec *executor.Executor) error {
+	p, err := r.GetProvider(category, name)
+	if err != nil {
+		return err
+	}
+	scriptPath, err := filepath.Rel(r.ProjectRoot, filepath.Join(p.Path, "install.sh"))
+	if err != nil {
+		return err
+	}
+	return exec.RunScriptStreamed(fmt.Sprintf("Install %s/%s", category, name), scriptPath)
+}
+
 // Uninstall runs the uninstall.sh for a provider.
 func (r *Registry) Uninstall(category, name string, exec *executor.Executor) error {
 	p, err := r.GetProvider(category, name)
@@ -89,6 +102,23 @@ func (r *Registry) Uninstall(category, name string, exec *executor.Executor) err
 		return err
 	}
 	return exec.RunScript(scriptPath)
+}
+
+// UninstallStreamed runs uninstall.sh for a provider with output streaming.
+func (r *Registry) UninstallStreamed(category, name string, exec *executor.Executor) error {
+	p, err := r.GetProvider(category, name)
+	if err != nil {
+		return err
+	}
+	script := filepath.Join(p.Path, "uninstall.sh")
+	if _, err := os.Stat(script); os.IsNotExist(err) {
+		return fmt.Errorf("uninstall.sh not found for %s/%s", category, name)
+	}
+	scriptPath, err := filepath.Rel(r.ProjectRoot, script)
+	if err != nil {
+		return err
+	}
+	return exec.RunScriptStreamed(fmt.Sprintf("Uninstall %s/%s", category, name), scriptPath)
 }
 
 // Status runs the status.sh for a provider.

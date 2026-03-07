@@ -31,6 +31,8 @@ spec:
                 - traefik
                 - monitoring
                 - cert-manager
+                - argocd
+                - kubernetes-dashboard
       validate:
         message: "Privileged containers are not allowed."
         pattern:
@@ -68,6 +70,8 @@ spec:
                 - kyverno
                 - cert-manager
                 - sealed-secrets
+                - argocd
+                - kubernetes-dashboard
       validate:
         message: "Pods must have 'app.kubernetes.io/name' label."
         pattern:
@@ -106,6 +110,8 @@ spec:
                 - monitoring
                 - cert-manager
                 - sealed-secrets
+                - argocd
+                - kubernetes-dashboard
       validate:
         message: "Containers should not run as root. Set securityContext.runAsNonRoot to true."
         pattern:
@@ -141,6 +147,8 @@ spec:
               namespaces:
                 - kube-system
                 - monitoring
+                - argocd
+                - kubernetes-dashboard
       validate:
         message: "HostPath volumes are not allowed."
         pattern:
@@ -176,6 +184,8 @@ spec:
                 - kube-system
                 - kyverno
                 - cert-manager
+                - argocd
+                - kubernetes-dashboard
       validate:
         message: "Containers must have CPU and memory resource limits defined."
         pattern:
@@ -215,6 +225,8 @@ spec:
                 - kyverno
                 - cert-manager
                 - sealed-secrets
+                - argocd
+                - kubernetes-dashboard
       validate:
         message: "Using ':latest' tag is discouraged. Specify an explicit image tag."
         pattern:

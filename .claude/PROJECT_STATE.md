@@ -1,20 +1,88 @@
 # Project State: Sagars-Laboratory
 
 > Last updated: 2026-03-07
-> Branch: `feature/experiment`
-> Status: All 6 phases complete + hardening round + polishing round. Tests, go:embed, GitHub Actions workflows, cloud Helm values, Terraform backends all done.
+> Branch: `feature/experiment-2`
+> Status: All 6 phases complete + hardening + polishing + documentation + operational testing round. Active testing and bug-fixing of UI-driven workflows.
 
-## Session Update (2026-03-07)
+## Session Update (2026-03-07) — Operational Testing & Bug Fixes
 
-- Fixed `echo-server` readiness failures caused by unresolved Redis DNS in clusters where Redis service is not installed.
-- Root cause: Helm defaults forced `REDIS_URL=redis://redis-master.services.svc.cluster.local:6379`, but no `services` namespace/service existed at runtime.
-- Applied fix: `REDIS_URL` now defaults to empty in echo-server Helm values so Redis stays optional and `/ready` passes when Redis is absent.
-- Updated files:
-  - `apps/echo-server/deploy/helm/values.yaml`
-  - `apps/echo-server/deploy/helm/values-dev.yaml`
-  - `apps/echo-server/deploy/helm/values-cloud.yaml`
-  - `apps/echo-server/app.env` (clarifying comment)
-- Verified: redeployed `echo-server`; new pod started with `redis=false`, env showed empty `REDIS_URL`, pod reached `1/1` ready.
+Two sessions of intensive testing and fixing real-world issues discovered while using the labctl UI.
+
+### Round 1: 9 Issues Fixed
+
+1. **Scenarios not activating (Issue 1 & 5)** — `engine.go` was using non-streamed execution (`RunHelm`, `RunKubectl`, `RunScript`). Switched ALL component operations to streamed equivalents (`RunCommandStreamed`, `RunScriptStreamed`) so events reach the UI via WebSocket. Added `Description` and `Runtimes` to `ScenarioStatus` struct.
+
+2. **Platform components Install/Remove buttons (Issue 2)** — Made buttons conditional on component `active` state in both UI files.
+
+3. **Traefik & ArgoCD dashboard URLs (Issue 3)** — ArgoCD URL fixed from `https://` to `http://`. Traefik IngressRoute created for dashboard access at `traefik.<domain>/dashboard/`.
+
+4. **Logging & Tracing platform components (Issue 4)** — Created `platform/logging/loki/` (install, uninstall, status, values, promtail-values) and `platform/tracing/tempo/` (install, uninstall, status, values). Added Loki + Tempo datasources to Grafana values.yaml.
+
+5. **K8s Dashboard install (Issue 6)** — Kubernetes Dashboard project archived (`kubernetes-retired`). Both Helm repo (404) and OCI registry (403) broken. Switched to direct tarball install from GitHub release: `kubernetes-dashboard-7.14.0.tgz`. Disabled Kong proxy TLS for HTTP ingress compatibility with Traefik.
+
+6. **Runtimes dropdown (Issue 7)** — Created `cmd/labctl/internal/runtime/manager.go` with `ClusterName` field, `List()`, `Activate()`, `Deactivate()`. Fixed `expectedContext` to use `"k3d-" + clusterName`. Replaced slow `kubectl cluster-info` with local `config get-contexts` check.
+
+7. **Platform card width (Issue 8)** — Made platform card full-width in UI.
+
+8. **Log Aggregation in UI (Issue 9)** — Added `openAppLogs()` function with Grafana Explore deep-links for Loki/Tempo. Added "Logs" button to app rows.
+
+9. **Config propagation** — Added `exec.SetEnv()` in `root.go` for `CLUSTER_NAME`, `DOMAIN_SUFFIX`, `HTTP_PORT`, `HTTPS_PORT`, `INGRESS_CLASS`, `STORAGE_CLASS`, `PROFILE`. All child scripts now reliably receive config values.
+
+### Round 2: Post-Testing Fixes
+
+1. **K8s Dashboard 404** — Disabled Kong proxy TLS (`kong.proxy.tls.enabled: false` in values.yaml). Fixed ingress: replaced deprecated `kubernetes.io/ingress.class` annotation with `spec.ingressClassName: traefik`, removed TLS section, switched to port 80.
+
+2. **ArgoCD blocked by Kyverno** — Added `argocd` and `kubernetes-dashboard` to ALL 6 Kyverno ClusterPolicy exclusion lists in `scenarios/security-compliance/manifests/kyverno-policies.yaml`.
+
+3. **Scenario status race condition** — Added explicit success/failure `action_end` broadcasts in `handleScenarioUp`/`handleScenarioDown` (handlers.go). Root cause: `Up()` calls `markActive()` at the end, but the last component's streamed event fires BEFORE `markActive()`, so the UI refresh still saw inactive.
+
+4. **Grafana persistent 404** — Root cause: `DOMAIN_SUFFIX` not reaching install scripts. Fixed by removing dead `.active-runtime.env` sourcing, using executor-provided env vars, and adding dynamic `--set "ingress.hosts[0]=grafana.${DOMAIN_SUFFIX}"`.
+
+5. **Prometheus persistent 404** — Root cause: static `ingress.yaml` with hardcoded `prometheus.k3d.local`. Replaced with inline heredoc in install.sh using `$DOMAIN_SUFFIX` variable.
+
+6. **Traefik IngressClass conflict** — k3d bundles Traefik in `kube-system` with `HelmChart` CRD that re-creates it after deletion. Fix: (a) Disable bundled Traefik at cluster creation with `--k3s-arg "--disable=traefik@server:*"`, (b) Added cleanup of `HelmChart`/`HelmChartConfig` CRDs in install script for existing clusters.
+
+7. **Tempo/Loki race condition** — Added stuck release cleanup (detect `pending-` state, delete before install) to both install scripts.
+
+8. **Cluster name consistency** — `up.sh`/`down.sh` now use `${1:-${CLUSTER_NAME:-sagars-cluster}}`. `Manager.Activate()`/`Deactivate()` pass `m.ClusterName` as argument.
+
+### Files Changed
+
+**Go source (cmd/labctl/):**
+- `cmd/root.go` — Config propagation via `exec.SetEnv()`
+- `cmd/ui.go` — (previously updated)
+- `internal/api/handlers.go` — DomainSuffix in response, logging/tracing detection, success broadcasts, URL fixes
+- `internal/api/server.go` — (previously updated)
+- `internal/executor/executor.go` — (previously updated)
+- `internal/executor/broadcast.go` — NEW: WebSocket event broadcaster
+- `internal/k8s/client.go` — Added `ServiceExists()` helper
+- `internal/platform/registry.go` — Added `InstallStreamed`/`UninstallStreamed` methods
+- `internal/runtime/manager.go` — NEW: Runtime manager with cluster name support
+- `internal/scenario/engine.go` — Streamed execution, Description/Runtimes fields
+
+**Platform scripts:**
+- `platform/ingress/traefik/install.sh` — HelmChart CRD cleanup, `--force-update`, `--wait`, IngressRoute
+- `platform/monitoring/prometheus/install.sh` — Dynamic ingress via heredoc, `--force-update`, `--wait`
+- `platform/monitoring/grafana/install.sh` — Removed `.active-runtime.env` dependency, dynamic ingress host
+- `platform/monitoring/grafana/values.yaml` — Added Loki + Tempo datasources
+- `platform/dashboard/kubernetes-dashboard/install.sh` — Direct tarball install, HTTP ingress
+- `platform/dashboard/kubernetes-dashboard/values.yaml` — `kong.proxy.tls.enabled: false`
+- `platform/logging/loki/` — NEW: install.sh, uninstall.sh, status.sh, values.yaml, promtail-values.yaml
+- `platform/tracing/tempo/` — NEW: install.sh, uninstall.sh, status.sh, values.yaml
+
+**Runtime scripts:**
+- `runtimes/k3d/up.sh` — `--disable=traefik`, cluster name from env, skip-if-exists
+- `runtimes/k3d/down.sh` — Target specific cluster, cluster name from env
+
+**Scenario manifests:**
+- `scenarios/security-compliance/manifests/kyverno-policies.yaml` — Added argocd + kubernetes-dashboard exclusions
+
+**UI:**
+- `ui/dist/index.html` — Full-width platform card, conditional buttons, Grafana deep-links, Logs button
+- `cmd/labctl/ui/dist/index.html` — Same changes (embedded copy)
+
+**Config:**
+- `.env` — Added `LOGGING_PROVIDER=loki`, `TRACING_PROVIDER=tempo`
 
 ---
 
@@ -29,212 +97,65 @@ A Kubernetes-based homelab for testing Platform Engineering and DevOps scenarios
 ### 1. Cluster Runtimes (`runtimes/`)
 - **k3d** (`runtimes/k3d/`) — Local Kubernetes with 2 agent nodes
   - Port mapping: host 80 -> LB 80, host 443 -> LB 443
-  - `up.sh`, `down.sh`, `runtime.env` (INGRESS_CLASS=traefik, STORAGE_CLASS=local-path, DOMAIN_SUFFIX=k3d.local)
+  - Bundled Traefik disabled (`--disable=traefik`) — managed separately via platform install
+  - `up.sh` (creates cluster with env-driven name/ports, skips if exists), `down.sh` (deletes specific cluster), `runtime.env`
 - **AKS** (`runtimes/aks/`) — Azure Kubernetes Service via Terraform
-  - `up.sh` (az login check, resource group, terraform apply, get-credentials)
-  - `down.sh` (terraform destroy or direct az aks delete)
-  - `runtime.env` (INGRESS_CLASS=nginx, STORAGE_CLASS=managed-csi, DOMAIN_SUFFIX=sagarslab.io, REGISTRY_TYPE=acr)
 - **EKS** (`runtimes/eks/`) — AWS Elastic Kubernetes Service via Terraform
-  - `up.sh` (aws sts check, terraform apply, update-kubeconfig)
-  - `down.sh` (terraform destroy or eksctl delete)
-  - `runtime.env` (INGRESS_CLASS=nginx, STORAGE_CLASS=gp3, DOMAIN_SUFFIX=sagarslab.io, REGISTRY_TYPE=ecr)
 
 ### 2. Tool Bootstrap (`bootstrap/`)
 - `setup-tools.sh` — installs tools with version pinning per profile
-- Profiles: `k3d`, `aks`, `eks`, `common`, `all`
-- All versions pinned in `versions.env`:
-  - kubectl 1.29.3, k3d 5.8.3, docker 29.2.1, helm 3.14.0, az-cli 2.57.0, terraform 1.7.0, aws-cli 2
 
-### 3. Application: go-api (`apps/go-api/`)
-- **Language**: Go 1.24, standard library + Prometheus client + OpenTelemetry
-- **Endpoints**: `/health`, `/ready`, `/metrics`, `/toggle-failure`, `/` (service info)
-- **Features**: Graceful shutdown, structured JSON logging (slog), optional OTel tracing
-- **Container**: Multi-stage Dockerfile (golang:1.24-alpine -> alpine:latest)
-- **Config**: `app.env` — BUILD_STRATEGY=docker, DEPLOY_STRATEGY=helm
+### 3. Applications (`apps/`)
+- **go-api** — Go 1.24, Prometheus + OpenTelemetry, multi-stage Docker build
+- **echo-server** — Go 1.24, Redis (optional), Prometheus metrics, multi-stage Docker build
 
-### 4. Application: echo-server (`apps/echo-server/`)
-- **Language**: Go 1.24, standard library + Prometheus client + Redis client
-- **Endpoints**: `/health`, `/ready` (Redis check), `/echo` (request details), `/cache` (GET/POST/DELETE with Redis), `/metrics`
-- **Features**: Structured JSON logging (slog), Prometheus labeled metrics, graceful shutdown
-- **Dependencies**: Redis (optional, via REDIS_URL env var)
-- **Container**: Multi-stage Dockerfile (golang:1.24-alpine -> alpine:latest)
-- **Config**: `app.env` — BUILD_STRATEGY=docker, DEPLOY_STRATEGY=helm
-- **Helm chart**: 7 templates, Redis optional by default (`REDIS_URL: ""` in values files)
+### 4. Helm Charts (`apps/*/deploy/helm/`)
+- Both charts: v0.1.0, PDB templates, multi-profile values (dev, prod-like, cloud, test)
 
-### 5. Helm Charts (`apps/*/deploy/helm/`)
-- **go-api chart**: v0.1.0, 10 templates (added pdb.yaml)
-- **echo-server chart**: v0.1.0, 8 templates (added pdb.yaml)
-- **Value profiles**: values-dev.yaml, values-prod-like.yaml, values-cloud.yaml, values-test.yaml, values.yaml
+### 5. Engine Layer (`engine/`)
+- Strategy pattern for build (docker, acr, ecr) and deploy (helm)
 
-### 6. Engine Layer (`engine/`)
-- **Strategy pattern** for build and deploy
-- `build.sh` -> loads `app.env` -> dispatches to `engine/build/<strategy>.sh`
-- `deploy.sh` -> loads `app.env` -> dispatches to `engine/deploy/<strategy>.sh`
-- **Build strategies**: `docker.sh` (build + k3d import), `acr.sh` (build + Azure ACR push), `ecr.sh` (build + AWS ECR push)
-- **Deploy strategies**: `helm.sh` (install/upgrade/destroy/lint/validate)
+### 6. Platform Components (`platform/`)
+- **Ingress**: Traefik (with IngressRoute dashboard, k3d cleanup), Nginx
+- **Monitoring**: Prometheus (dynamic ingress), Grafana (dynamic ingress, Loki+Tempo datasources)
+- **Logging**: Loki + Promtail (stuck release cleanup)
+- **Tracing**: Tempo (stuck release cleanup)
+- **Dashboard**: Kubernetes Dashboard (direct tarball install from kubernetes-retired, HTTP via Kong)
+- **GitOps**: ArgoCD
+- **Security**: Kyverno, cert-manager, Sealed Secrets, Network Policies
+- **Chaos**: Chaos Mesh
 
-### 7. Platform: Ingress (`platform/ingress/`)
-- **Traefik** (`traefik/`) via Helm chart — LoadBalancer service type, API dashboard enabled
-  - install.sh, uninstall.sh, status.sh, values.yaml
-- **Nginx** (`nginx/`) via ingress-nginx Helm chart — Alternative for cloud environments
-  - install.sh, uninstall.sh, status.sh, values.yaml
-  - ServiceMonitor for Prometheus, admission webhooks enabled
-
-### 8. Platform: Monitoring (`platform/monitoring/`)
-- **Prometheus** (kube-prometheus-stack): Operator, Node Exporter, Kube-State-Metrics, Alertmanager
-- **Grafana**: Auto-provisioned Prometheus datasource, dashboard sidecar, 5Gi PVC
-
-### 9. Platform: GitOps (`platform/gitops/argocd/`)
-- **ArgoCD** via Helm chart (argo/argo-cd)
-- install.sh, uninstall.sh, status.sh, values.yaml
-- Server config with Traefik ingress at argocd.k3d.local
-- Reduced replicas for local dev, insecure mode for HTTP
-
-### 10. Shared Services (`services/`)
-- **Redis** (`services/redis/`) — Bitnami Redis via Helm
-  - Standalone mode, no auth, 1Gi persistence
-  - install.sh, uninstall.sh, status.sh, values.yaml
-  - Namespace: services
-  - Connection: redis://redis-master.services.svc.cluster.local:6379
-
-### 11. Makefile System (`make/`)
-- **Modular includes**: vars.mk, bootstrap.mk, runtime.mk, app.mk, platform.mk, check.mk, cli.mk, services.mk, terraform.mk
-- **Lifecycle targets**: `init`, `teardown`, `reset`
-- **App targets**: build, deploy, destroy-app, lint, validate, deploy-all, destroy-all-apps
-- **Platform targets**: platform-up, platform-down, platform-status
-- **Service targets**: service-list, service-up, service-down, service-status
-- **CLI targets**: cli-build, cli-install, cli-tidy, cli-clean
-- **Terraform targets**: terraform-init, terraform-plan, terraform-apply, terraform-destroy, terraform-output, terraform-status
-
----
-
-### 12. Lab Controller CLI — `labctl` (`cmd/labctl/`)
+### 7. Lab Controller CLI — `labctl` (`cmd/labctl/`)
 - **Language**: Go 1.24, Cobra + Viper + Gorilla + yaml.v3
-- **Binary**: `bin/labctl` (built via `make cli-build`, ~15MB with embedded UI)
+- **Binary**: `bin/labctl` (~15MB with embedded UI)
 - **Commands**: init, teardown, reset, status, runtime (up/down/status), app (build/deploy/destroy/list), platform (up/down/status), check (tools/cluster/ingress), scenario (list/up/down/status/info), service (list/up/down/status), ui
 - **Internal packages**:
-  - `internal/config/` — loads .env, app.env, runtime.env via viper
-  - `internal/executor/` — wraps os/exec for script and command execution
-  - `internal/platform/` — provider registry, discovers platform components
-  - `internal/k8s/` — cluster info, app status, namespace checks via kubectl
-  - `internal/api/` — HTTP API server with REST + WebSocket for web UI, embedded FS support
-  - `internal/scenario/` — YAML-based scenario engine with helm/manifest/dashboard/script handlers
-  - `internal/services/` — service registry, discovers and manages shared services
-- **UI embedding**: `ui/embed.go` with `go:embed all:dist` — `make cli-build` copies `ui/dist/` before compile
-- **Tests**: 35 tests across 5 packages (config, executor, platform, scenario, services)
-- **Source files**: 25+ Go files (main.go, 10 cmd files, 6 internal packages, 5 test files, embed.go)
-- **Module**: `github.com/sagars-lab/labctl`
+  - `internal/config/` — loads .env, app.env, runtime.env; propagates to executor env
+  - `internal/executor/` — wraps os/exec, supports streamed output + WebSocket broadcasting
+  - `internal/executor/broadcast.go` — ActionEvent broadcaster for real-time UI updates
+  - `internal/platform/` — provider registry with streamed install/uninstall
+  - `internal/k8s/` — cluster info, app status, namespace/service existence checks
+  - `internal/api/` — HTTP API server with REST + WebSocket, DomainSuffix in status response
+  - `internal/runtime/` — runtime manager with cluster name, activate/deactivate with args
+  - `internal/scenario/` — YAML-based engine with streamed execution, success/failure broadcasts
+  - `internal/services/` — service registry
 
-### 13. Web UI Dashboard (`ui/dist/`)
-- **Functional HTML dashboard** served by `labctl ui` on port 3939
-- Dark theme, responsive grid layout
-- Cards: Cluster info, Platform components, Applications, Scenarios
-- REST API integration + WebSocket for real-time updates
+### 8. Web UI Dashboard (`ui/dist/`)
+- Dark theme, responsive grid layout, served by `labctl ui` on port 3939
+- Cards: Cluster info (with runtime selector), Platform components (full-width, conditional Install/Remove), Applications (with Logs deep-link), Scenarios (with status updates)
+- REST API integration + WebSocket for real-time streamed output
+- Grafana Explore deep-links for Loki (logs) and Tempo (traces)
 
-### 14. Scenario Framework (`scenarios/`)
-- **Engine**: `cmd/labctl/internal/scenario/engine.go`
-  - Component types: helm, manifest, grafana-dashboard, script
-  - Template resolution for `{{.DomainSuffix}}`, `{{.ProjectRoot}}`
-  - State tracking via `.labctl/scenarios/<name>.active`
-- **Observability SRE scenario**: `scenarios/observability-sre/`
-  - Loki, Promtail, Tempo, 6 PrometheusRule alerts, 2 Grafana dashboards
-- **GitOps CI/CD scenario**: `scenarios/gitops-cicd/`
-  - ArgoCD helm component, ArgoCD Application CRDs for go-api + echo-server
-- **Security Compliance scenario**: `scenarios/security-compliance/`
-  - Kyverno + cert-manager (helm), 6 Kyverno policies + network policies (manifests), security Grafana dashboard
-- **Chaos Engineering scenario**: `scenarios/chaos-engineering/`
-  - Chaos Mesh (helm), PodDisruptionBudgets + 8 chaos experiments (manifests), chaos Grafana dashboard
+### 9. Scenario Framework (`scenarios/`)
+- 4 scenarios: observability-sre, gitops-cicd, security-compliance, chaos-engineering
+- Kyverno policies exclude argocd + kubernetes-dashboard namespaces
+- Engine supports: helm, manifest, grafana-dashboard, script component types
+- Status includes Description and Runtimes fields
 
-### 15. CI/CD Templates & Workflows
-- **Templates** (`delivery/github-actions/`):
-  - `ci.yaml` — Build, test, lint, Helm lint workflow (template)
-  - `cd.yaml` — Deploy-on-push workflow (template)
-  - `helm-release.yaml` — Helm package and release workflow (template)
-- **Active Workflows** (`.github/workflows/`):
-  - `ci.yaml` — Multi-app CI: lint, test, build, Helm lint for go-api, echo-server, labctl CLI
-  - `cd.yaml` — Multi-app CD: auto-detect changed apps, build+push to GHCR, update manifests
-  - `helm-validation.yaml` — PR validation: discover and lint all Helm charts
-
-### 16. Platform: Security (`platform/security/`)
-- **Kyverno** (`policy/kyverno/`) — Policy enforcement engine
-  - install.sh, uninstall.sh, status.sh, values.yaml
-  - Admission, background, cleanup, reports controllers
-- **cert-manager** (`tls/cert-manager/`) — Certificate management
-  - install.sh, uninstall.sh, status.sh, values.yaml, cluster-issuer.yaml
-  - Self-signed ClusterIssuer + CA chain for lab certificates
-- **Sealed Secrets** (`secrets/sealed-secrets/`) — Encrypted secrets in Git
-  - install.sh, uninstall.sh, status.sh, values.yaml
-  - Prometheus ServiceMonitor enabled
-- **Network Policies** (`network-policies/`) — Namespace isolation
-  - install.sh, uninstall.sh, status.sh
-  - default-deny.yaml, allow-dns.yaml, allow-monitoring.yaml, allow-ingress.yaml
-  - Default deny all + explicit allows for DNS, Prometheus, Traefik, Redis
-
-### 17. Platform: Chaos (`platform/chaos/`)
-- **Chaos Mesh** (`chaos-mesh/`) — Failure injection engine
-  - install.sh, uninstall.sh, status.sh, values.yaml
-  - Controller manager, chaos daemon (containerd socket), dashboard
-  - ServiceMonitor for Prometheus integration
-  - Dashboard on port 2333 (via port-forward)
-
-### 18. Foundation: Terraform (`foundation/terraform/`)
-- **AKS module** (`modules/aks/`) — Azure Kubernetes Service
-  - `main.tf` — AKS cluster, Log Analytics, ACR, ACR pull role assignment
-  - `variables.tf` — cluster_name, resource_group, location, vm_size, node_count, autoscaling, ACR options
-  - `outputs.tf` — cluster_name, cluster_id, kube_config_raw, acr_login_server
-  - Uses azurerm provider ~> 3.80, Calico network policy, SystemAssigned identity
-- **EKS module** (`modules/eks/`) — AWS Elastic Kubernetes Service
-  - `main.tf` — VPC (2 public + 2 private subnets), IGW, NAT, route tables, IAM roles, EKS cluster, managed node group, ECR repos + lifecycle
-  - `variables.tf` — cluster_name, aws_region, vpc_cidr, instance_type, node_count, ECR options
-  - `outputs.tf` — cluster_name, endpoint, vpc_id, subnet_ids, ecr_repository_urls
-  - Uses aws provider ~> 5.30, image scanning on push, keep-last-10 lifecycle
-- **Environments** (`environments/`)
-  - `dev/main.tf` — Wires AKS or EKS module via `var.runtime` toggle, shared variables, runtime-agnostic outputs
-  - `staging/main.tf` — Larger nodes (B4ms/t3.large), autoscaling (3-8 nodes), separate ACR/ECR prefixes
-
-### 19. Makefile: Runtime Dispatch (`make/runtime.mk`)
-- `runtime-up` / `runtime-down` / `runtime-status` — dispatch to `runtimes/$(PROFILE)/` based on PROFILE env var
-- Works for k3d, aks, eks without changes
-
-### 20. Provider Interface Contracts (`_interface.yaml`)
-- 9 interface contract files documenting provider swappability:
-  - `platform/ingress/_interface.yaml` — ingress provider contract (traefik, nginx)
-  - `platform/monitoring/metrics/_interface.yaml` — metrics provider contract (prometheus, victoria-metrics)
-  - `platform/monitoring/grafana/_interface.yaml` — visualization provider contract
-  - `platform/chaos/_interface.yaml` — chaos engineering provider contract (chaos-mesh)
-  - `platform/gitops/_interface.yaml` — gitops provider contract (argocd)
-  - `platform/security/policy/_interface.yaml` — policy engine contract (kyverno)
-  - `platform/security/tls/_interface.yaml` — TLS certificate contract (cert-manager)
-  - `platform/security/secrets/_interface.yaml` — secrets management contract (sealed-secrets)
-  - `platform/security/network-policies/_interface.yaml` — network segmentation contract
-
-### 21. Helm Chart Test Templates
-- `apps/go-api/deploy/helm/templates/tests/test-connection.yaml` — HTTP /health endpoint test
-- `apps/echo-server/deploy/helm/templates/tests/test-connection.yaml` — HTTP /health endpoint test
-- Run with `helm test <release-name>`
-
-### 22. Security Hardening
-- Both Dockerfiles (go-api, echo-server) now run as non-root user (`appuser:appgroup`)
-- Helm values enforce `runAsNonRoot: true`, `runAsUser: 65534`, `readOnlyRootFilesystem: true`
-- All Linux capabilities dropped (`capabilities.drop: [ALL]`)
-
-### 23. Documentation (`docs/` + in-folder READMEs)
-- **Root** (`README.md`) — Project overview, quickstart guide, make targets, configuration, URLs
-- **Architecture** (`docs/architecture.md`) — Directory layout, strategy pattern, provider swappability, CLI architecture, naming conventions
-- **CLI Reference** (`docs/cli-reference.md`) — Full command tree with all subcommands, flags, and usage examples
-- **Scenarios Guide** (`docs/scenarios.md`) — How scenarios work, YAML format reference, all 4 scenarios documented
-- **Cloud Runtimes** (`docs/cloud-runtimes.md`) — AKS/EKS setup, Terraform modules, remote state, cost estimates
-- **CI/CD** (`docs/ci-cd.md`) — GitHub Actions workflows (CI, CD, Helm validation)
-- **Apps Guide** (`apps/README.md`) — App conventions, how to add new apps, endpoint reference
-- **Platform Guide** (`platform/README.md`) — Provider categories, swapping, interface contracts, adding new providers
-
----
-
-## What Is NOT Built Yet
-
-| Directory | Purpose | Status |
-|-----------|---------|--------|
-| `ui/` (full build) | React/Svelte frontend project | Placeholder HTML only (embedded via go:embed) |
+### 10. Config Flow
+- `.env` -> `runtimes/<profile>/runtime.env` -> `config.Load()` -> `exec.SetEnv()` -> child scripts
+- Key propagated vars: CLUSTER_NAME, DOMAIN_SUFFIX, HTTP_PORT, HTTPS_PORT, INGRESS_CLASS, STORAGE_CLASS, PROFILE
+- Scripts use `${DOMAIN_SUFFIX:-k3d.local}` pattern for fallback
 
 ---
 
@@ -248,50 +169,32 @@ A Kubernetes-based homelab for testing Platform Engineering and DevOps scenarios
 6. **Idempotent operations**: All installs use `helm upgrade --install`
 7. **Provider swappability**: Env var selects provider per category, registry routes to scripts
 8. **CLI wraps scripts**: `labctl` calls existing shell scripts, doesn't replace them
-9. **Services pattern**: `services/<name>/` follows same convention as platform providers (install/uninstall/status/values)
+9. **Services pattern**: `services/<name>/` follows same convention as platform providers
 10. **Scenario YAML**: Declarative `scenario.yaml` with components, prerequisites, explore hints
-
----
-
-## Git History (Chronological)
-
-```
-7f3eaca  first commit
-7e8dcbe  Adding installation scripts
-7d91bca  Adding makefile for cluster up and down
-83b9cca  Added golang application
-eccfa51  Created runtime and bootstrap environment in wsl
-66ebd81  Added helm charts for go-api
-d1e924d  Arranging Makefiles
-aa339b4  Updating make help
-6ec1bfa  Updating make help
-eae9973  Fixing app deployment and destroy in makefile
-a54198a  Updated manifests and configurations
-2b76e28  Setup go app on k3d cluster
-9d403c6  Updated environment variables and setup defaults
-42d7840  Taking specific version of tools
-2c961fc  Added monitoring to cluster and application through prometheus and grafana
-```
+11. **Config propagation**: `root.go` sets env vars on executor; scripts inherit them automatically
+12. **Streamed execution**: All UI-visible operations use `RunCommandStreamed`/`RunScriptStreamed` for real-time WebSocket output
+13. **Success broadcasts**: Handler goroutines send explicit `action_end` events after both success AND failure, ensuring UI status refresh works reliably
+14. **Dynamic ingress hosts**: All install scripts use `$DOMAIN_SUFFIX` for ingress host configuration, never hardcoded domain names in static YAML files
 
 ---
 
 ## File Inventory
 
 ```
-Total: ~240+ source files
-  Shell scripts:   49  (+nginx install/uninstall/status, traefik uninstall/status, acr, ecr)
-  YAML configs:    60  (+9 _interface.yaml contracts, nginx values.yaml, 2 values-cloud.yaml)
-  Terraform:       10  (modules/aks: 3, modules/eks: 3, environments/dev: 1, environments/staging: 1, + provider configs)
-  Make includes:    9  (vars, bootstrap, runtime, app, platform, check, cli, services, terraform)
-  Go source (CLI): 26+ (main.go, go.mod, go.sum, 10 cmd files, 6 internal packages, 5 test files, ui/embed.go)
-  Go source (apps): 6  (go-api: main.go/go.mod/go.sum, echo-server: main.go/go.mod/go.sum)
-  Markdown docs:   12  (README.md, apps/README.md, platform/README.md, platform/monitoring/README.md, apps/go-api/README.md, apps/go-api/deploy/helm/README.md, docs/architecture.md, docs/cli-reference.md, docs/scenarios.md, docs/cloud-runtimes.md, docs/ci-cd.md, + .claude docs)
-  Env files:        8  (.env.example, versions.env, go-api/app.env, echo-server/app.env, k3d/runtime.env, aks/runtime.env, eks/runtime.env)
-  Dockerfiles:      2  (go-api, echo-server) — both run as non-root
-  Helm charts:      2  (go-api: 11 templates + test, echo-server: 9 templates + test)
-  HTML:             1  (ui/dist/index.html)
-  JSON dashboards:  4  (SLO, Log Explorer, Security & Compliance, Chaos Engineering)
-  Scenario YAMLs:   4  (observability-sre, gitops-cicd, security-compliance, chaos-engineering)
-  CI/CD workflows:  6  (3 templates in delivery/ + 3 active in .github/workflows/)
-  Go test files:    5  (config, executor, platform, scenario, services — 35 tests total)
+Total: ~260+ source files
+  Shell scripts:   55+ (+loki, tempo, updated traefik/prometheus/grafana/k8s-dashboard, updated k3d up/down)
+  YAML configs:    65+ (+loki values, promtail-values, tempo values, updated grafana values, kyverno policies)
+  Terraform:       10
+  Make includes:    9
+  Go source (CLI): 28+ (+broadcast.go, manager.go, updated engine/handlers/root/client)
+  Go source (apps): 6
+  Markdown docs:   12+
+  Env files:        8
+  Dockerfiles:      2
+  Helm charts:      2
+  HTML:             1 (+ embedded copy)
+  JSON dashboards:  4
+  Scenario YAMLs:   4
+  CI/CD workflows:  6
+  Go test files:    5 (35 tests total)
 ```

@@ -160,6 +160,22 @@ func NamespaceExists(ctx context.Context, namespace string) bool {
 	return err == nil
 }
 
+// ServiceExists checks if a service exists in a namespace.
+func ServiceExists(ctx context.Context, namespace, name string) bool {
+	_, err := kubectl(ctx, "get", "service", name, "-n", namespace, "--no-headers")
+	return err == nil
+}
+
+// GetCurrentContext returns the current kubectl context name.
+func GetCurrentContext(ctx context.Context) (string, error) {
+	return kubectl(ctx, "config", "current-context")
+}
+
+// RunKubectl executes a kubectl command and returns its stdout.
+func RunKubectl(ctx context.Context, args ...string) (string, error) {
+	return kubectl(ctx, args...)
+}
+
 func kubectl(ctx context.Context, args ...string) (string, error) {
 	path, err := exec.LookPath("kubectl")
 	if err != nil {

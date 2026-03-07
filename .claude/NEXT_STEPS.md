@@ -5,15 +5,18 @@
 
 ---
 
-## Current Phase: ALL PHASES COMPLETE (1-6) + Hardening Round + Polishing Round + Documentation Round DONE.
+## Current Phase: ALL PHASES COMPLETE (1-6) + Hardening + Polishing + Documentation + Operational Testing DONE.
 
-### Post-session Follow-ups (Redis / readiness)
+### Post-session Follow-ups (Remaining)
 
 - [ ] Add an explicit dependency note in echo-server deploy docs: install Redis (`labctl service up redis`) before enabling `REDIS_URL`.
-- [ ] Add a preflight warning in deploy flow (`engine/deploy/helm.sh` or `labctl app deploy`) when `REDIS_URL` is set but Redis service DNS is not resolvable.
-- [ ] Consider adding optional Helm value flag in echo-server chart (e.g., `redis.enabled`) to make intent explicit instead of relying only on empty/non-empty `REDIS_URL`.
+- [ ] Add a preflight warning in deploy flow when `REDIS_URL` is set but Redis service DNS is not resolvable.
+- [ ] Consider adding optional Helm value flag in echo-server chart (e.g., `redis.enabled`) to make intent explicit.
 - [ ] Add a quick smoke-check command/target to verify `/health` and `/ready` immediately after app deploy.
-- [ ] Investigate unrelated cluster noise observed during session (`kube-system` Traefik helm-install jobs in CrashLoop/Error) and decide whether cleanup is needed.
+- [ ] Replace single-file HTML UI with proper React/Svelte build system.
+- [ ] Add /etc/hosts management automation for k3d.local domains (or document the manual step prominently).
+- [ ] Test AKS/EKS cloud runtimes with real cloud accounts.
+- [ ] Verify Chaos Mesh containerd socket path works on cloud runtimes.
 
 ### Pre-work: Quick Fixes — DONE
 
@@ -289,3 +292,5 @@ Then check:
 | 2026-03-06 | #7 | **Hardening round**: Created 9 _interface.yaml provider contracts for all platform categories. Created Nginx ingress provider (install/uninstall/status/values). Backfilled missing Traefik uninstall.sh + status.sh. Created make/terraform.mk with 6 targets. Fixed non-root security in both Dockerfiles + Helm values (runAsNonRoot, readOnlyRootFilesystem, drop all capabilities). Added Helm chart test templates for both apps. All builds verified. |
 | 2026-03-06 | #8 | **Polishing round**: Created 35 Go tests across 5 CLI packages (config, executor, platform, scenario, services). Implemented go:embed for single-binary UI (embed.go, .gitkeep, Makefile copy step, server FS fallback). Created 3 active GitHub Actions workflows (.github/workflows/ ci.yaml, cd.yaml, helm-validation.yaml) with multi-app matrix strategy. Clarified app.env runtime vars as reference-only. Added Terraform backend configs to staging. Created values-cloud.yaml for both apps (nginx ingress, cloud-appropriate settings). All builds and tests verified. |
 | 2026-03-06 | #9 | **Documentation round**: Created 8 documentation files — root README.md (quickstart, structure, make targets, configuration, URLs), docs/architecture.md (strategy pattern, provider swappability, CLI architecture, naming conventions), docs/cli-reference.md (full command tree, CLI vs Make comparison), docs/scenarios.md (framework guide, all 4 scenarios, YAML format reference), docs/cloud-runtimes.md (AKS/EKS setup, Terraform modules, remote state, costs), docs/ci-cd.md (3 GitHub Actions workflows), apps/README.md (app conventions, adding new apps), platform/README.md (provider categories, swapping, interface contracts). Updated .claude/PROJECT_STATE.md with documentation section and file inventory. |
+| 2026-03-07 | #10 | **Operational testing round (Part 1)**: Fixed 9 real-world issues found during UI testing. Scenarios: switched all engine operations to streamed execution for WebSocket output. Runtime: created runtime manager with cluster name support. Platform: created Loki+Promtail and Tempo components, added Grafana datasources. UI: conditional Install/Remove buttons, full-width platform card, Grafana deep-links for logs. Config: added exec.SetEnv() propagation from root.go. Fixed ArgoCD URL, added ServiceExists helper. |
+| 2026-03-07 | #10 (cont.) | **Operational testing round (Part 2)**: Fixed persistent 404s — root cause was dual Traefik (k3d-bundled + custom) and config not reaching scripts. Disabled bundled Traefik via `--k3s-arg "--disable=traefik@server:*"` in k3d up.sh. Added HelmChart CRD cleanup. Replaced Prometheus static ingress.yaml with dynamic heredoc. Fixed Grafana dynamic ingress. Fixed K8s Dashboard: disabled Kong TLS, HTTP ingress, direct tarball install (both Helm repo and OCI broken). Fixed Kyverno policy exclusions for ArgoCD. Fixed scenario status race condition with explicit success broadcasts. Added stuck release cleanup for Loki/Tempo. Made cluster name consistent via .env config. Updated all .claude/ documentation files. |

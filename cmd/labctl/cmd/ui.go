@@ -29,7 +29,7 @@ var uiCmd = &cobra.Command{
 
 		// Use embedded UI assets (sub-directory "dist" within the embed.FS)
 		uiFS, _ := fs.Sub(ui.DistFS, "dist")
-		server := api.NewServer(cfg, exec, reg, scenes, svcReg, uiFS)
+		server := api.NewServer(cfg, exec, reg, scenes, svcReg, rtm, uiFS)
 		return server.Start(addr)
 	},
 }

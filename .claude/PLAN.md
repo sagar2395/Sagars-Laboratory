@@ -1,7 +1,7 @@
 # Implementation Plan: Sagars-Laboratory
 
-> Last updated: 2026-03-05
-> Status: Approved — ready for Phase 1 implementation
+> Last updated: 2026-03-07
+> Status: All phases implemented + Operational Testing complete
 
 ---
 
@@ -261,9 +261,33 @@ Phase 2: Scenario Framework + Observability
     ├──> Phase 4: Security & Compliance
     ├──> Phase 5: Chaos & Reliability
     └──> Phase 6: Cloud Abstraction
+              │
+              v
+    Operational Testing (Session #10)
 ```
 
 Phases 3-6 are independent of each other (only depend on Phase 2).
+Operational Testing depends on all phases being complete.
+
+---
+
+## Operational Testing Phase (Session #10) — DONE
+
+Real-world testing via the Web UI uncovered systemic issues across the stack:
+
+### Key Lessons Learned
+
+1. **Config propagation is critical**: Go code resolved config correctly but never passed it to shell scripts. Fixed with `exec.SetEnv()` in `root.go`. Rule: ALL config values must flow through the executor environment, not file-based sourcing.
+
+2. **k3d bundles Traefik**: k3d/k3s installs Traefik in kube-system via a HelmChart CRD. Deleting the deployment alone doesn't work — k3s reconciles it back. Must either disable at cluster creation (`--disable=traefik`) or delete the HelmChart CRD first.
+
+3. **Static YAML for ingress doesn't work**: Any ingress YAML file with hardcoded hostnames breaks when domain changes. Use inline heredocs with `$DOMAIN_SUFFIX` interpolation or Helm `--set` overrides.
+
+4. **Success broadcasts are mandatory**: WebSocket-based UIs need explicit success events, not just error events. The scenario status race condition (markActive runs after last component event) required adding post-completion broadcasts.
+
+5. **Archived projects break distribution**: Kubernetes Dashboard moved to `kubernetes-retired`. Both Helm repo (404) and OCI registry (403) stopped working. Direct tarball install from GitHub release is the fallback.
+
+6. **Helm stuck releases**: Interrupted installs leave releases in `pending-install` state, blocking future installs. Pre-check for pending state and clean up before attempting install.
 
 ---
 
