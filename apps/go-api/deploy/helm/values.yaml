@@ -79,12 +79,14 @@ probes:
 podAnnotations: {}
 
 podSecurityContext:
-  runAsNonRoot: false
-  runAsUser: 0
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
 
 securityContext:
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
       - ALL
@@ -145,3 +147,9 @@ configMap:
 secrets:
   enabled: false
   data: {}
+
+# PodDisruptionBudget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1

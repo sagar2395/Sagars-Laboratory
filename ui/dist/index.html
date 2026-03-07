@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>labctl - Sagars Laboratory</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0f172a; --surface: #1e293b; --border: #334155;
+      --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+      --green: #4ade80; --red: #f87171; --yellow: #fbbf24;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    header { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+    header h1 { font-size: 24px; font-weight: 600; }
+    header h1 span { color: var(--accent); }
+    .status-bar { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .dot.green { background: var(--green); }
+    .dot.red { background: var(--red); }
+    .dot.yellow { background: var(--yellow); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 16px; }
+    .card-body { font-size: 14px; }
+    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .row:last-child { border-bottom: none; }
+    .label { color: var(--muted); }
+    .value { font-weight: 500; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+    .badge.running { background: rgba(74, 222, 128, 0.15); color: var(--green); }
+    .badge.stopped { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+    .badge.pending { background: rgba(251, 191, 36, 0.15); color: var(--yellow); }
+    .app-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .app-row:last-child { border-bottom: none; }
+    .app-name { font-weight: 500; min-width: 120px; }
+    .app-meta { color: var(--muted); font-size: 13px; flex: 1; }
+    .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; transition: all 0.15s; }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn.primary:hover { opacity: 0.9; }
+    .btn.danger { border-color: var(--red); color: var(--red); }
+    .btn.danger:hover { background: rgba(248, 113, 113, 0.15); }
+    .actions { display: flex; gap: 8px; }
+    #error { display: none; background: rgba(248, 113, 113, 0.1); border: 1px solid var(--red); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; color: var(--red); font-size: 14px; }
+    .loading { color: var(--muted); font-style: italic; }
+    .scenario-notice { text-align: center; padding: 32px; color: var(--muted); }
+    .scenario-notice p { margin-top: 8px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><span>labctl</span> Dashboard</h1>
+      <div class="status-bar">
+        <span id="conn-status"><span class="dot yellow"></span> Connecting...</span>
+      </div>
+    </header>
+
+    <div id="error"></div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Cluster</h2>
+        <div class="card-body" id="cluster-info">
+          <div class="loading">Loading cluster info...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Platform Components</h2>
+        <div class="card-body" id="platform-info">
+          <div class="loading">Loading platform status...</div>
+        </div>
+        <div style="margin-top: 16px; display: flex; gap: 8px;">
+          <button class="btn primary" onclick="platformUp()">Install Platform</button>
+          <button class="btn danger" onclick="platformDown()">Remove Platform</button>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: 1 / -1;">
+        <h2>Applications</h2>
+        <div class="card-body" id="apps-info">
+          <div class="loading">Loading applications...</div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: 1 / -1;">
+        <h2>Scenarios</h2>
+        <div class="card-body" id="scenarios-info">
+          <div class="loading">Loading scenarios...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api';
+    let ws = null;
+
+    async function fetchJSON(url, opts) {
+      try {
+        const res = await fetch(API + url, opts);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } catch (e) {
+        showError(e.message);
+        throw e;
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 5000);
+    }
+
+    function renderCluster(info) {
+      const el = document.getElementById('cluster-info');
+      if (!info || !info.cluster) {
+        el.innerHTML = '<div class="row"><span class="label">Status</span><span class="badge stopped">Not Connected</span></div>';
+        return;
+      }
+      const c = info.cluster;
+      el.innerHTML = `
+        <div class="row"><span class="label">Context</span><span class="value">${c.context || 'N/A'}</span></div>
+        <div class="row"><span class="label">Server</span><span class="value">${c.server || 'N/A'}</span></div>
+        <div class="row"><span class="label">K8s Version</span><span class="value">${c.k8sVersion || 'N/A'}</span></div>
+        <div class="row"><span class="label">Nodes</span><span class="value">${c.nodeCount || 0}</span></div>
+        <div class="row"><span class="label">Status</span><span class="badge ${c.connected ? 'running' : 'stopped'}">${c.connected ? 'Connected' : 'Disconnected'}</span></div>
+      `;
+    }
+
+    function renderPlatform(info) {
+      const el = document.getElementById('platform-info');
+      if (!info || !info.platform) { el.innerHTML = '<div class="loading">No data</div>'; return; }
+      const p = info.platform;
+      el.innerHTML = ['ingress', 'metrics', 'logging', 'tracing'].map(key => {
+        const comp = p[key] || {};
+        const provider = comp.provider || 'none';
+        const active = comp.active;
+        return `<div class="row">
+          <span class="label">${key}</span>
+          <span><span class="value">${provider}</span> <span class="badge ${active ? 'running' : 'stopped'}">${active ? 'Running' : 'Stopped'}</span></span>
+        </div>`;
+      }).join('');
+    }
+
+    function renderApps(info) {
+      const el = document.getElementById('apps-info');
+      const apps = info && info.apps ? info.apps : [];
+      if (apps.length === 0) {
+        el.innerHTML = '<div class="loading">No applications found</div>';
+        return;
+      }
+      el.innerHTML = apps.map(a => `
+        <div class="app-row">
+          <span class="app-name">${a.name}</span>
+          <span class="app-meta">build: ${a.buildStrategy || 'N/A'} | deploy: ${a.deployStrategy || 'N/A'}${a.replicas ? ' | replicas: ' + a.replicas : ''}${a.ready ? ' | ready: ' + a.ready : ''}</span>
+          <span class="badge ${a.deployed ? 'running' : 'stopped'}">${a.deployed ? 'Deployed' : 'Not Deployed'}</span>
+          <div class="actions">
+            <button class="btn primary" onclick="deployApp('${a.name}')">Deploy</button>
+            <button class="btn danger" onclick="destroyApp('${a.name}')">Destroy</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderScenarios(scenarios) {
+      const el = document.getElementById('scenarios-info');
+      if (!scenarios || scenarios.length === 0) {
+        el.innerHTML = '<div class="loading">No scenarios found in scenarios/ directory</div>';
+        return;
+      }
+      el.innerHTML = scenarios.map(s => `
+        <div class="app-row">
+          <span class="app-name">${s.displayName || s.name}</span>
+          <span class="app-meta">category: ${s.category || 'N/A'}</span>
+          <span class="badge ${s.active ? 'running' : 'stopped'}">${s.active ? 'Active' : 'Inactive'}</span>
+          <div class="actions">
+            <button class="btn primary" onclick="scenarioUp('${s.name}')" ${s.active ? 'disabled' : ''}>Activate</button>
+            <button class="btn danger" onclick="scenarioDown('${s.name}')" ${!s.active ? 'disabled' : ''}>Deactivate</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadStatus() {
+      try {
+        const data = await fetchJSON('/status');
+        renderCluster(data);
+        renderPlatform(data);
+        renderApps(data);
+      } catch (e) {
+        console.error('Failed to load status:', e);
+      }
+      try {
+        const scenarios = await fetchJSON('/scenarios');
+        renderScenarios(scenarios);
+      } catch (e) {
+        console.error('Failed to load scenarios:', e);
+      }
+    }
+
+    async function deployApp(name) {
+      try {
+        await fetchJSON(`/apps/${name}/deploy`, { method: 'POST' });
+        loadStatus();
+      } catch (e) { /* showError handles it */ }
+    }
+
+    async function destroyApp(name) {
+      try {
+        await fetchJSON(`/apps/${name}/destroy`, { method: 'POST' });
+        loadStatus();
+      } catch (e) { /* showError handles it */ }
+    }
+
+    async function platformUp() {
+      try {
+        await fetchJSON('/platform/up', { method: 'POST' });
+        loadStatus();
+      } catch (e) { /* showError handles it */ }
+    }
+
+    async function platformDown() {
+      try {
+        await fetchJSON('/platform/down', { method: 'POST' });
+        loadStatus();
+      } catch (e) { /* showError handles it */ }
+    }
+
+    async function scenarioUp(name) {
+      try {
+        await fetchJSON(`/scenarios/${name}/up`, { method: 'POST' });
+        loadStatus();
+      } catch (e) { /* showError handles it */ }
+    }
+
+    async function scenarioDown(name) {
+      try {
+        await fetchJSON(`/scenarios/${name}/down`, { method: 'POST' });
+        loadStatus();
+      } catch (e) { /* showError handles it */ }
+    }
+
+    function connectWS() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}/api/ws`);
+      ws.onopen = () => {
+        document.getElementById('conn-status').innerHTML = '<span class="dot green"></span> Connected';
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'status' && msg.data) {
+            // Refresh full status on WS update
+            loadStatus();
+          }
+        } catch (err) { /* ignore parse errors */ }
+      };
+      ws.onclose = () => {
+        document.getElementById('conn-status').innerHTML = '<span class="dot red"></span> Disconnected';
+        setTimeout(connectWS, 3000);
+      };
+      ws.onerror = () => ws.close();
+    }
+
+    // Initial load
+    loadStatus();
+    connectWS();
+    // Poll every 30s as backup
+    setInterval(loadStatus, 30000);
+  </script>
+</body>
+</html>

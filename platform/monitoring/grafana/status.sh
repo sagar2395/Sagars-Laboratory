@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 NAMESPACE="monitoring"
 
@@ -24,7 +25,7 @@ kubectl get ingress -n $NAMESPACE -l app.kubernetes.io/name=grafana
 
 echo ""
 echo "Grafana Access:"
-echo "  - External: http://grafana.k3d.local"
+echo "  - External: http://grafana.${DOMAIN_SUFFIX:-k3d.local}"
 echo "  - Internal: http://grafana.$NAMESPACE.svc.cluster.local:80"
 echo ""
 echo "ConfigMaps:"

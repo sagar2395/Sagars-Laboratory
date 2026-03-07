@@ -1,0 +1,71 @@
+name: observability-sre
+displayName: "Observability & SRE"
+description: "Full observability stack with log aggregation, distributed tracing, alerting rules, and SLO dashboards."
+category: observability
+prerequisites:
+  platform:
+    - ingress
+    - monitoring/metrics
+    - monitoring/grafana
+  apps:
+    - go-api
+runtimes:
+  - k3d
+  - aks
+  - eks
+components:
+  - name: loki
+    type: helm
+    chart: grafana/loki
+    repo: https://grafana.github.io/helm-charts
+    version: "6.6.2"
+    namespace: monitoring
+    valuesFile: values/loki.yaml
+
+  - name: promtail
+    type: helm
+    chart: grafana/promtail
+    repo: https://grafana.github.io/helm-charts
+    version: "6.16.4"
+    namespace: monitoring
+    valuesFile: values/promtail.yaml
+
+  - name: tempo
+    type: helm
+    chart: grafana/tempo
+    repo: https://grafana.github.io/helm-charts
+    version: "1.10.3"
+    namespace: monitoring
+    valuesFile: values/tempo.yaml
+
+  - name: alerting-rules
+    type: manifest
+    path: manifests/alerting-rules.yaml
+    namespace: monitoring
+
+  - name: slo-dashboards
+    type: grafana-dashboard
+    path: dashboards/
+    namespace: monitoring
+
+explore:
+  urls:
+    - label: "Grafana Dashboards"
+      url: "http://grafana.{{.DomainSuffix}}"
+    - label: "Prometheus"
+      url: "http://prometheus.{{.DomainSuffix}}"
+  commands:
+    - label: "Generate API traffic"
+      command: "for i in $(seq 1 100); do curl -s http://go-api.{{.DomainSuffix}}/health; done"
+    - label: "View Loki logs"
+      command: "kubectl -n monitoring port-forward svc/loki-gateway 3100:80 & curl -s http://localhost:3100/loki/api/v1/labels"
+    - label: "Query go-api logs in Loki"
+      command: "Open Grafana > Explore > Select Loki > Query: {app=\"go-api\"}"
+    - label: "View traces in Tempo"
+      command: "Open Grafana > Explore > Select Tempo > Search by service name: go-api"
+  tips:
+    - "Grafana Explore: Select Loki as datasource, query {namespace=\"go-api\"} to see application logs"
+    - "Grafana Explore: Select Tempo as datasource to search for distributed traces"
+    - "Check PrometheusRule alerts: kubectl -n monitoring get prometheusrules"
+    - "Generate failing traffic: curl http://go-api.{{.DomainSuffix}}/toggle-failure then hit /ready"
+    - "SLO dashboards appear automatically in Grafana via the sidecar ConfigMap loader"
