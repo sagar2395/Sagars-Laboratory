@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/sagars-lab/labctl/internal/executor"
 )
@@ -19,6 +20,22 @@ type Provider struct {
 func (p *Provider) HasScript(name string) bool {
 	_, err := os.Stat(filepath.Join(p.Path, name))
 	return err == nil
+}
+
+// Namespace returns the conventional Kubernetes namespace for this provider.
+// Monitoring, logging, and tracing providers share the "monitoring" namespace.
+// Other providers use their own name as the namespace.
+func (p *Provider) Namespace() string {
+	top := p.Category
+	if i := strings.Index(top, "/"); i >= 0 {
+		top = top[:i]
+	}
+	switch top {
+	case "monitoring", "logging", "tracing":
+		return "monitoring"
+	default:
+		return p.Name
+	}
 }
 
 // Registry discovers and manages platform component providers.

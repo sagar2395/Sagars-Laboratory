@@ -33,13 +33,21 @@ var statusCmd = &cobra.Command{
 		// Platform
 		fmt.Println("\n=== Platform ===")
 		fmt.Printf("  Ingress:  %s", cfg.IngressProvider)
-		if k8s.NamespaceExists(ctx, "traefik") {
-			fmt.Print("  [running]")
+		if cfg.IngressProvider != "" {
+			if p, err := reg.GetProvider("ingress", cfg.IngressProvider); err == nil {
+				if k8s.NamespaceExists(ctx, p.Namespace()) {
+					fmt.Print("  [running]")
+				}
+			}
 		}
 		fmt.Println()
 		fmt.Printf("  Metrics:  %s", cfg.MetricsProvider)
-		if k8s.NamespaceExists(ctx, "monitoring") {
-			fmt.Print("  [running]")
+		if cfg.MetricsProvider != "" {
+			if p, err := reg.GetProvider("monitoring/metrics", cfg.MetricsProvider); err == nil {
+				if k8s.NamespaceExists(ctx, p.Namespace()) {
+					fmt.Print("  [running]")
+				}
+			}
 		}
 		fmt.Println()
 

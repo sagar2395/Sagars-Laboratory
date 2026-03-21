@@ -122,3 +122,73 @@ func TestNewRegistry_SkipsNonProvider(t *testing.T) {
 		t.Errorf("expected 1 ingress provider (ignoring miscdir), got %d", len(ingress))
 	}
 }
+
+func TestNewRegistry_NestedCategoryLifecycle(t *testing.T) {
+	root := t.TempDir()
+
+	createTestProvider(t, root, "monitoring/metrics", "prometheus")
+	createTestProvider(t, root, "monitoring", "grafana")
+
+	reg := NewRegistry(root)
+
+	// Verify prometheus is under monitoring/metrics, not monitoring
+	metrics := reg.GetProviders("monitoring/metrics")
+	if len(metrics) != 1 {
+		t.Fatalf("expected 1 monitoring/metrics provider, got %d", len(metrics))
+	}
+	if metrics[0].Name != "prometheus" {
+		t.Errorf("expected prometheus, got %s", metrics[0].Name)
+	}
+	if metrics[0].Category != "monitoring/metrics" {
+		t.Errorf("expected category monitoring/metrics, got %s", metrics[0].Category)
+	}
+
+	// Verify grafana is under monitoring
+	mon := reg.GetProviders("monitoring")
+	if len(mon) != 1 {
+		t.Fatalf("expected 1 monitoring provider, got %d", len(mon))
+	}
+	if mon[0].Name != "grafana" {
+		t.Errorf("expected grafana, got %s", mon[0].Name)
+	}
+
+	// GetProvider lookups
+	p, err := reg.GetProvider("monitoring/metrics", "prometheus")
+	if err != nil {
+		t.Fatalf("GetProvider monitoring/metrics prometheus: %v", err)
+	}
+	if p.Name != "prometheus" || p.Category != "monitoring/metrics" {
+		t.Errorf("unexpected provider: %+v", p)
+	}
+
+	_, err = reg.GetProvider("monitoring", "prometheus")
+	if err == nil {
+		t.Error("expected error looking up prometheus under monitoring (should be monitoring/metrics)")
+	}
+}
+
+func TestProvider_Namespace(t *testing.T) {
+	tests := []struct {
+		category  string
+		name      string
+		wantNS    string
+	}{
+		{"ingress", "traefik", "traefik"},
+		{"ingress", "nginx", "nginx"},
+		{"monitoring", "grafana", "monitoring"},
+		{"monitoring/metrics", "prometheus", "monitoring"},
+		{"logging", "loki", "monitoring"},
+		{"tracing", "tempo", "monitoring"},
+		{"chaos", "chaos-mesh", "chaos-mesh"},
+		{"gitops", "argocd", "argocd"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {
+			p := Provider{Category: tt.category, Name: tt.name}
+			if got := p.Namespace(); got != tt.wantNS {
+				t.Errorf("Namespace() = %q, want %q", got, tt.wantNS)
+			}
+		})
+	}
+}

@@ -1,12 +1,13 @@
 {
   "current_tasks": [
-    "001-fix-platform-category-resolution-and-status",
     "002-add-scenario-preflight-validation",
     "003-stream-action-events-for-all-api-operations",
     "004-improve-runtime-detection-and-status-reporting",
     "005-make-platform-targets-provider-aware",
     "006-expand-ci-validation-for-infra-and-shell-assets"
   ],
-  "completed_tasks": [],
+  "completed_tasks": [
+    "001-fix-platform-category-resolution-and-status"
+  ],
   "blocked_tasks": []
 }

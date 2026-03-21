@@ -53,23 +53,40 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	clusterInfo, _ := k8s.GetClusterInfo(ctx)
 	resp.Cluster = clusterInfo
 
-	// Platform status
+	// Platform status — derive namespace from the registry so we don't
+	// assume namespace == provider name.
+	ingressActive := false
+	if p, err := s.registry.GetProvider("ingress", s.cfg.IngressProvider); err == nil {
+		ingressActive = k8s.NamespaceExists(ctx, p.Namespace())
+	}
+	metricsActive := false
+	if p, err := s.registry.GetProvider("monitoring/metrics", s.cfg.MetricsProvider); err == nil {
+		metricsActive = k8s.NamespaceExists(ctx, p.Namespace())
+	}
+	loggingActive := false
+	if p, err := s.registry.GetProvider("logging", s.cfg.LoggingProvider); err == nil {
+		loggingActive = k8s.ServiceExists(ctx, p.Namespace(), "loki-gateway")
+	}
+	tracingActive := false
+	if p, err := s.registry.GetProvider("tracing", s.cfg.TracingProvider); err == nil {
+		tracingActive = k8s.ServiceExists(ctx, p.Namespace(), "tempo")
+	}
 	resp.Platform = PlatformStatusResp{
 		Ingress: ComponentStatus{
 			Provider: s.cfg.IngressProvider,
-			Active:   k8s.NamespaceExists(ctx, "traefik"),
+			Active:   ingressActive,
 		},
 		Metrics: ComponentStatus{
 			Provider: s.cfg.MetricsProvider,
-			Active:   k8s.NamespaceExists(ctx, "monitoring"),
+			Active:   metricsActive,
 		},
 		Logging: ComponentStatus{
 			Provider: s.cfg.LoggingProvider,
-			Active:   k8s.ServiceExists(ctx, "monitoring", "loki-gateway"),
+			Active:   loggingActive,
 		},
 		Tracing: ComponentStatus{
 			Provider: s.cfg.TracingProvider,
-			Active:   k8s.ServiceExists(ctx, "monitoring", "tempo"),
+			Active:   tracingActive,
 		},
 	}
 
@@ -169,7 +186,7 @@ func (s *Server) handlePlatformStatus(w http.ResponseWriter, r *http.Request) {
 			entry := map[string]interface{}{
 				"name":      p.Name,
 				"category":  cat,
-				"installed": k8s.NamespaceExists(ctx, p.Name),
+				"installed": k8s.NamespaceExists(ctx, p.Namespace()),
 			}
 			result[cat] = append(result[cat], entry)
 		}
@@ -186,7 +203,7 @@ func (s *Server) handlePlatformUp(w http.ResponseWriter, r *http.Request) {
 		}
 		// Install metrics
 		if s.cfg.MetricsProvider != "" {
-			s.registry.InstallStreamed("monitoring", s.cfg.MetricsProvider, s.exec)
+			s.registry.InstallStreamed("monitoring/metrics", s.cfg.MetricsProvider, s.exec)
 		}
 		// Install grafana
 		s.registry.InstallStreamed("monitoring", "grafana", s.exec)
@@ -213,7 +230,7 @@ func (s *Server) handlePlatformDown(w http.ResponseWriter, r *http.Request) {
 		}
 		s.registry.UninstallStreamed("monitoring", "grafana", s.exec)
 		if s.cfg.MetricsProvider != "" {
-			s.registry.UninstallStreamed("monitoring", s.cfg.MetricsProvider, s.exec)
+			s.registry.UninstallStreamed("monitoring/metrics", s.cfg.MetricsProvider, s.exec)
 		}
 		if s.cfg.IngressProvider != "" {
 			s.registry.UninstallStreamed("ingress", s.cfg.IngressProvider, s.exec)
