@@ -1,229 +1,515 @@
-# Architecture
+# Sagars-Laboratory Architecture
 
-This document describes the project structure, design patterns, and conventions used in Sagars-Laboratory.
+## Purpose
 
-## Design Principles
+This document defines the desired-state architecture for Sagars-Laboratory.
 
-1. **Script-first, CLI-wraps** - Shell scripts are the source of truth. The `labctl` CLI wraps them via `os/exec`, not replaces them. You can always fall back to `make` or run scripts directly.
-2. **Strategy dispatch** - Build and deploy strategies are selected per-app via `app.env`, not hardcoded. Adding a new strategy means adding one script file.
-3. **Provider swappability** - Platform components are interchangeable. Change `INGRESS_PROVIDER=nginx` and re-run `platform-up` to switch from Traefik to Nginx.
-4. **Declarative scenarios** - Scenarios are YAML files that declare what to install. The engine handles the orchestration.
-5. **Idempotent operations** - All installs use `helm upgrade --install`. All scripts are safe to run multiple times.
+It is written for two audiences:
 
-## Directory Layout
+- Platform engineers, SREs, DevOps learners, and platform teams using the product
+- Human and AI contributors who need a clear architectural source of truth before making changes
 
-```
-Sagars-Laboratory/
-  .env.example                 # Global config template (PROFILE, CLUSTER_NAME, providers)
-  .env                         # Local config (gitignored, created from .env.example)
-  versions.env                 # Pinned tool versions
+This document should be treated as the architectural north star for the repository. If the codebase and this document disagree, contributors should assume the codebase is the current implementation and this document is the intended direction unless a newer decision document says otherwise.
 
-  apps/<name>/                 # Applications
-    app.env                    # Per-app config (build + deploy strategy)
-    main.go / Dockerfile       # Application source
-    deploy/helm/               # Helm chart + value profiles
+---
 
-  bootstrap/
-    setup-tools.sh             # Version-pinned tool installer
+## Product Definition
 
-  cmd/labctl/                  # CLI source (Go)
-    main.go                    # Entry point
-    cmd/                       # Cobra command definitions
-    internal/                  # Business logic packages
-    ui/                        # go:embed assets for web UI
+Sagars-Laboratory is a **Platform Engineering Simulator and Distributed Systems Playground**.
 
-  delivery/
-    github-actions/            # CI/CD workflow templates
+It is a safe environment for learning and demonstrating how modern platforms are built, operated, observed, secured, and intentionally stressed.
 
-  engine/
-    build.sh / deploy.sh       # Strategy dispatchers
-    build/<strategy>.sh        # docker.sh, acr.sh, ecr.sh
-    deploy/<strategy>.sh       # helm.sh
+The platform should enable users to:
 
-  foundation/terraform/
-    modules/aks/               # AKS Terraform module
-    modules/eks/               # EKS Terraform module
-    environments/dev/          # Dev environment config
-    environments/staging/      # Staging environment config
+- provision and switch between runtimes such as `k3d`, `AKS`, and `EKS`
+- install opinionated platform capabilities such as ingress, metrics, logs, traces, GitOps, policy, TLS, and chaos tooling
+- deploy reusable services and sample workloads
+- activate guided scenarios that teach real platform and SRE workflows
+- observe the system through dashboards, logs, traces, and topology views
+- break things safely and recover quickly
+- reset the environment to a known-good state
 
-  make/                        # Modular Makefile includes
-    vars.mk                    # Shared variables
-    bootstrap.mk               # Tool setup targets
-    runtime.mk                 # Cluster lifecycle targets
-    app.mk                     # App build/deploy targets
-    platform.mk                # Platform install targets
-    cli.mk                     # CLI build targets
-    services.mk                # Service management targets
-    terraform.mk               # Terraform targets
-    check.mk                   # Validation targets
+---
 
-  platform/<category>/<provider>/
-    install.sh                 # Install via Helm
-    uninstall.sh               # Remove via Helm
-    status.sh                  # Health check
-    values.yaml                # Helm values
-    _interface.yaml            # Provider contract (at category level)
+## Target Users
 
-  runtimes/<profile>/
-    up.sh                      # Create cluster
-    down.sh                    # Destroy cluster
-    runtime.env                # Runtime-specific variables
+### 1. Platform Engineers
 
-  scenarios/<name>/
-    scenario.yaml              # Scenario definition
-    values/                    # Helm value overrides
-    manifests/                 # Kubernetes manifests
-    dashboards/                # Grafana dashboard JSON files
+Users who want to design and validate internal platform capabilities such as runtime provisioning, service enablement, observability, policy, and GitOps.
 
-  services/<name>/
-    install.sh / uninstall.sh / status.sh / values.yaml
+### 2. Platform Teams
 
-  ui/dist/
-    index.html                 # Web UI (single-page, embedded in CLI binary)
+Teams who need a shared sandbox for architecture spikes, golden path experiments, onboarding, demos, and operational training.
 
-  .github/workflows/           # Active GitHub Actions workflows
-```
+### 3. DevOps and SRE Learners
 
-## Strategy Pattern
+Individuals who want a practical, hands-on environment to understand Kubernetes, cloud runtimes, observability, reliability, security controls, and failure handling.
 
-The engine layer selects build and deploy implementations at runtime based on `app.env`:
+---
 
-```
-User: make deploy APP_NAME=go-api
-  -> engine/deploy.sh deploy go-api
-    -> source apps/go-api/app.env      # reads DEPLOY_STRATEGY=helm
-    -> engine/deploy/helm.sh deploy go-api
-      -> helm upgrade --install ...
-```
+## Architectural Goals
 
-### Build Strategies
+The architecture must optimize for the following:
 
-| Strategy | Script | What It Does |
-|----------|--------|-------------|
-| `docker` | `engine/build/docker.sh` | Build image + import to k3d |
-| `acr` | `engine/build/acr.sh` | Build + push to Azure Container Registry |
-| `ecr` | `engine/build/ecr.sh` | Build + push to AWS ECR |
+1. **Learnability**
+   A new user should be able to understand the platform model and get value quickly.
 
-### Deploy Strategies
+2. **Reproducibility**
+   A lab environment should be rebuildable, resettable, and deterministic.
 
-| Strategy | Script | What It Does |
-|----------|--------|-------------|
-| `helm` | `engine/deploy/helm.sh` | `helm upgrade --install` with values file |
+3. **Composability**
+   Runtimes, platform components, services, apps, and scenarios should be mix-and-match.
 
-To add a new strategy, create a script in the appropriate directory. No other changes required.
+4. **Operational Realism**
+   The system should feel like a small but credible platform engineering environment, not a toy demo.
 
-## Provider Swappability
+5. **Safe Failure**
+   Users should be able to introduce faults, drift, and policy violations without damaging their local machine or cloud environment beyond the declared lab boundary.
 
-Platform components are organized as `platform/<category>/<provider>/` directories. Each provider must implement:
+6. **Contributor Clarity**
+   The architecture must make ownership boundaries obvious so multiple agents can work in parallel with low coordination overhead.
 
-| File | Purpose |
-|------|---------|
-| `install.sh` | Install the component (usually via Helm) |
-| `uninstall.sh` | Remove the component |
-| `status.sh` | Check health and print status |
-| `values.yaml` | Helm chart configuration |
+---
 
-The active provider for each category is selected via environment variable:
+## Non-Goals
 
-```bash
-INGRESS_PROVIDER=traefik    # or nginx
-METRICS_PROVIDER=prometheus  # or victoria-metrics
-```
+Sagars-Laboratory is not intended to be:
 
-Each category has an `_interface.yaml` contract file documenting:
-- What Kubernetes resources the provider creates
-- What endpoints it exposes
-- What env variables it sets
-- What implementations exist
+- a production PaaS
+- a multi-tenant enterprise control plane
+- a replacement for Terraform Cloud, Argo CD, Backstage, or a commercial internal developer platform
+- a generic cluster management product
 
-### Current Providers
+Its purpose is simulation, experimentation, education, and reference implementation.
 
-| Category | Providers |
-|----------|-----------|
-| ingress | traefik, nginx |
-| monitoring/metrics | prometheus |
-| monitoring/grafana | grafana |
-| gitops | argocd |
-| security/policy | kyverno |
-| security/tls | cert-manager |
-| security/secrets | sealed-secrets |
-| security/network-policies | kubernetes-native |
-| chaos | chaos-mesh |
+---
 
-## CLI Architecture
+## Core Architectural Principles
 
-The `labctl` CLI is built in Go with Cobra. It wraps existing shell scripts rather than reimplementing them.
+### 1. Declarative First
 
-```
-cmd/labctl/
-  main.go                      # Entry: calls cmd.Execute()
-  cmd/
-    root.go                    # Root command, global flags, config init
-    init_cmd.go                # labctl init / teardown / reset
-    runtime.go                 # labctl runtime up/down/status
-    app.go                     # labctl app build/deploy/destroy/list
-    platform.go                # labctl platform up/down/status
-    scenario.go                # labctl scenario list/up/down/status/info
-    service.go                 # labctl service list/up/down/status
-    check.go                   # labctl check tools/cluster/ingress
-    status.go                  # labctl status
-    ui.go                      # labctl ui (web dashboard)
-  internal/
-    config/                    # Config loading (.env, app.env, runtime.env)
-    executor/                  # Shell command + script execution
-    platform/                  # Platform provider registry
-    k8s/                       # Kubernetes operations (via kubectl)
-    scenario/                  # Scenario engine (YAML-based)
-    services/                  # Service registry
-    api/                       # HTTP API server + WebSocket
-  ui/
-    embed.go                   # go:embed for static UI assets
-    dist/                      # Embedded files (copied at build time)
+Desired state should be described through files and metadata where possible. Imperative scripts are allowed, but they should be thin execution adapters around declarative inputs.
+
+### 2. Clear Layer Boundaries
+
+Each layer should have one job and one reason to change. Runtime provisioning, platform installation, service deployment, app deployment, and scenario activation must remain separate concerns.
+
+### 3. Idempotent Operations
+
+Repeated `up`, `down`, `install`, `uninstall`, and `status` actions should be safe and predictable.
+
+### 4. Pluggable Providers
+
+Equivalent capabilities should be swappable. Examples:
+
+- `traefik` or `nginx` for ingress
+- `k3d`, `AKS`, or `EKS` for runtime
+- Kubernetes-native or cloud-managed implementations for services over time
+
+### 5. Scenario-Driven Learning
+
+The core user experience is not just "install tools." It is "activate a realistic scenario, investigate behavior, and learn from the system."
+
+### 6. Observable by Default
+
+The platform should teach users how systems behave. Metrics, logs, traces, events, health, and topology should be first-class concepts.
+
+### 7. Repository as Control Surface
+
+The repository layout should mirror the product architecture closely enough that contributors can infer where new capabilities belong.
+
+---
+
+## Desired-State System Model
+
+At the highest level, the system is a control plane for building and exploring ephemeral platform environments.
+
+```text
+User
+  |
+  v
+UI / CLI / API
+  |
+  v
+Control Plane
+  |
+  +-- Catalog & State
+  +-- Runtime Orchestrator
+  +-- Foundation Orchestrator
+  +-- Platform Orchestrator
+  +-- Service Orchestrator
+  +-- Application Orchestrator
+  +-- Scenario Engine
+  +-- Topology & Insight Engine
+  |
+  v
+Execution Adapters
+  |
+  +-- Shell scripts
+  +-- Helm
+  +-- kubectl
+  +-- Terraform
+  +-- Cloud CLIs
 ```
 
-### Web UI
+This architecture deliberately separates **intent**, **orchestration**, and **execution**:
 
-The web UI is a single HTML file (`ui/dist/index.html`) embedded into the CLI binary via `go:embed`. When you run `labctl ui`, it starts an HTTP server on port 3939 serving:
+- **Intent** is expressed in configuration, scenario manifests, values files, and future blueprint definitions.
+- **Orchestration** is handled by `labctl` and supporting internal packages.
+- **Execution** is performed through scripts, Helm charts, Kubernetes manifests, Terraform, and cloud tooling.
 
-- `/api/*` - REST API endpoints (status, apps, platform, scenarios, services)
-- `/api/ws` - WebSocket for real-time updates
-- `/` - Static UI files (embedded or filesystem fallback for dev)
+---
 
-## Configuration Loading
+## Core Domains
 
-Configuration is layered:
+### 1. Experience Layer
 
-1. **Global** (`.env`) - PROFILE, CLUSTER_NAME, ports, provider selection
-2. **Runtime** (`runtimes/<profile>/runtime.env`) - INGRESS_CLASS, STORAGE_CLASS, DOMAIN_SUFFIX, REGISTRY_TYPE
-3. **Per-app** (`apps/<name>/app.env`) - APP_NAME, BUILD_STRATEGY, DEPLOY_STRATEGY, HELM_VALUES
+The experience layer includes:
 
-The CLI's `config.Load()` reads all three layers, with runtime.env overriding global defaults.
+- CLI: `labctl`
+- Embedded web UI
+- HTTP API used by the UI
 
-## Helm Value Profiles
+Its responsibilities are:
 
-Each app ships multiple Helm value files:
+- accept user intent
+- present current state
+- surface guided workflows
+- explain what will happen before changes are applied
 
-| File | Purpose |
-|------|---------|
-| `values.yaml` | Chart defaults |
-| `values-dev.yaml` | Local k3d (traefik, low resources, 1 replica) |
-| `values-prod-like.yaml` | Production simulation (HPA, anti-affinity, probes) |
-| `values-cloud.yaml` | Cloud runtimes (nginx, pullPolicy: Always) |
-| `values-test.yaml` | CI testing |
+It must not contain infrastructure logic directly. It should call internal orchestration services.
 
-Select via `HELM_VALUES=values-cloud.yaml` in `app.env`.
+### 2. Control Plane
 
-## Naming Conventions
+The control plane is the brain of the system and should remain the most stable architectural layer.
 
-| Thing | Convention | Example |
-|-------|-----------|---------|
-| App directory | lowercase, hyphenated | `apps/go-api/` |
-| App config | always `app.env` | `apps/go-api/app.env` |
-| Helm chart | `deploy/helm/` inside app | `apps/go-api/deploy/helm/` |
-| Platform component | `platform/<category>/<provider>/` | `platform/ingress/traefik/` |
-| Runtime | `runtimes/<profile>/` | `runtimes/k3d/` |
-| Scenario | `scenarios/<name>/scenario.yaml` | `scenarios/observability-sre/` |
-| Service | `services/<name>/` | `services/redis/` |
-| Make module | `make/<domain>.mk` | `make/platform.mk` |
-| Env variables | UPPER_SNAKE_CASE | `BUILD_STRATEGY` |
-| CLI commands | noun-verb | `labctl app deploy` |
+Its responsibilities are:
+
+- discover available runtimes, platform components, services, apps, and scenarios
+- validate prerequisites
+- orchestrate install and teardown order
+- maintain lightweight state for what is active
+- expose a consistent contract to both CLI and UI
+
+Today this responsibility lives primarily inside `cmd/labctl/internal/`.
+
+### 3. Runtime Domain
+
+The runtime domain provides the execution substrate where workloads run.
+
+Examples:
+
+- local Kubernetes via `k3d`
+- managed Kubernetes via `AKS`
+- managed Kubernetes via `EKS`
+
+Responsibilities:
+
+- create and destroy clusters
+- switch active runtime context
+- publish runtime-specific settings such as ingress class, domain suffix, storage class, and registry type
+
+Repository mapping:
+
+- `runtimes/`
+
+### 4. Foundation Domain
+
+The foundation domain manages cloud or infrastructure resources that sit underneath or beside the runtime.
+
+Examples:
+
+- VPCs, node groups, registries, IAM roles
+- Azure resource groups, ACR, Log Analytics
+- future managed services such as databases, queues, or object stores
+
+Responsibilities:
+
+- provision prerequisite infrastructure
+- encode cloud-environment differences
+- keep infrastructure lifecycle separate from workload lifecycle
+
+Repository mapping:
+
+- `foundation/terraform/`
+
+### 5. Platform Domain
+
+The platform domain installs reusable platform capabilities on top of a runtime.
+
+Examples:
+
+- ingress
+- metrics
+- dashboards
+- logging
+- tracing
+- GitOps
+- policy
+- TLS
+- secrets
+- chaos tooling
+
+Responsibilities:
+
+- install, uninstall, and report status for platform components
+- keep provider implementations behind a common category model
+- expose capabilities that scenarios and apps can depend on
+
+Repository mapping:
+
+- `platform/`
+
+### 6. Service Domain
+
+The service domain represents reusable dependencies consumed by workloads and scenarios.
+
+Examples:
+
+- Redis today
+- PostgreSQL, Kafka, MinIO, RabbitMQ in the future
+
+Responsibilities:
+
+- deploy and remove reusable backing services
+- standardize local-vs-cloud service provisioning over time
+- make service dependencies explicit instead of hidden in app charts
+
+Repository mapping:
+
+- `services/`
+
+### 7. Application Domain
+
+The application domain contains sample workloads used for learning, validation, and scenario exercises.
+
+Examples in the current repository:
+
+- `go-api`
+- `echo-server`
+
+Responsibilities:
+
+- provide realistic workloads with health endpoints and platform integration hooks
+- expose telemetry and failure modes useful for observability, GitOps, policy, and chaos scenarios
+- remain small enough to teach from
+
+Repository mapping:
+
+- `apps/`
+- `engine/`
+
+### 8. Scenario Domain
+
+The scenario domain is the core teaching mechanism of the platform.
+
+A scenario is a curated learning or validation experience that composes platform capabilities, services, applications, configuration, and exploration guidance around a real theme.
+
+Examples:
+
+- observability and SRE
+- GitOps and CI/CD
+- security and compliance
+- chaos engineering
+
+Responsibilities:
+
+- declare prerequisites
+- install additional components in the right order
+- expose guided exploration steps
+- make complex concepts easy to activate repeatedly
+
+Repository mapping:
+
+- `scenarios/`
+- `cmd/labctl/internal/scenario/`
+
+### 9. Topology and Insight Domain
+
+The topology and insight domain explains what is running, how components relate, and what is degraded.
+
+Desired-state responsibilities:
+
+- generate a topology graph from runtime, platform, service, app, and scenario data
+- show health and dependency relationships
+- support investigation workflows for SRE-style debugging
+
+Current-state note:
+
+This domain is conceptually important but only partially implemented today. Contributors should treat it as a target capability, not as a fully realized subsystem.
+
+---
+
+## Desired Resource Model
+
+The desired state of the application should revolve around these first-class concepts:
+
+| Resource | Meaning |
+|----------|---------|
+| Runtime | Execution environment such as `k3d`, `AKS`, or `EKS` |
+| Foundation | Underlying cloud and infrastructure resources |
+| Platform Component | A reusable capability such as ingress, metrics, tracing, policy, or chaos |
+| Service | A reusable backing dependency such as Redis |
+| Application | A sample workload deployed into the lab |
+| Scenario | A guided experience that composes components and teaches a concept |
+| Session | The currently active lab state for a user |
+| Topology | A computed view of relationships, health, and dependencies |
+
+Future capabilities such as `Lab Blueprints` or `Stack Blueprints` should be introduced as explicit resources only when they have a real execution model and repository representation.
+
+---
+
+## Control Plane Responsibilities
+
+The control plane should eventually standardize the following workflow:
+
+1. Discover available resources from the repository
+2. Validate compatibility and prerequisites
+3. Resolve desired state into an ordered execution plan
+4. Execute through adapters
+5. Capture resulting state
+6. Present health, status, and exploration guidance back to the user
+
+This makes the control plane the stable contract, while providers and scripts remain replaceable implementation details.
+
+---
+
+## Execution Model
+
+Execution should remain adapter-based.
+
+### Adapter Types
+
+- shell scripts for simple lifecycle actions
+- Helm for packaged Kubernetes capabilities
+- raw manifests for focused Kubernetes resources
+- Terraform for cloud infrastructure
+- cloud CLIs where provider interaction is unavoidable
+
+### Rules
+
+- adapters must be idempotent
+- adapters must have clear input and output expectations
+- adapters should not own unrelated state
+- control-plane code should prefer orchestration over embedding command details everywhere
+
+---
+
+## Repository Mapping
+
+The repository should continue to align to the architecture like this:
+
+```text
+apps/                  Sample workloads for learning and experiments
+bootstrap/             Developer and environment setup
+cmd/labctl/            CLI, API, internal control-plane orchestration
+delivery/              CI/CD workflow definitions
+docs/                  Architecture, operational guides, contributor references
+engine/                Build and deploy strategy dispatchers
+foundation/terraform/  Cloud and infrastructure provisioning
+platform/              Platform capability modules
+runtimes/              Runtime lifecycle adapters
+scenarios/             Guided learning and failure simulation packages
+services/              Reusable service modules
+ui/                    Web UI assets
+agents/                Agent role definitions and collaboration prompts
+```
+
+### Important Contributor Rule
+
+Contributors should prefer extending the layer that owns a capability instead of bypassing it.
+
+Examples:
+
+- a new ingress provider belongs under `platform/ingress/`
+- a new runtime belongs under `runtimes/`
+- a new learning experience belongs under `scenarios/`
+- a new sample workload belongs under `apps/`
+
+---
+
+## Current State vs Desired State
+
+This document intentionally describes the **desired state** of the product, but contributors need to know what exists now.
+
+### Implemented today
+
+- runtime lifecycle for `k3d`, `AKS`, and `EKS`
+- platform component installation through provider directories and scripts
+- reusable services with lifecycle scripts
+- sample applications with Helm deployment
+- scenario discovery and activation
+- CLI and embedded UI entry points
+- Terraform modules for cloud runtimes
+
+### Not yet fully realized
+
+- topology as a first-class subsystem
+- richer persisted session state
+- formal blueprint resources for reusable lab compositions
+- deeper contract standardization across all adapters
+- stronger dependency graphing across apps, services, and scenarios
+
+Contributors should not invent undocumented abstractions casually. If a new resource type or subsystem is needed, it should be added deliberately and documented here or in a decision record.
+
+---
+
+## Architecture Rules for Contributors and Agents
+
+When modifying this repository, contributors and agents should follow these rules:
+
+1. Keep runtime, foundation, platform, service, application, and scenario concerns separate.
+2. Prefer declarative configuration over hard-coded behavior.
+3. Do not couple the UI directly to shell scripts or infrastructure commands.
+4. Add new capabilities through existing extension points before creating new top-level structures.
+5. Document new resource types, lifecycle contracts, and cross-layer dependencies.
+6. Treat scenarios as guided platform exercises, not just bundles of random YAML.
+7. Preserve the educational value of the system. A feature is better when it teaches.
+
+---
+
+## Quality Attributes
+
+The architecture should be evaluated against these quality attributes:
+
+- **Clarity:** contributors can find the right place to make a change
+- **Portability:** the same concepts work across local and cloud runtimes
+- **Safety:** users can reset or destroy environments predictably
+- **Extensibility:** new providers and scenarios can be added without refactoring the whole system
+- **Observability:** users can inspect what the system is doing and why
+- **Educational Value:** features reinforce platform engineering and SRE concepts
+
+---
+
+## Recommended Next Architectural Documents
+
+This document is the north star, but it is not enough on its own for parallel multi-agent work. The repository should also maintain:
+
+1. **System Context**
+   A short document showing the external actors, cloud dependencies, local tooling, and major system boundaries.
+
+2. **Domain Model**
+   Definitions for Runtime, Platform Component, Service, Application, Scenario, Session, and Topology, including lifecycle and ownership.
+
+3. **Contributor Map**
+   A file that explains which directories own which concerns, what contracts exist, and where new work should go.
+
+4. **Decision Records**
+   Small ADR-style documents for major architectural choices such as scenario format, state storage, topology design, and provider contracts.
+
+5. **Agent Operating Guide**
+   A guide for AI agents describing workflow, task boundaries, file ownership, coordination rules, and handoff expectations.
+
+6. **Execution Contracts**
+   Contracts for `install.sh`, `uninstall.sh`, `status.sh`, scenario manifests, runtime adapters, and future blueprint definitions.
+
+7. **Roadmap / Capability Matrix**
+   A status document showing what is implemented, planned, experimental, or intentionally deferred.
+
+---
+
+## Summary
+
+Sagars-Laboratory should evolve into a scenario-driven platform engineering simulator with a clear control plane, pluggable execution adapters, strong learning workflows, and explicit architectural boundaries.
+
+If contributors align their changes to the domains and rules in this document, the repository will remain understandable, extensible, and much easier for multiple agents to evolve in parallel.

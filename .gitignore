@@ -33,3 +33,5 @@ foundation/terraform/**/.terraform.lock.hcl
 
 ## OS
 Thumbs.db
+
+.ai/logs/*
