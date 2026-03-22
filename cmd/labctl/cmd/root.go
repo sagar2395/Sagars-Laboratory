@@ -9,20 +9,21 @@ import (
 	"github.com/sagars-lab/labctl/internal/config"
 	"github.com/sagars-lab/labctl/internal/executor"
 	"github.com/sagars-lab/labctl/internal/platform"
+	"github.com/sagars-lab/labctl/internal/runtime"
 	"github.com/sagars-lab/labctl/internal/scenario"
 	"github.com/sagars-lab/labctl/internal/services"
 )
 
 var (
-	cfgFile    string
 	projectDir string
 	verbose    bool
 
-	cfg     *config.Config
-	exec    *executor.Executor
-	reg     *platform.Registry
-	scenes  *scenario.Engine
-	svcReg  *services.Registry
+	cfg    *config.Config
+	exec   *executor.Executor
+	reg    *platform.Registry
+	scenes *scenario.Engine
+	svcReg *services.Registry
+	rtm    *runtime.Manager
 )
 
 var rootCmd = &cobra.Command{
@@ -42,9 +43,18 @@ var rootCmd = &cobra.Command{
 		}
 
 		exec = executor.New(cfg.ProjectRoot)
+		// Propagate resolved config values so all child scripts inherit them.
+		exec.SetEnv("CLUSTER_NAME", cfg.ClusterName)
+		exec.SetEnv("DOMAIN_SUFFIX", cfg.DomainSuffix)
+		exec.SetEnv("HTTP_PORT", cfg.HTTPPort)
+		exec.SetEnv("HTTPS_PORT", cfg.HTTPSPort)
+		exec.SetEnv("INGRESS_CLASS", cfg.IngressClass)
+		exec.SetEnv("STORAGE_CLASS", cfg.StorageClass)
+		exec.SetEnv("PROFILE", cfg.Profile)
 		reg = platform.NewRegistry(cfg.ProjectRoot)
 		scenes = scenario.NewEngine(cfg.ProjectRoot, cfg.DomainSuffix)
 		svcReg = services.NewRegistry(cfg.ProjectRoot)
+		rtm = runtime.NewManager(cfg.ProjectRoot, cfg.ClusterName)
 		return nil
 	},
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/sagars-lab/labctl/internal/executor"
 )
@@ -19,6 +20,22 @@ type Provider struct {
 func (p *Provider) HasScript(name string) bool {
 	_, err := os.Stat(filepath.Join(p.Path, name))
 	return err == nil
+}
+
+// Namespace returns the conventional Kubernetes namespace for this provider.
+// Monitoring, logging, and tracing providers share the "monitoring" namespace.
+// Other providers use their own name as the namespace.
+func (p *Provider) Namespace() string {
+	top := p.Category
+	if i := strings.Index(top, "/"); i >= 0 {
+		top = top[:i]
+	}
+	switch top {
+	case "monitoring", "logging", "tracing":
+		return "monitoring"
+	default:
+		return p.Name
+	}
 }
 
 // Registry discovers and manages platform component providers.
@@ -74,6 +91,19 @@ func (r *Registry) Install(category, name string, exec *executor.Executor) error
 	return exec.RunScript(scriptPath)
 }
 
+// InstallStreamed runs install.sh for a provider with output streaming.
+func (r *Registry) InstallStreamed(category, name string, exec *executor.Executor) error {
+	p, err := r.GetProvider(category, name)
+	if err != nil {
+		return err
+	}
+	scriptPath, err := filepath.Rel(r.ProjectRoot, filepath.Join(p.Path, "install.sh"))
+	if err != nil {
+		return err
+	}
+	return exec.RunScriptStreamed(fmt.Sprintf("Install %s/%s", category, name), scriptPath)
+}
+
 // Uninstall runs the uninstall.sh for a provider.
 func (r *Registry) Uninstall(category, name string, exec *executor.Executor) error {
 	p, err := r.GetProvider(category, name)
@@ -89,6 +119,23 @@ func (r *Registry) Uninstall(category, name string, exec *executor.Executor) err
 		return err
 	}
 	return exec.RunScript(scriptPath)
+}
+
+// UninstallStreamed runs uninstall.sh for a provider with output streaming.
+func (r *Registry) UninstallStreamed(category, name string, exec *executor.Executor) error {
+	p, err := r.GetProvider(category, name)
+	if err != nil {
+		return err
+	}
+	script := filepath.Join(p.Path, "uninstall.sh")
+	if _, err := os.Stat(script); os.IsNotExist(err) {
+		return fmt.Errorf("uninstall.sh not found for %s/%s", category, name)
+	}
+	scriptPath, err := filepath.Rel(r.ProjectRoot, script)
+	if err != nil {
+		return err
+	}
+	return exec.RunScriptStreamed(fmt.Sprintf("Uninstall %s/%s", category, name), scriptPath)
 }
 
 // Status runs the status.sh for a provider.

@@ -115,6 +115,11 @@ All 9 platform categories now have `_interface.yaml` contracts:
 - Color output: using ANSI codes for status messages
 - All scripts should be idempotent (safe to run multiple times)
 - Source shared variables from env files, don't hardcode
+- **Config values are provided by the executor environment** — scripts should NOT source `.active-runtime.env` or other file-based configs. Instead, use `${DOMAIN_SUFFIX:-k3d.local}` to read from env with a sensible default.
+- **Dynamic ingress hosts**: Never use hardcoded domain names in static YAML files. Use inline heredocs with `$DOMAIN_SUFFIX` interpolation or `--set` overrides in Helm.
+- **Helm repo add**: Always use `--force-update` flag to prevent stale cache issues.
+- **Helm install**: Use `--wait --timeout 5m` for reliable readiness detection.
+- **Stuck release cleanup**: Before `helm upgrade --install`, check for `pending-` state releases and delete them to avoid "another operation is in progress" errors.
 
 ---
 
@@ -122,11 +127,33 @@ All 9 platform categories now have `_interface.yaml` contracts:
 
 | File | Purpose | Read By |
 |------|---------|---------|
-| `.env` | Global project config (PROFILE, CLUSTER_NAME, ports) | Makefile, CLI |
+| `.env` | Global project config (PROFILE, CLUSTER_NAME, ports, providers) | Makefile, CLI |
 | `.env.example` | Template for `.env` | Developers |
 | `versions.env` | Tool version pins | bootstrap/setup-tools.sh |
 | `apps/<name>/app.env` | Per-app config (strategies, helm settings) | engine/*.sh |
-| `runtimes/<profile>/runtime.env` | Runtime-specific overrides [new] | CLI, platform scripts |
+| `runtimes/<profile>/runtime.env` | Runtime-specific overrides | CLI config loader |
+
+---
+
+## Config Propagation Flow
+
+```
+.env (global)
+  + runtimes/<profile>/runtime.env (runtime-specific)
+  -> config.Load() [Go: os.Setenv for each key]
+  -> exec.SetEnv() [Go: explicit on executor for key vars]
+  -> buildEnv() [Go: os.Environ() + executor overrides]
+  -> child process environment [shell scripts receive all vars]
+```
+
+Key propagated variables:
+- `CLUSTER_NAME` — used by runtime up/down scripts
+- `DOMAIN_SUFFIX` — used by ALL platform install scripts for ingress hosts
+- `HTTP_PORT`, `HTTPS_PORT` — used by k3d cluster creation
+- `INGRESS_CLASS`, `STORAGE_CLASS` — used by Helm values
+- `PROFILE` — identifies active runtime (k3d, aks, eks)
+
+**Important**: Scripts should NEVER source config files directly. They should read from environment variables with fallback defaults: `${DOMAIN_SUFFIX:-k3d.local}`.
 
 ---
 
@@ -163,24 +190,30 @@ All 9 platform categories now have `_interface.yaml` contracts:
 ## Known Technical Debt
 
 1. ~~Some shell scripts lack `set -euo pipefail`~~ **FIXED** (Session #1)
-2. ~~`go-api` runs as root (runAsUser: 0)~~ **FIXED** — Both apps now use non-root user (appuser:appgroup, runAsUser: 65534, readOnlyRootFilesystem) (Session #7)
+2. ~~`go-api` runs as root (runAsUser: 0)~~ **FIXED** (Session #7)
 3. ~~Grafana dashboards are placeholders~~ **PARTIALLY FIXED** — SLO and Log Explorer dashboards added via scenario
 4. ~~No `.gitignore` file in the project root~~ **FIXED** (Session #1)
 5. ~~`.env.example` has a stray `make build` on line 1~~ **FIXED** (Session #1)
-6. ~~Hardcoded `k3d.local` domain in multiple places~~ **FIXED** — Parameterized via `${DOMAIN_SUFFIX:-k3d.local}` (Session #1)
+6. ~~Hardcoded `k3d.local` domain in multiple places~~ **FIXED** — All scripts now use `$DOMAIN_SUFFIX` from executor env (Session #1 + #10)
 7. ~~Platform install scripts don't accept provider variables~~ **FIXED** — Registry pattern + env vars (Session #1)
 8. go-api needs to be rebuilt and redeployed after OpenTelemetry enhancement (new image required)
 9. Web UI is a single HTML file — should be replaced with a proper frontend build
-10. ~~No tests for the CLI or API server~~ **FIXED** — 35 tests across 5 packages (config, executor, platform, scenario, services) (Session #8)
-11. ~~echo-server app.env has commented-out REDIS_URL — actual default is set in values-dev.yaml~~ **FIXED** — Clarified with comments that runtime vars in app.env are documentation only; real values injected via Helm (Session #8)
-12. ~~GitHub Actions workflows are templates — need to be placed in `.github/workflows/` and customized per repo~~ **FIXED** — Created 3 workflows in `.github/workflows/` (ci.yaml, cd.yaml, helm-validation.yaml) customized for multi-app project (Session #8)
-13. Chaos Mesh uses containerd socket at `/run/k3s/containerd/containerd.sock` — only works on k3d/k3s, cloud runtimes need different socket paths
-14. PDB templates exist in both Helm charts but default to disabled — enable via values or scenario manifests
-15. Terraform modules not tested against real cloud accounts — need validation with actual AKS/EKS provisioning
-16. ~~Cloud runtime scripts assume Terraform state is local — backend config blocks are commented out (need S3/AzureRM backend for teams)~~ **FIXED** — Both dev and staging environments now have commented-out azurerm + S3 backend config blocks (Session #8)
-17. EKS module creates NAT Gateway (costs ~$32/month) — consider NAT instance for cost savings in dev
-18. ~~Platform install scripts may need adjustment for cloud runtimes (e.g., Traefik -> Nginx ingress)~~ **PARTIALLY FIXED** — Nginx ingress provider created (Session #7)
-19. ~~echo-server Helm defaults force Redis URL even when Redis service is absent, causing `/ready` failures~~ **FIXED** — `REDIS_URL` now defaults to empty in values files; Redis remains optional unless explicitly configured (Session #9, 2026-03-07)
-20. Deploy UX gap: no preflight validation currently warns when dependency URLs (for example Redis) point to non-existent in-cluster services; add deploy-time warning/check.
-21. Operational observation: `kube-system` Traefik helm-install job pods were seen in CrashLoop/Error during troubleshooting; verify if these are stale and clean up if needed.
+10. ~~No tests for the CLI or API server~~ **FIXED** — 35 tests across 5 packages (Session #8)
+11. ~~echo-server app.env has commented-out REDIS_URL~~ **FIXED** (Session #8)
+12. ~~GitHub Actions workflows are templates~~ **FIXED** (Session #8)
+13. Chaos Mesh uses containerd socket at `/run/k3s/containerd/containerd.sock` — only works on k3d/k3s
+14. PDB templates default to disabled — enable via values or scenario manifests
+15. Terraform modules not tested against real cloud accounts
+16. ~~Cloud runtime scripts assume Terraform state is local~~ **FIXED** (Session #8)
+17. EKS module creates NAT Gateway (costs ~$32/month)
+18. ~~Platform install scripts may need Nginx adjustment for cloud~~ **PARTIALLY FIXED** (Session #7)
+19. ~~echo-server Helm defaults force Redis URL~~ **FIXED** (Session #9)
+20. Deploy UX gap: no preflight validation for dependency URLs
+21. ~~Traefik conflict: k3d-bundled Traefik in kube-system conflicts with custom install~~ **FIXED** — Disabled at cluster creation + HelmChart CRD cleanup (Session #10)
+22. ~~DOMAIN_SUFFIX not reaching platform install scripts~~ **FIXED** — exec.SetEnv() propagation + removed dead .active-runtime.env sourcing (Session #10)
+23. ~~Prometheus ingress hardcoded in static YAML~~ **FIXED** — Replaced with inline heredoc (Session #10)
+24. ~~Kubernetes Dashboard Helm repo and OCI registry both broken~~ **FIXED** — Direct tarball install from GitHub release (Session #10)
+25. ~~Kubernetes Dashboard Kong TLS causing Traefik proxy failure~~ **FIXED** — Disabled Kong TLS, HTTP ingress (Session #10)
+26. ~~Scenario status race condition~~ **FIXED** — Explicit success broadcasts after markActive (Session #10)
+27. ~~ArgoCD blocked by Kyverno policies~~ **FIXED** — Added namespace exclusions (Session #10)
 

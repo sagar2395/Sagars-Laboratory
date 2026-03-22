@@ -174,7 +174,9 @@ func (e *Engine) Status() []ScenarioStatus {
 		result = append(result, ScenarioStatus{
 			Name:        s.Name,
 			DisplayName: s.DisplayName,
+			Description: s.Description,
 			Category:    s.Category,
+			Runtimes:    s.Runtimes,
 			Active:      e.isActive(s.Name),
 		})
 	}
@@ -183,10 +185,12 @@ func (e *Engine) Status() []ScenarioStatus {
 
 // ScenarioStatus is a lightweight status for listing scenarios.
 type ScenarioStatus struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Category    string `json:"category"`
-	Active      bool   `json:"active"`
+	Name        string   `json:"name"`
+	DisplayName string   `json:"displayName"`
+	Description string   `json:"description,omitempty"`
+	Category    string   `json:"category"`
+	Runtimes    []string `json:"runtimes,omitempty"`
+	Active      bool     `json:"active"`
 }
 
 func (e *Engine) scan() {
@@ -266,17 +270,11 @@ func (e *Engine) installHelm(s *Scenario, comp *Component, exec *executor.Execut
 		ns = "default"
 	}
 
-	// Create namespace
-	if err := exec.RunCommand("kubectl", "create", "namespace", ns, "--dry-run=client", "-o", "yaml"); err == nil {
-		exec.RunCommand("kubectl", "apply", "-f", "-")
-	}
-	exec.RunCommand("kubectl", "create", "namespace", ns, "--dry-run=client", "-o", "yaml")
-
 	// Add helm repo if specified
 	if comp.Repo != "" {
 		repoName := strings.Split(comp.Chart, "/")[0]
-		exec.RunHelm("repo", "add", repoName, comp.Repo)
-		exec.RunHelm("repo", "update")
+		exec.RunCommandStreamed("Helm repo add "+repoName, "helm", "repo", "add", repoName, comp.Repo, "--force-update")
+		exec.RunCommandStreamed("Helm repo update", "helm", "repo", "update")
 	}
 
 	args := []string{
@@ -301,7 +299,7 @@ func (e *Engine) installHelm(s *Scenario, comp *Component, exec *executor.Execut
 		args = append(args, "--set", k+"="+resolved)
 	}
 
-	return exec.RunHelm(args...)
+	return exec.RunCommandStreamed("Helm install "+comp.Name, "helm", args...)
 }
 
 func (e *Engine) uninstallHelm(comp *Component, exec *executor.Executor) error {
@@ -309,7 +307,7 @@ func (e *Engine) uninstallHelm(comp *Component, exec *executor.Executor) error {
 	if ns == "" {
 		ns = "default"
 	}
-	return exec.RunHelm("uninstall", comp.Name, "--namespace", ns)
+	return exec.RunCommandStreamed("Helm uninstall "+comp.Name, "helm", "uninstall", comp.Name, "--namespace", ns)
 }
 
 func (e *Engine) installManifest(s *Scenario, comp *Component, exec *executor.Executor) error {
@@ -341,7 +339,7 @@ func (e *Engine) installManifest(s *Scenario, comp *Component, exec *executor.Ex
 		args = append(args, "--namespace", comp.Namespace)
 	}
 
-	return exec.RunKubectl(args...)
+	return exec.RunCommandStreamed("Apply manifest "+comp.Name, "kubectl", args...)
 }
 
 func (e *Engine) uninstallManifest(s *Scenario, comp *Component, exec *executor.Executor) error {
@@ -368,7 +366,7 @@ func (e *Engine) uninstallManifest(s *Scenario, comp *Component, exec *executor.
 		args = append(args, "--namespace", comp.Namespace)
 	}
 
-	return exec.RunKubectl(args...)
+	return exec.RunCommandStreamed("Delete manifest "+comp.Name, "kubectl", args...)
 }
 
 func (e *Engine) installGrafanaDashboard(s *Scenario, comp *Component, exec *executor.Executor) error {
@@ -415,7 +413,7 @@ data:
 
 		tmpFile.WriteString(cm)
 		tmpFile.Close()
-		exec.RunKubectl("apply", "-f", tmpFile.Name())
+		exec.RunCommandStreamed("Apply dashboard "+entry.Name(), "kubectl", "apply", "-f", tmpFile.Name())
 		os.Remove(tmpFile.Name())
 	}
 
@@ -439,15 +437,20 @@ func (e *Engine) uninstallGrafanaDashboard(s *Scenario, comp *Component, exec *e
 			continue
 		}
 		cmName := fmt.Sprintf("scenario-%s-%s", s.Name, strings.TrimSuffix(entry.Name(), ".json"))
-		exec.RunKubectl("delete", "configmap", cmName, "--namespace", ns, "--ignore-not-found")
+		exec.RunCommandStreamed("Delete dashboard "+entry.Name(), "kubectl", "delete", "configmap", cmName, "--namespace", ns, "--ignore-not-found")
 	}
 
 	return nil
 }
 
 func (e *Engine) runScript(s *Scenario, comp *Component, exec *executor.Executor) error {
-	scriptPath := filepath.Join(s.Dir, comp.Script)
-	return exec.RunScript(scriptPath)
+	// Compute the path relative to the project root for RunScriptStreamed
+	relPath, err := filepath.Rel(e.ProjectRoot, filepath.Join(s.Dir, comp.Script))
+	if err != nil {
+		// Fallback to absolute path
+		relPath = filepath.Join(s.Dir, comp.Script)
+	}
+	return exec.RunScriptStreamed("Run script "+comp.Name, relPath)
 }
 
 // ResolveTemplate resolves Go template variables in a string (e.g., {{.DomainSuffix}}).

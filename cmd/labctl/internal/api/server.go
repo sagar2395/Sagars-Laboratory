@@ -12,6 +12,7 @@ import (
 	"github.com/sagars-lab/labctl/internal/config"
 	"github.com/sagars-lab/labctl/internal/executor"
 	"github.com/sagars-lab/labctl/internal/platform"
+	"github.com/sagars-lab/labctl/internal/runtime"
 	"github.com/sagars-lab/labctl/internal/scenario"
 	"github.com/sagars-lab/labctl/internal/services"
 )
@@ -23,6 +24,7 @@ type Server struct {
 	registry *platform.Registry
 	scenes   *scenario.Engine
 	svcs     *services.Registry
+	runtimes *runtime.Manager
 	router   *mux.Router
 	upgrader websocket.Upgrader
 	uiFS     fs.FS
@@ -31,13 +33,14 @@ type Server struct {
 // NewServer creates a new API server. The embeddedUI parameter should be the
 // embedded ui/dist filesystem (from go:embed). If nil or empty, the server
 // falls back to serving UI files from the project's ui/dist/ directory.
-func NewServer(cfg *config.Config, exec *executor.Executor, registry *platform.Registry, scenes *scenario.Engine, svcs *services.Registry, embeddedUI fs.FS) *Server {
+func NewServer(cfg *config.Config, exec *executor.Executor, registry *platform.Registry, scenes *scenario.Engine, svcs *services.Registry, rtm *runtime.Manager, embeddedUI fs.FS) *Server {
 	s := &Server{
 		cfg:      cfg,
 		exec:     exec,
 		registry: registry,
 		scenes:   scenes,
 		svcs:     svcs,
+		runtimes: rtm,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
@@ -69,11 +72,15 @@ func (s *Server) setupRoutes() {
 
 	api.HandleFunc("/status", s.handleStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/apps", s.handleListApps).Methods("GET", "OPTIONS")
+	api.HandleFunc("/apps/{name}/build", s.handleAppBuild).Methods("POST", "OPTIONS")
 	api.HandleFunc("/apps/{name}/deploy", s.handleAppDeploy).Methods("POST", "OPTIONS")
 	api.HandleFunc("/apps/{name}/destroy", s.handleAppDestroy).Methods("POST", "OPTIONS")
 	api.HandleFunc("/platform", s.handlePlatformStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/platform/up", s.handlePlatformUp).Methods("POST", "OPTIONS")
 	api.HandleFunc("/platform/down", s.handlePlatformDown).Methods("POST", "OPTIONS")
+	api.HandleFunc("/platform/component/{category}/{name}/up", s.handleComponentUp).Methods("POST", "OPTIONS")
+	api.HandleFunc("/platform/component/{category}/{name}/down", s.handleComponentDown).Methods("POST", "OPTIONS")
+	api.HandleFunc("/dashboards", s.handleDashboardURLs).Methods("GET", "OPTIONS")
 	api.HandleFunc("/scenarios", s.handleListScenarios).Methods("GET", "OPTIONS")
 	api.HandleFunc("/scenarios/{name}", s.handleScenarioInfo).Methods("GET", "OPTIONS")
 	api.HandleFunc("/scenarios/{name}/up", s.handleScenarioUp).Methods("POST", "OPTIONS")
@@ -81,6 +88,9 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/services", s.handleListServices).Methods("GET", "OPTIONS")
 	api.HandleFunc("/services/{name}/up", s.handleServiceUp).Methods("POST", "OPTIONS")
 	api.HandleFunc("/services/{name}/down", s.handleServiceDown).Methods("POST", "OPTIONS")
+	api.HandleFunc("/runtimes", s.handleListRuntimes).Methods("GET", "OPTIONS")
+	api.HandleFunc("/runtimes/{name}/activate", s.handleRuntimeActivate).Methods("POST", "OPTIONS")
+	api.HandleFunc("/runtimes/{name}/deactivate", s.handleRuntimeDeactivate).Methods("POST", "OPTIONS")
 	api.HandleFunc("/ws", s.handleWebSocket)
 
 	// Serve UI — use embedded FS if available, fall back to filesystem for dev

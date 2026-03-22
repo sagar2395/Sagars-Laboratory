@@ -23,7 +23,7 @@ func platformUpRun(cmd *cobra.Command, args []string) error {
 	// Install monitoring (metrics)
 	if cfg.MetricsProvider != "" {
 		fmt.Printf("Installing metrics (%s)...\n", cfg.MetricsProvider)
-		if err := reg.Install("monitoring", cfg.MetricsProvider, exec); err != nil {
+		if err := reg.Install("monitoring/metrics", cfg.MetricsProvider, exec); err != nil {
 			fmt.Printf("Warning: metrics install: %v\n", err)
 		}
 	}
@@ -45,7 +45,7 @@ func platformDownRun(cmd *cobra.Command, args []string) error {
 
 	if cfg.MetricsProvider != "" {
 		fmt.Printf("Uninstalling metrics (%s)...\n", cfg.MetricsProvider)
-		_ = reg.Uninstall("monitoring", cfg.MetricsProvider, exec)
+		_ = reg.Uninstall("monitoring/metrics", cfg.MetricsProvider, exec)
 	}
 
 	if cfg.IngressProvider != "" {
