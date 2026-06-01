@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -108,6 +109,77 @@ func TestLoadAppConfig_NotFound(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for missing app config")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Profile / app validation tests (task 029)
+// ---------------------------------------------------------------------------
+
+func TestLoad_InvalidProfile_ReturnsError(t *testing.T) {
+	saved, ok := os.LookupEnv("PROFILE")
+	os.Setenv("PROFILE", "bogus-runtime")
+	defer func() {
+		if ok {
+			os.Setenv("PROFILE", saved)
+		} else {
+			os.Unsetenv("PROFILE")
+		}
+	}()
+
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "runtimes", "k3d"), 0755) // only k3d exists
+
+	_, err := Load(root)
+	if err == nil {
+		t.Fatal("expected error for invalid profile, got nil")
+	}
+	if !containsAll(err.Error(), "bogus-runtime", "k3d") {
+		t.Errorf("error should name the bad profile and list valid ones: %v", err)
+	}
+}
+
+func TestLoad_ValidProfile_Succeeds(t *testing.T) {
+	saved, ok := os.LookupEnv("PROFILE")
+	os.Setenv("PROFILE", "k3d")
+	defer func() {
+		if ok {
+			os.Setenv("PROFILE", saved)
+		} else {
+			os.Unsetenv("PROFILE")
+		}
+	}()
+
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "runtimes", "k3d"), 0755)
+
+	_, err := Load(root)
+	if err != nil {
+		t.Fatalf("Load with valid profile: %v", err)
+	}
+}
+
+func TestLoadAppConfig_InvalidApp_ReturnsError(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "apps", "go-api"), 0755)
+	os.WriteFile(filepath.Join(root, "apps", "go-api", "app.env"), []byte("APP_NAME=go-api"), 0644)
+
+	_, err := LoadAppConfig(root, "nonexistent-app")
+	if err == nil {
+		t.Fatal("expected error for invalid app, got nil")
+	}
+	if !containsAll(err.Error(), "nonexistent-app", "go-api") {
+		t.Errorf("error should name the bad app and list valid ones: %v", err)
+	}
+}
+
+// containsAll returns true if s contains all of the substrings.
+func containsAll(s string, subs ...string) bool {
+	for _, sub := range subs {
+		if !strings.Contains(s, sub) {
+			return false
+		}
+	}
+	return true
 }
 
 func TestLoad_Defaults(t *testing.T) {

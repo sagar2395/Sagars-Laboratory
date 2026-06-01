@@ -130,3 +130,153 @@ func TestBuildEnv(t *testing.T) {
 		t.Error("expected CUSTOM_VAR=custom_value in build environment")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Streaming / job-ID tests (task 017)
+// ---------------------------------------------------------------------------
+
+func TestRunScriptStreamed_ReturnsActionID(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(root+"/ok.sh", []byte("#!/bin/bash\necho hello"), 0755)
+
+	e := New(root)
+	e.Stdout = &bytes.Buffer{}
+	e.Stderr = &bytes.Buffer{}
+
+	id, err := e.RunScriptStreamed("Test", "ok.sh")
+	if err != nil {
+		t.Fatalf("RunScriptStreamed: %v", err)
+	}
+	if id == "" {
+		t.Error("expected non-empty action ID")
+	}
+}
+
+func TestRunScriptStreamed_NotFound_EmitsEvents(t *testing.T) {
+	e := New(t.TempDir())
+
+	var received []ActionEvent
+	ch := e.Broadcast.Subscribe()
+	done := make(chan struct{})
+	go func() {
+		for ev := range ch {
+			received = append(received, ev)
+		}
+		close(done)
+	}()
+
+	id, err := e.RunScriptStreamed("Missing script", "no-such.sh")
+	if err == nil {
+		t.Fatal("expected error for missing script")
+	}
+	if id == "" {
+		t.Error("expected non-empty action ID even on failure")
+	}
+
+	e.Broadcast.Unsubscribe(ch)
+	<-done
+
+	types := make(map[string]bool)
+	for _, ev := range received {
+		types[ev.Type] = true
+		if ev.ID != id {
+			t.Errorf("event ID mismatch: got %q, want %q", ev.ID, id)
+		}
+	}
+	if !types["action_start"] {
+		t.Error("expected action_start event")
+	}
+	if !types["action_end"] {
+		t.Error("expected action_end event")
+	}
+}
+
+func TestRunScriptStreamed_SuccessPath_EmitsEvents(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(root+"/greet.sh", []byte("#!/bin/bash\necho hi"), 0755)
+
+	e := New(root)
+	e.Stdout = &bytes.Buffer{}
+	e.Stderr = &bytes.Buffer{}
+
+	var received []ActionEvent
+	ch := e.Broadcast.Subscribe()
+	done := make(chan struct{})
+	go func() {
+		for ev := range ch {
+			received = append(received, ev)
+		}
+		close(done)
+	}()
+
+	id, err := e.RunScriptStreamed("Greet", "greet.sh")
+	if err != nil {
+		t.Fatalf("RunScriptStreamed: %v", err)
+	}
+
+	e.Broadcast.Unsubscribe(ch)
+	<-done
+
+	types := make(map[string]bool)
+	for _, ev := range received {
+		if ev.ID != id {
+			t.Errorf("event ID mismatch: got %q, want %q", ev.ID, id)
+		}
+		types[ev.Type] = true
+	}
+	if !types["action_start"] {
+		t.Error("expected action_start event")
+	}
+	if !types["action_output"] {
+		t.Error("expected action_output event")
+	}
+	if !types["action_end"] {
+		t.Error("expected action_end event")
+	}
+}
+
+func TestRunScriptStreamedWith_UsesProvidedID(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(root+"/noop.sh", []byte("#!/bin/bash\nexit 0"), 0755)
+
+	e := New(root)
+	e.Stdout = &bytes.Buffer{}
+	e.Stderr = &bytes.Buffer{}
+
+	var received []ActionEvent
+	ch := e.Broadcast.Subscribe()
+	done := make(chan struct{})
+	go func() {
+		for ev := range ch {
+			received = append(received, ev)
+		}
+		close(done)
+	}()
+
+	wantID := "custom-job-42"
+	err := e.RunScriptStreamedWith(wantID, "Noop", "noop.sh")
+	if err != nil {
+		t.Fatalf("RunScriptStreamedWith: %v", err)
+	}
+
+	e.Broadcast.Unsubscribe(ch)
+	<-done
+
+	for _, ev := range received {
+		if ev.ID != wantID {
+			t.Errorf("event ID: got %q, want %q", ev.ID, wantID)
+		}
+	}
+}
+
+func TestNextActionID_Unique(t *testing.T) {
+	e := New(t.TempDir())
+	ids := make(map[string]bool)
+	for i := 0; i < 10; i++ {
+		id := e.NextActionID()
+		if ids[id] {
+			t.Errorf("duplicate action ID: %q", id)
+		}
+		ids[id] = true
+	}
+}

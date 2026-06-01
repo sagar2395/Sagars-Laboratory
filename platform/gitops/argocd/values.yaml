@@ -12,7 +12,7 @@ server:
     ingressClassName: traefik
     annotations:
       traefik.ingress.kubernetes.io/router.entrypoints: web
-    hostname: argocd.k3d.local
+    # hostname is injected at install time via DOMAIN_SUFFIX — see install.sh
 
   # Resource limits (minimal for local dev)
   resources:

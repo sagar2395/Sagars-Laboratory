@@ -126,11 +126,17 @@ func jsonMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// ErrorResponse is the standard JSON envelope for all 4xx/5xx responses.
+type ErrorResponse struct {
+	Error string `json:"error"`
+	Code  string `json:"code,omitempty"`
+}
+
 func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
 }
 
-func respondError(w http.ResponseWriter, status int, msg string) {
-	respondJSON(w, status, map[string]string{"error": msg})
+func respondError(w http.ResponseWriter, status int, code, msg string) {
+	respondJSON(w, status, ErrorResponse{Error: msg, Code: code})
 }

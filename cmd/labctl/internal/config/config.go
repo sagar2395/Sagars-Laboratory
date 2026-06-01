@@ -71,7 +71,15 @@ func Load(projectRoot string) (*Config, error) {
 
 	// Load runtime.env based on profile
 	profile := getEnvOrDefault("PROFILE", "k3d")
-	runtimeEnv := filepath.Join(projectRoot, "runtimes", profile, "runtime.env")
+
+	// Validate that the profile directory exists.
+	runtimeDir := filepath.Join(projectRoot, "runtimes", profile)
+	if _, err := os.Stat(runtimeDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("runtime profile %q not found in runtimes/; available profiles: %s",
+			profile, availableProfiles(projectRoot))
+	}
+
+	runtimeEnv := filepath.Join(runtimeDir, "runtime.env")
 	loadEnvFile(runtimeEnv)
 
 	// Populate config from environment
@@ -103,9 +111,14 @@ func Load(projectRoot string) (*Config, error) {
 
 // LoadAppConfig reads app-specific config from apps/<name>/app.env.
 func LoadAppConfig(projectRoot, appName string) (*AppConfig, error) {
-	appEnv := filepath.Join(projectRoot, "apps", appName, "app.env")
+	appDir := filepath.Join(projectRoot, "apps", appName)
+	if _, err := os.Stat(appDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("app %q not found in apps/; available apps: %s",
+			appName, availableApps(projectRoot))
+	}
+	appEnv := filepath.Join(appDir, "app.env")
 	if _, err := os.Stat(appEnv); os.IsNotExist(err) {
-		return nil, fmt.Errorf("app config not found: %s", appEnv)
+		return nil, fmt.Errorf("app %q exists but has no app.env", appName)
 	}
 
 	v := viper.New()
@@ -197,4 +210,42 @@ func getEnvOrDefault(key, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+// availableProfiles lists valid profile directory names under runtimes/.
+func availableProfiles(projectRoot string) string {
+	entries, err := os.ReadDir(filepath.Join(projectRoot, "runtimes"))
+	if err != nil {
+		return "(none)"
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	if len(names) == 0 {
+		return "(none)"
+	}
+	return strings.Join(names, ", ")
+}
+
+// availableApps lists app names that have an app.env under apps/.
+func availableApps(projectRoot string) string {
+	entries, err := os.ReadDir(filepath.Join(projectRoot, "apps"))
+	if err != nil {
+		return "(none)"
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			if _, err := os.Stat(filepath.Join(projectRoot, "apps", e.Name(), "app.env")); err == nil {
+				names = append(names, e.Name())
+			}
+		}
+	}
+	if len(names) == 0 {
+		return "(none)"
+	}
+	return strings.Join(names, ", ")
 }

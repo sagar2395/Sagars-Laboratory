@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +17,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
+)
+
+const maxBodyBytes = 1 << 20 // 1 MiB
+
+// build-time version info injected via -ldflags
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildDate = "unknown"
 )
 
 var (
@@ -78,6 +88,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/ready", handleReady)
+	mux.HandleFunc("/version", handleVersion)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/echo", handleEcho)
 	mux.HandleFunc("/cache", handleCache)
@@ -133,10 +144,11 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"service": serviceName,
-		"version": "0.1.0",
+		"version": version,
 		"endpoints": []string{
 			"/health   - Health check (always 200)",
 			"/ready    - Readiness check (checks Redis if configured)",
+			"/version  - Build version info",
 			"/echo     - Echo back request details",
 			"/cache    - GET/POST key-value cache via Redis",
 			"/metrics  - Prometheus metrics",
@@ -144,35 +156,40 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleHealth always returns 200 OK.
+func handleVersion(w http.ResponseWriter, r *http.Request) {
+	respondJSON(w, http.StatusOK, map[string]string{
+		"app":       serviceName,
+		"version":   version,
+		"commit":    commit,
+		"buildDate": buildDate,
+	})
+}
+
+// handleHealth returns 200 OK with Redis connectivity reported as a non-fatal detail.
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	defer func() { recordMetrics(r, http.StatusOK, start) }()
 
 	logger.Debug("health check", "remote", r.RemoteAddr)
-	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
 
-// handleReady checks Redis connectivity if REDIS_URL is set.
-func handleReady(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-
+	resp := map[string]interface{}{"status": "ok"}
 	if redisClient != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
-
 		if err := redisClient.Ping(ctx).Err(); err != nil {
-			logger.Warn("readiness check failed: redis unreachable", "error", err)
-			recordMetrics(r, http.StatusServiceUnavailable, start)
-			respondJSON(w, http.StatusServiceUnavailable, map[string]string{
-				"status": "not_ready",
-				"reason": fmt.Sprintf("redis ping failed: %v", err),
-			})
-			return
+			resp["redis"] = map[string]string{"status": "degraded", "error": err.Error()}
+		} else {
+			resp["redis"] = map[string]string{"status": "ok"}
 		}
 	}
+	respondJSON(w, http.StatusOK, resp)
+}
 
-	logger.Debug("readiness check passed", "remote", r.RemoteAddr)
+// handleReady always returns 200 — the app is ready as long as its HTTP listener is up.
+// Redis is optional; its status is reported separately in /health.
+func handleReady(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	logger.Debug("readiness check", "remote", r.RemoteAddr)
 	recordMetrics(r, http.StatusOK, start)
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 }
@@ -181,8 +198,15 @@ func handleReady(w http.ResponseWriter, r *http.Request) {
 func handleEcho(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			recordMetrics(r, http.StatusRequestEntityTooLarge, start)
+			respondJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "request body too large"})
+			return
+		}
 		recordMetrics(r, http.StatusBadRequest, start)
 		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read body"})
 		return
@@ -269,8 +293,15 @@ func handleCache(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			var maxErr *http.MaxBytesError
+			if errors.As(err, &maxErr) {
+				recordMetrics(r, http.StatusRequestEntityTooLarge, start)
+				respondJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "request body too large"})
+				return
+			}
 			recordMetrics(r, http.StatusBadRequest, start)
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read body"})
 			return

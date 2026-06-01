@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"text/tabwriter"
 
+	scenariopkg "github.com/sagars-lab/labctl/internal/scenario"
 	"github.com/spf13/cobra"
 )
 
@@ -42,7 +44,12 @@ var scenarioUpCmd = &cobra.Command{
 	Short: "Activate a scenario",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return scenes.Up(args[0], exec)
+		err := scenes.Up(args[0], exec)
+		if errors.Is(err, scenariopkg.ErrAlreadyActive) {
+			fmt.Fprintf(os.Stderr, "Scenario %s is already active. Use --force to reinstall.\n", args[0])
+			return nil
+		}
+		return err
 	},
 }
 

@@ -22,31 +22,59 @@ fi
 HELM_RELEASE="${HELM_RELEASE_NAME:?app.env must define HELM_RELEASE_NAME}"
 HELM_VALUES="${HELM_VALUES:?app.env must define HELM_VALUES}"
 NAMESPACE="${NAMESPACE:-${APP_NAME}}"   # default to app name
+HELM_WAIT_TIMEOUT="${HELM_WAIT_TIMEOUT:-5m}"
 
 HELM_CHART_PATH="apps/${APP_NAME}/deploy/helm"
 
 case "${COMMAND}" in
     deploy)
         echo "Deploying ${APP_NAME} to ${NAMESPACE} namespace..."
-        helm lint "${HELM_CHART_PATH}" > /dev/null || exit 1
+
+        echo "[lint] Linting chart with values..."
+        if ! helm lint "${HELM_CHART_PATH}" -f "${HELM_CHART_PATH}/${HELM_VALUES}"; then
+            echo "[lint] ERROR: chart failed lint — aborting deploy" >&2
+            exit 1
+        fi
+        echo "[lint] OK"
+
+        echo "[dry-run] Rendering chart templates..."
+        if ! helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_PATH}" \
+            -f "${HELM_CHART_PATH}/${HELM_VALUES}" \
+            --namespace "${NAMESPACE}" --create-namespace \
+            --set namespace.create=false \
+            --dry-run 2>&1; then
+            echo "[dry-run] ERROR: dry-run failed — aborting deploy" >&2
+            exit 1
+        fi
+        echo "[dry-run] OK"
+
         # ensure namespace exists (kubectl apply is idempotent)
         kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1 || true
 
-        # disable the chart's own namespace resource to avoid collision with
-        # --create-namespace or existing namespace
         helm upgrade --install "${HELM_RELEASE}" "${HELM_CHART_PATH}" \
             -f "${HELM_CHART_PATH}/${HELM_VALUES}" \
             --namespace "${NAMESPACE}" --create-namespace \
             --set namespace.create=false
-        echo "";
+
+        echo "[rollout] Waiting for deployment to be ready (timeout: ${HELM_WAIT_TIMEOUT})..."
+        if ! kubectl rollout status deployment/"${HELM_RELEASE}" \
+            -n "${NAMESPACE}" \
+            --timeout="${HELM_WAIT_TIMEOUT}"; then
+            echo "[rollout] WARNING: rollout did not complete within ${HELM_WAIT_TIMEOUT}" >&2
+            kubectl get pods -n "${NAMESPACE}" >&2
+            exit 1
+        fi
+        echo "[rollout] OK"
+
+        echo ""
         echo "✓ Deployment complete! Access the application:"
         echo "  - HTTP: http://${APP_NAME}.${DOMAIN_SUFFIX:-k3d.local}"
         echo "  - Metrics: http://${APP_NAME}.${DOMAIN_SUFFIX:-k3d.local}/metrics"
-        echo "";
-        echo "View deployment status:";
-        echo "  kubectl get deployments -n ${NAMESPACE}";
-        echo "  kubectl get pods -n ${NAMESPACE}";
-        echo "  kubectl get svc -n ${NAMESPACE}";
+        echo ""
+        echo "View deployment status:"
+        echo "  kubectl get deployments -n ${NAMESPACE}"
+        echo "  kubectl get pods -n ${NAMESPACE}"
+        echo "  kubectl get svc -n ${NAMESPACE}"
         ;;
 
     destroy)
@@ -57,9 +85,9 @@ case "${COMMAND}" in
         ;;
 
     lint)
-        echo "Linting Helm chart..."
+        echo "[lint] Linting Helm chart..."
         helm lint "${HELM_CHART_PATH}" -f "${HELM_CHART_PATH}/${HELM_VALUES}"
-        echo "✓ Lint complete"
+        echo "[lint] ✓ Lint complete"
         ;;
 
     validate)

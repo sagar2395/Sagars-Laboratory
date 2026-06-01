@@ -101,7 +101,8 @@ func (r *Registry) InstallStreamed(category, name string, exec *executor.Executo
 	if err != nil {
 		return err
 	}
-	return exec.RunScriptStreamed(fmt.Sprintf("Install %s/%s", category, name), scriptPath)
+	_, err = exec.RunScriptStreamed(fmt.Sprintf("Install %s/%s", category, name), scriptPath)
+	return err
 }
 
 // Uninstall runs the uninstall.sh for a provider.
@@ -135,7 +136,8 @@ func (r *Registry) UninstallStreamed(category, name string, exec *executor.Execu
 	if err != nil {
 		return err
 	}
-	return exec.RunScriptStreamed(fmt.Sprintf("Uninstall %s/%s", category, name), scriptPath)
+	_, err = exec.RunScriptStreamed(fmt.Sprintf("Uninstall %s/%s", category, name), scriptPath)
+	return err
 }
 
 // Status runs the status.sh for a provider.

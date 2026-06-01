@@ -50,55 +50,36 @@ func (r *Registry) Get(name string) (*Service, error) {
 	return nil, fmt.Errorf("service %q not found", name)
 }
 
-// Install runs install.sh for a service.
+// Install runs install.sh for a service, streaming output via the broadcaster.
 func (r *Registry) Install(name string, exec *executor.Executor) error {
-	s, err := r.Get(name)
-	if err != nil {
-		return err
-	}
-	script := filepath.Join(s.Path, "install.sh")
-	if _, err := os.Stat(script); os.IsNotExist(err) {
-		return fmt.Errorf("install.sh not found for service %q", name)
-	}
-	rel, err := filepath.Rel(r.ProjectRoot, script)
-	if err != nil {
-		return err
-	}
-	return exec.RunScript(rel)
+	return r.runScript(name, "install.sh", "Service install: "+name, exec)
 }
 
-// Uninstall runs uninstall.sh for a service.
+// Uninstall runs uninstall.sh for a service, streaming output via the broadcaster.
 func (r *Registry) Uninstall(name string, exec *executor.Executor) error {
-	s, err := r.Get(name)
-	if err != nil {
-		return err
-	}
-	script := filepath.Join(s.Path, "uninstall.sh")
-	if _, err := os.Stat(script); os.IsNotExist(err) {
-		return fmt.Errorf("uninstall.sh not found for service %q", name)
-	}
-	rel, err := filepath.Rel(r.ProjectRoot, script)
-	if err != nil {
-		return err
-	}
-	return exec.RunScript(rel)
+	return r.runScript(name, "uninstall.sh", "Service uninstall: "+name, exec)
 }
 
-// Status runs status.sh for a service.
+// Status runs status.sh for a service, streaming output via the broadcaster.
 func (r *Registry) Status(name string, exec *executor.Executor) error {
+	return r.runScript(name, "status.sh", "Service status: "+name, exec)
+}
+
+func (r *Registry) runScript(name, script, label string, exec *executor.Executor) error {
 	s, err := r.Get(name)
 	if err != nil {
 		return err
 	}
-	script := filepath.Join(s.Path, "status.sh")
-	if _, err := os.Stat(script); os.IsNotExist(err) {
-		return fmt.Errorf("status.sh not found for service %q", name)
+	fullPath := filepath.Join(s.Path, script)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return fmt.Errorf("%s not found for service %q", script, name)
 	}
-	rel, err := filepath.Rel(r.ProjectRoot, script)
+	rel, err := filepath.Rel(r.ProjectRoot, fullPath)
 	if err != nil {
 		return err
 	}
-	return exec.RunScript(rel)
+	_, err = exec.RunScriptStreamed(label, rel)
+	return err
 }
 
 func (r *Registry) scan() {

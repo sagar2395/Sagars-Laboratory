@@ -29,6 +29,15 @@ bin/labctl platform status       # active provider now shows nginx
 
 # 5. Remove a component cleanly (Task 010 adds dashboard uninstall)
 bash platform/dashboard/kubernetes-dashboard/uninstall.sh
+
+# 6. Verify ArgoCD ingress uses DOMAIN_SUFFIX (Task 025)
+bash platform/gitops/argocd/install.sh          # default: argocd.k3d.local
+kubectl get ingress -n argocd -o jsonpath='{.items[0].spec.rules[0].host}'
+# => argocd.k3d.local
+
+DOMAIN_SUFFIX=test.example.com bash platform/gitops/argocd/install.sh
+kubectl get ingress -n argocd -o jsonpath='{.items[0].spec.rules[0].host}'
+# => argocd.test.example.com
 ```
 
 ## Expected

@@ -2,7 +2,8 @@
 set -euo pipefail
 
 NAMESPACE="argocd"
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOMAIN_SUFFIX="${DOMAIN_SUFFIX:-k3d.local}"
 
 echo "Installing ArgoCD..."
 
@@ -20,7 +21,8 @@ helm upgrade --install argocd argo/argo-cd \
   --namespace $NAMESPACE \
   --create-namespace \
   -f "$SCRIPT_DIR/values.yaml" \
-  --set server.service.type=ClusterIP
+  --set server.service.type=ClusterIP \
+  --set "server.ingress.hostname=argocd.${DOMAIN_SUFFIX}"
 
 # Wait for ArgoCD server to be ready
 echo "Waiting for ArgoCD server to be ready..."
