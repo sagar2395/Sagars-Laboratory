@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE="monitoring"
+NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
 DOMAIN_SUFFIX="${DOMAIN_SUFFIX:-k3d.local}"
 
 echo "Installing Prometheus Stack (prometheus-operator, kube-prometheus-stack, node-exporter, kube-state-metrics)..."
@@ -14,14 +14,14 @@ helm repo update
 # Install Prometheus Stack
 echo "Installing kube-prometheus-stack chart..."
 helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
-  --namespace $NAMESPACE \
+  --namespace "$NAMESPACE" \
   --create-namespace \
   -f "$(dirname "$0")/values.yaml" \
   --wait --timeout 5m
 
 # Wait for Prometheus to be ready (StatefulSet, not Deployment)
 echo "Waiting for Prometheus to be ready..."
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n $NAMESPACE --timeout=120s 2>/dev/null || true
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n "$NAMESPACE" --timeout=120s 2>/dev/null || true
 
 # Create Prometheus Ingress with dynamic domain
 echo "Creating Prometheus ingress for ${DOMAIN_SUFFIX}..."

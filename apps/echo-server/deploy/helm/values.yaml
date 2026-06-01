@@ -94,6 +94,7 @@ securityContext:
 # Environment variables
 env:
   PORT: "8080"
+  CACHE_TTL: "1h"
   REDIS_URL: ""
   # Set when Redis is deployed:
   # REDIS_URL: "redis://redis-master.services.svc.cluster.local:6379"

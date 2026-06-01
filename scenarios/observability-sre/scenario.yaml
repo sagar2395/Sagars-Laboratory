@@ -19,7 +19,7 @@ components:
     chart: grafana/loki
     repo: https://grafana.github.io/helm-charts
     version: "6.6.2"
-    namespace: monitoring
+    namespace: "{{.MonitoringNamespace}}"
     valuesFile: values/loki.yaml
 
   - name: promtail
@@ -27,7 +27,7 @@ components:
     chart: grafana/promtail
     repo: https://grafana.github.io/helm-charts
     version: "6.16.4"
-    namespace: monitoring
+    namespace: "{{.MonitoringNamespace}}"
     valuesFile: values/promtail.yaml
 
   - name: tempo
@@ -35,18 +35,18 @@ components:
     chart: grafana/tempo
     repo: https://grafana.github.io/helm-charts
     version: "1.10.3"
-    namespace: monitoring
+    namespace: "{{.MonitoringNamespace}}"
     valuesFile: values/tempo.yaml
 
   - name: alerting-rules
     type: manifest
     path: manifests/alerting-rules.yaml
-    namespace: monitoring
+    namespace: "{{.MonitoringNamespace}}"
 
   - name: slo-dashboards
     type: grafana-dashboard
     path: dashboards/
-    namespace: monitoring
+    namespace: "{{.MonitoringNamespace}}"
 
 explore:
   urls:
@@ -58,7 +58,7 @@ explore:
     - label: "Generate API traffic"
       command: "for i in $(seq 1 100); do curl -s http://go-api.{{.DomainSuffix}}/health; done"
     - label: "View Loki logs"
-      command: "kubectl -n monitoring port-forward svc/loki-gateway 3100:80 & curl -s http://localhost:3100/loki/api/v1/labels"
+      command: "kubectl -n {{.MonitoringNamespace}} port-forward svc/loki-gateway 3100:80 & curl -s http://localhost:3100/loki/api/v1/labels"
     - label: "Query go-api logs in Loki"
       command: "Open Grafana > Explore > Select Loki > Query: {app=\"go-api\"}"
     - label: "View traces in Tempo"
@@ -66,6 +66,6 @@ explore:
   tips:
     - "Grafana Explore: Select Loki as datasource, query {namespace=\"go-api\"} to see application logs"
     - "Grafana Explore: Select Tempo as datasource to search for distributed traces"
-    - "Check PrometheusRule alerts: kubectl -n monitoring get prometheusrules"
+    - "Check PrometheusRule alerts: kubectl -n {{.MonitoringNamespace}} get prometheusrules"
     - "Generate failing traffic: curl http://go-api.{{.DomainSuffix}}/toggle-failure then hit /ready"
     - "SLO dashboards appear automatically in Grafana via the sidecar ConfigMap loader"

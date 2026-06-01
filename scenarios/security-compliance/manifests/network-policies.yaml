@@ -111,7 +111,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: monitoring
+              kubernetes.io/metadata.name: "{{.MonitoringNamespace}}"
       ports:
         - port: 8080
           protocol: TCP
@@ -130,7 +130,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: monitoring
+              kubernetes.io/metadata.name: "{{.MonitoringNamespace}}"
       ports:
         - port: 8080
           protocol: TCP

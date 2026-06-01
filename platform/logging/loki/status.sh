@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE=monitoring
+NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
 
 echo "=== Loki Status ==="
 kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=loki 2>/dev/null || echo "Loki not found"

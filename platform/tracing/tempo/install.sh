@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE=monitoring
+NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "Installing Tempo..."

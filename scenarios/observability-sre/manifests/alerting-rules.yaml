@@ -2,7 +2,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: scenario-observability-sre-alerts
-  namespace: monitoring
+  namespace: "{{.MonitoringNamespace}}"
   labels:
     release: kube-prometheus-stack
 spec:

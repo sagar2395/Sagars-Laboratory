@@ -17,6 +17,10 @@ import (
 // Callers should treat this as a no-op, not a failure.
 var ErrAlreadyActive = errors.New("scenario already active")
 
+// ErrAlreadyActive is returned by Up when the scenario is already active.
+// Callers should treat this as a no-op, not a failure.
+var ErrAlreadyActive = errors.New("scenario already active")
+
 // Scenario represents a lab scenario loaded from scenario.yaml.
 type Scenario struct {
 	Name          string        `yaml:"name" json:"name"`
@@ -80,15 +84,31 @@ type Engine struct {
 	MonitoringNamespace string // namespace for monitoring/logging/tracing (default: "monitoring")
 	scenarios           map[string]*Scenario
 	stateDir            string
+	ProjectRoot         string
+	DomainSuffix        string
+	Profile             string // active runtime profile (k3d|aks|eks), used for preflight
+	MonitoringNamespace string
+	scenarios           map[string]*Scenario
+	stateDir            string
 }
 
 // NewEngine creates a scenario engine by scanning the scenarios/ directory.
-func NewEngine(projectRoot, domainSuffix, profile string) *Engine {
+func NewEngine(projectRoot, domainSuffix, profile string, monitoringNamespace ...string) *Engine {
+	ns := "monitoring"
+	if len(monitoringNamespace) > 0 && monitoringNamespace[0] != "" {
+		ns = monitoringNamespace[0]
+	}
 	e := &Engine{
 		ProjectRoot:         projectRoot,
 		DomainSuffix:        domainSuffix,
 		Profile:             profile,
 		MonitoringNamespace: "monitoring",
+		scenarios:           make(map[string]*Scenario),
+		stateDir:            filepath.Join(projectRoot, ".labctl", "scenarios"),
+		ProjectRoot:         projectRoot,
+		DomainSuffix:        domainSuffix,
+		Profile:             profile,
+		MonitoringNamespace: ns,
 		scenarios:           make(map[string]*Scenario),
 		stateDir:            filepath.Join(projectRoot, ".labctl", "scenarios"),
 	}
@@ -181,6 +201,71 @@ func (e *Engine) Preflight(s *Scenario) error {
 	return nil
 }
 
+// Preflight validates a scenario before activation: checks runtime compatibility,
+// prerequisite directory existence, and component asset file existence.
+// It returns a combined error listing all failures so the user can fix them all at once.
+func (e *Engine) Preflight(s *Scenario) error {
+	var errs []string
+
+	// 1. Runtime compatibility — only checked when the scenario restricts runtimes.
+	if len(s.Runtimes) > 0 && e.Profile != "" {
+		ok := false
+		for _, r := range s.Runtimes {
+			if r == e.Profile {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			errs = append(errs, fmt.Sprintf(
+				"active profile %q is not in supported runtimes %v", e.Profile, s.Runtimes))
+		}
+	}
+
+	// 2. Prerequisite apps — check apps/<name>/app.env exists.
+	for _, app := range s.Prerequisites.Apps {
+		appEnv := filepath.Join(e.ProjectRoot, "apps", app, "app.env")
+		if _, err := os.Stat(appEnv); err != nil {
+			errs = append(errs, fmt.Sprintf("prerequisite app %q not found (expected %s)", app, appEnv))
+		}
+	}
+
+	// 3. Prerequisite platform components — check platform/<category>/ directory exists.
+	for _, p := range s.Prerequisites.Platform {
+		platformDir := filepath.Join(e.ProjectRoot, "platform", p)
+		if _, err := os.Stat(platformDir); err != nil {
+			errs = append(errs, fmt.Sprintf("prerequisite platform %q not found (expected %s)", p, platformDir))
+		}
+	}
+
+	// 4. Component asset files.
+	for _, comp := range s.Components {
+		if comp.ValuesFile != "" {
+			p := filepath.Join(s.Dir, comp.ValuesFile)
+			if _, err := os.Stat(p); err != nil {
+				errs = append(errs, fmt.Sprintf("component %q: valuesFile %q not found", comp.Name, p))
+			}
+		}
+		if comp.Path != "" && (comp.Type == "manifest" || comp.Type == "grafana-dashboard") {
+			p := filepath.Join(s.Dir, comp.Path)
+			if _, err := os.Stat(p); err != nil {
+				errs = append(errs, fmt.Sprintf("component %q: path %q not found", comp.Name, p))
+			}
+		}
+		if comp.Script != "" {
+			p := filepath.Join(s.Dir, comp.Script)
+			if _, err := os.Stat(p); err != nil {
+				errs = append(errs, fmt.Sprintf("component %q: script %q not found", comp.Name, p))
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("preflight failed for scenario %q:\n  - %s", s.Name, strings.Join(errs, "\n  - "))
+	}
+	return nil
+}
+
 // Up activates a scenario by installing all its components.
 func (e *Engine) Up(name string, exec *executor.Executor) error {
 	s, err := e.Get(name)
@@ -189,6 +274,11 @@ func (e *Engine) Up(name string, exec *executor.Executor) error {
 	}
 
 	if e.isActive(name) {
+		return fmt.Errorf("%w: %s", ErrAlreadyActive, name)
+	}
+
+	if err := e.Preflight(s); err != nil {
+		return err
 		return fmt.Errorf("%w: %s", ErrAlreadyActive, name)
 	}
 
@@ -343,10 +433,7 @@ func (e *Engine) uninstallComponent(s *Scenario, comp *Component, exec *executor
 }
 
 func (e *Engine) installHelm(s *Scenario, comp *Component, exec *executor.Executor) error {
-	ns := comp.Namespace
-	if ns == "" {
-		ns = "default"
-	}
+	ns := e.componentNamespace(comp, "default")
 
 	// Add helm repo if specified
 	if comp.Repo != "" {
@@ -368,7 +455,12 @@ func (e *Engine) installHelm(s *Scenario, comp *Component, exec *executor.Execut
 	if comp.ValuesFile != "" {
 		valuesPath := filepath.Join(s.Dir, comp.ValuesFile)
 		if _, err := os.Stat(valuesPath); err == nil {
-			args = append(args, "-f", valuesPath)
+			resolvedValuesPath, cleanup, err := e.resolveFileTemplate(valuesPath, "labctl-values-*.yaml")
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+			args = append(args, "-f", resolvedValuesPath)
 		}
 	}
 
@@ -377,6 +469,8 @@ func (e *Engine) installHelm(s *Scenario, comp *Component, exec *executor.Execut
 		args = append(args, "--set", k+"="+resolved)
 	}
 
+	_, err := exec.RunCommandStreamed("Helm install "+comp.Name, "helm", args...)
+	return err
 	_, err := exec.RunCommandStreamed("Helm install "+comp.Name, "helm", args...)
 	return err
 }
@@ -415,8 +509,9 @@ func (e *Engine) installManifest(s *Scenario, comp *Component, exec *executor.Ex
 	tmpFile.Close()
 
 	args := []string{"apply", "-f", tmpFile.Name()}
-	if comp.Namespace != "" && !manifestHasExplicitNamespace(resolved) {
-		args = append(args, "--namespace", comp.Namespace)
+	ns := e.componentNamespace(comp, "")
+	if ns != "" && !manifestHasExplicitNamespace(resolved) {
+		args = append(args, "--namespace", ns)
 	}
 
 	_, err = exec.RunCommandStreamed("Apply manifest "+comp.Name, "kubectl", args...)
@@ -443,10 +538,13 @@ func (e *Engine) uninstallManifest(s *Scenario, comp *Component, exec *executor.
 	tmpFile.Close()
 
 	args := []string{"delete", "-f", tmpFile.Name(), "--ignore-not-found"}
-	if comp.Namespace != "" && !manifestHasExplicitNamespace(resolved) {
-		args = append(args, "--namespace", comp.Namespace)
+	ns := e.componentNamespace(comp, "")
+	if ns != "" && !manifestHasExplicitNamespace(resolved) {
+		args = append(args, "--namespace", ns)
 	}
 
+	_, err = exec.RunCommandStreamed("Delete manifest "+comp.Name, "kubectl", args...)
+	return err
 	_, err = exec.RunCommandStreamed("Delete manifest "+comp.Name, "kubectl", args...)
 	return err
 }
@@ -534,6 +632,44 @@ func (e *Engine) runScript(s *Scenario, comp *Component, exec *executor.Executor
 	}
 	_, err = exec.RunScriptStreamed("Run script "+comp.Name, relPath)
 	return err
+	_, err = exec.RunScriptStreamed("Run script "+comp.Name, relPath)
+	return err
+}
+
+func (e *Engine) componentNamespace(comp *Component, defaultNamespace string) string {
+	ns := strings.TrimSpace(comp.Namespace)
+	if ns == "" {
+		return defaultNamespace
+	}
+	return e.resolveTemplate(ns)
+}
+
+func (e *Engine) resolveFileTemplate(path, pattern string) (string, func(), error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", func() {}, fmt.Errorf("reading values file %s: %w", path, err)
+	}
+	resolved := e.resolveTemplate(string(data))
+	if resolved == string(data) {
+		return path, func() {}, nil
+	}
+
+	tmpFile, err := os.CreateTemp("", pattern)
+	if err != nil {
+		return "", func() {}, err
+	}
+	if _, err := tmpFile.WriteString(resolved); err != nil {
+		name := tmpFile.Name()
+		tmpFile.Close()
+		os.Remove(name)
+		return "", func() {}, err
+	}
+	if err := tmpFile.Close(); err != nil {
+		name := tmpFile.Name()
+		os.Remove(name)
+		return "", func() {}, err
+	}
+	return tmpFile.Name(), func() { os.Remove(tmpFile.Name()) }, nil
 }
 
 // ResolveTemplate resolves Go template variables in a string (e.g., {{.DomainSuffix}}).
@@ -548,8 +684,10 @@ func (e *Engine) resolveTemplate(input string) string {
 	}
 
 	data := map[string]string{
-		"DomainSuffix": e.DomainSuffix,
-		"ProjectRoot":  e.ProjectRoot,
+		"DomainSuffix":        e.DomainSuffix,
+		"ProjectRoot":         e.ProjectRoot,
+		"MonitoringNamespace": e.MonitoringNamespace,
+		"LokiRetentionPeriod": lokiRetentionPeriod(),
 	}
 
 	var buf strings.Builder
@@ -557,6 +695,14 @@ func (e *Engine) resolveTemplate(input string) string {
 		return input
 	}
 	return buf.String()
+}
+
+func lokiRetentionPeriod() string {
+	hours := strings.TrimSpace(os.Getenv("LOKI_RETENTION_HOURS"))
+	if hours == "" {
+		hours = "168"
+	}
+	return hours + "h"
 }
 
 func (e *Engine) isActive(name string) bool {
@@ -602,7 +748,7 @@ func (e *Engine) printExploreHints(s *Scenario) {
 	if len(s.Explore.Tips) > 0 {
 		fmt.Println("\nTips:")
 		for _, t := range s.Explore.Tips {
-			fmt.Printf("  - %s\n", t)
+			fmt.Printf("  - %s\n", e.resolveTemplate(t))
 		}
 	}
 
