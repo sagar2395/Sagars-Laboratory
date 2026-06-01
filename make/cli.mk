@@ -7,9 +7,15 @@ CLI_UI_DEST := $(CLI_DIR)/ui/dist
 .PHONY: cli-build cli-build-all cli-install cli-tidy cli-clean
 
 cli-build:
+	@echo "Building UI..."
+	@cd ui && npm install && npm run build
 	@echo "Copying UI assets..."
 	@cp -r $(CLI_UI_SRC)/* $(CLI_UI_DEST)/ 2>/dev/null || true
 	@echo "Building labctl for host ($(shell go env GOOS)/$(shell go env GOARCH))..."
+
+	@mkdir -p $(CLI_UI_DEST)
+	@cp -r ui/dist/* $(CLI_UI_DEST)/ 2>/dev/null || true
+	@echo "Building labctl..."
 	@cd $(CLI_DIR) && go build -o ../../$(CLI_BIN) .
 	@echo "Binary: $(CLI_BIN)"
 
