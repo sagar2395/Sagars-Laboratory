@@ -1,9 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Phases and exit criteria are in docs/ROADMAP.md. Move ids between the arrays as work proceeds.",
   "todo": [
-    "035-ui-spa-scaffold",
-    "036-ui-spa-views",
-    "037-ui-spa-embed-and-build",
     "038-verify-aks-end-to-end",
     "039-verify-eks-end-to-end"
   ],
@@ -42,7 +39,10 @@
     "024-add-kyverno-clusterpolicy-manifests",
     "028-add-loki-log-retention-policy",
     "026-fix-chaos-mesh-containerd-socket",
-    "027-configure-terraform-remote-state"
+    "027-configure-terraform-remote-state",
+    "035-ui-spa-scaffold",
+    "036-ui-spa-views",
+    "037-ui-spa-embed-and-build"
   ],
   "blocked": []
 }
