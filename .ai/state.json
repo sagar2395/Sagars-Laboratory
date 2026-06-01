@@ -38,18 +38,12 @@
     "020-fix-kubectl-pod-output-parsing",
     "022-add-structured-error-responses",
     "029-validate-profile-and-app-name",
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 9b97903 (Fixing conflict)
-
     "013-add-version-endpoint-to-apps",
     "014-wire-verbose-flag-to-logger",
     "018-make-observability-namespace-configurable",
     "021-add-redis-cache-ttl-config",
     "024-add-kyverno-clusterpolicy-manifests",
     "028-add-loki-log-retention-policy",
-<<<<<<< HEAD
     "006-expand-ci-validation-for-infra-and-shell-assets",
     "011-add-container-image-security-scanning",
     "023-enable-argocd-sync-in-cd-pipeline",
@@ -64,14 +58,11 @@
     "035-ui-spa-scaffold",
     "036-ui-spa-views",
     "037-ui-spa-embed-and-build"
-=======
     "010-add-kubernetes-dashboard-uninstall",
     "025-fix-argocd-hardcoded-domain",
     "006-expand-ci-validation-for-infra-and-shell-assets",
     "011-add-container-image-security-scanning",
-    "023-enable-argocd-sync-in-cd-pipeline"
->>>>>>> dd2d4c6 (Updating Phase 0, 1, 2 implementation)
-=======
+    "023-enable-argocd-sync-in-cd-pipeline",
     "006-expand-ci-validation-for-infra-and-shell-assets",
     "011-add-container-image-security-scanning",
     "023-enable-argocd-sync-in-cd-pipeline",
@@ -83,7 +74,11 @@
   "in_progress": [],
   "done": [
     "001-fix-platform-category-resolution-and-status"
->>>>>>> 9b97903 (Fixing conflict)
+    "010-add-kubernetes-dashboard-uninstall",
+    "025-fix-argocd-hardcoded-domain",
+    "006-expand-ci-validation-for-infra-and-shell-assets",
+    "011-add-container-image-security-scanning",
+    "023-enable-argocd-sync-in-cd-pipeline"
   ],
   "blocked": []
 }

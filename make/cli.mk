@@ -10,20 +10,12 @@ cli-build:
 	@echo "Building UI..."
 	@cd ui && npm install && npm run build
 	@echo "Copying UI assets..."
-<<<<<<< HEAD
-<<<<<<< HEAD
-	@mkdir -p $(CLI_UI_DEST)
-	@cp -r ui/dist/* $(CLI_UI_DEST)/ 2>/dev/null || true
-	@echo "Building labctl..."
-=======
 	@cp -r $(CLI_UI_SRC)/* $(CLI_UI_DEST)/ 2>/dev/null || true
 	@echo "Building labctl for host ($(shell go env GOOS)/$(shell go env GOARCH))..."
->>>>>>> dd2d4c6 (Updating Phase 0, 1, 2 implementation)
-=======
+
 	@mkdir -p $(CLI_UI_DEST)
 	@cp -r ui/dist/* $(CLI_UI_DEST)/ 2>/dev/null || true
 	@echo "Building labctl..."
->>>>>>> 9b97903 (Fixing conflict)
 	@cd $(CLI_DIR) && go build -o ../../$(CLI_BIN) .
 	@echo "Binary: $(CLI_BIN)"
 
