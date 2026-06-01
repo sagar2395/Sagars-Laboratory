@@ -34,4 +34,7 @@ foundation/terraform/**/.terraform.lock.hcl
 ## OS
 Thumbs.db
 
+## Local runtime state (written by labctl at runtime, never committed)
+.labctl/
+
 .ai/logs/*

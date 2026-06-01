@@ -1,49 +1,35 @@
-# AI Engineering Coordination Hub
+# .ai/ — Task Backlog & State
 
-## Purpose
-
-This directory is the inter-agent communication layer. All coordination between agents happens through files here.
-
-## Directory Structure
+This directory is the lightweight coordination layer for AI-assisted work. The
+old elaborate multi-agent protocol has been removed (see `AGENTS.md`). What
+remains is simple and tool-agnostic.
 
 ```
 .ai/
-├── README.md           ← This file
-├── state.json          ← Single source of truth for task status
-├── task-template.md    ← Template for creating new tasks
-├── tasks/              ← Task definitions (Architect creates, others consume)
-├── specs/              ← Architecture specs and decisions (Architect only)
-├── reviews/            ← Review reports and clarification requests
-└── logs/
-    └── activity.log    ← Append-only log of all agent activity
+├── README.md         ← this file
+├── state.json        ← single source of truth for task status (todo/in_progress/done/blocked)
+├── task-template.md  ← template for new tasks
+├── tasks/            ← one file per task: NNN-kebab-title.md
+└── logs/             ← optional scratch logs (gitignored)
 ```
 
-## Agents
+## How to use it
 
-| Agent | Writes To | Reads From |
-|-------|-----------|------------|
-| **Architect** | `tasks/`, `specs/`, `state.json`, `logs/` | Everything (read-only) |
-| **Feature** | Source code, `state.json`, `logs/` | `tasks/` |
-| **Bug** | Source code, `state.json`, `logs/`, `reviews/` | Errors, `tasks/`, `logs/` |
-| **DevOps** | Infra code, `state.json`, `logs/` | `tasks/` |
-| **Reviewer** | `reviews/`, `logs/` | Everything (read-only) |
+1. Open `docs/ROADMAP.md` to see phases and which task ids belong to each.
+2. Pick the next unblocked task id from `state.json` `todo` (respect phase order).
+3. Move it to `in_progress`, read `tasks/NNN-*.md`, implement, test.
+4. Move it to `done`; update the matching `docs/runbooks/` file if behaviour changed.
 
-## Workflow
+See `AGENTS.md` for the full loop and the definition of done.
 
-1. **Architect** creates tasks in `tasks/` and updates `state.json`
-2. **Feature/DevOps/Bug** picks a task, implements it, updates `state.json`
-3. **Reviewer** reviews the work, writes report in `reviews/`
-4. **Human** approves and merges
+## Adding a task
 
-## File Naming
+Copy `task-template.md` to `tasks/NNN-kebab-title.md` (next free number), fill it
+in, and add the id to `state.json` `todo`. Each task must be small, independent,
+and completable in one session.
 
-- Tasks: `{NNN}-{kebab-case-title}.md`
-- Specs: `{YYYY-MM-DD}-{kebab-case-title}.md`
-- Reviews: `{NNN}-review.md` or `{NNN}-clarification.md`
+## Authoritative mapping
 
-## Rules
-
-- All agents log to `logs/activity.log` (append-only)
-- `state.json` is the single source of truth
-- Agents never cross role boundaries
-- Tasks must be atomic and independently implementable
+`docs/ROADMAP.md` is the authority for which phase a task belongs to and what the
+exit criteria are. `state.json` is the authority for current status. Keep them in
+sync.

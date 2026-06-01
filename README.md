@@ -2,6 +2,11 @@
 
 A Kubernetes-based homelab for Platform Engineering and DevOps. Spin up infrastructure, deploy apps, activate testing scenarios (observability, GitOps, security, chaos engineering), and tear everything down in minutes.
 
+> **Status & plan:** this project is mid-build. The path to the finished state is
+> in [`docs/ROADMAP.md`](docs/ROADMAP.md); hands-on guides are in
+> [`docs/runbooks/`](docs/runbooks/). AI sessions should start from
+> [`CLAUDE.md`](CLAUDE.md). Runs on **macOS (Apple Silicon/Intel) and Linux**.
+
 ## What's Inside
 
 | Layer | What It Does |
@@ -102,6 +107,9 @@ Sagars-Laboratory/
 
 | Document | Description |
 |----------|-------------|
+| [Roadmap](docs/ROADMAP.md) | The phased plan to the desired state + task→phase index |
+| [Runbooks](docs/runbooks/) | Hands-on guides to use & verify each feature |
+| [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) | Context + workflow for AI coding tools |
 | [Architecture](docs/architecture.md) | Project structure, design patterns, and conventions |
 | [CLI Reference](docs/cli-reference.md) | All `labctl` commands and flags |
 | [Scenarios Guide](docs/scenarios.md) | How scenarios work + available playgrounds |
