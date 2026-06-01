@@ -94,16 +94,33 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/ws", s.handleWebSocket)
 
 	// Serve UI — use embedded FS if available, fall back to filesystem for dev
-	var uiHandler http.Handler
+	var uiFS http.FileSystem
 	if s.uiFS != nil {
 		if _, err := fs.Stat(s.uiFS, "index.html"); err == nil {
-			uiHandler = http.FileServer(http.FS(s.uiFS))
+			uiFS = http.FS(s.uiFS)
 		}
 	}
-	if uiHandler == nil {
-		uiHandler = http.FileServer(http.Dir(s.cfg.ProjectRoot + "/ui/dist"))
+	if uiFS == nil {
+		uiFS = http.Dir(s.cfg.ProjectRoot + "/ui/dist")
 	}
-	s.router.PathPrefix("/").Handler(uiHandler)
+	
+	s.router.PathPrefix("/").Handler(spaHandler{fs: uiFS})
+}
+
+type spaHandler struct {
+	fs http.FileSystem
+}
+
+func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Try to open the file
+	f, err := h.fs.Open(r.URL.Path)
+	if err != nil {
+		// File not found, serve index.html
+		r.URL.Path = "/"
+	} else {
+		f.Close()
+	}
+	http.FileServer(h.fs).ServeHTTP(w, r)
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

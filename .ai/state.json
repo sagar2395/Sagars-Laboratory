@@ -23,9 +23,7 @@
     "022-add-structured-error-responses",
     "025-fix-argocd-hardcoded-domain",
     "029-validate-profile-and-app-name",
-    "035-ui-spa-scaffold",
-    "036-ui-spa-views",
-    "037-ui-spa-embed-and-build",
+
     "013-add-version-endpoint-to-apps",
     "014-wire-verbose-flag-to-logger",
     "018-make-observability-namespace-configurable",
@@ -42,7 +40,10 @@
   ],
   "in_progress": [],
   "done": [
-    "001-fix-platform-category-resolution-and-status"
+    "001-fix-platform-category-resolution-and-status",
+    "035-ui-spa-scaffold",
+    "036-ui-spa-views",
+    "037-ui-spa-embed-and-build"
   ],
   "blocked": []
 }
