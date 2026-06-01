@@ -6,9 +6,16 @@ import { Server, Activity, Cpu, Package } from 'lucide-react';
 export function DashboardView() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchStatus = () => {
-    apiClient.getStatus().then(setStatus).finally(() => setLoading(false));
+    apiClient.getStatus()
+      .then((data) => {
+        setStatus(data);
+        setError(null);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -17,34 +24,46 @@ export function DashboardView() {
     return () => clearInterval(int);
   }, []);
 
-  if (loading || !status) return <div className="p-8 text-[var(--text-secondary)]">Loading...</div>;
+  if (loading && !status) return <div className="p-8 text-[var(--text-secondary)] animate-pulse">Loading...</div>;
+  if (error && !status) return (
+    <div className="p-8 max-w-6xl mx-auto animate-fade-in">
+      <div className="surface p-8 border-l-4 border-l-[var(--status-danger)] bg-[var(--status-danger-bg)]">
+        <h2 className="text-xl font-bold text-[var(--status-danger)] mb-2">Backend Offline</h2>
+        <p className="text-[var(--text-primary)]">The labctl backend could not be reached. Ensure the API server is running.</p>
+        <p className="text-sm text-[var(--text-secondary)] mt-2">Error: {error}</p>
+      </div>
+    </div>
+  );
 
-  const cluster = status.cluster;
+  const cluster = status?.cluster;
   
   return (
     <div className="p-8 max-w-6xl mx-auto flex flex-col gap-8 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Cluster Overview</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold">Cluster Overview</h2>
+          {error && <span className="badge badge-danger">Offline</span>}
+        </div>
         <div className="badge badge-info">
-          {status.domainSuffix}
+          {status?.domainSuffix || 'local'}
         </div>
       </div>
 
       {/* Cluster Info Grid */}
       <div className="grid grid-cols-3 gap-6">
-        <StatCard icon={<Server />} label="Runtime" value={cluster.provider} />
-        <StatCard icon={<Activity />} label="K8s Version" value={cluster.version} />
-        <StatCard icon={<Cpu />} label="Nodes" value={cluster.nodes.toString()} />
+        <StatCard icon={<Server />} label="Runtime" value={cluster?.provider || 'Unknown'} />
+        <StatCard icon={<Activity />} label="K8s Version" value={cluster?.version || 'Unknown'} />
+        <StatCard icon={<Cpu />} label="Nodes" value={cluster?.nodes?.toString() || '0'} />
       </div>
 
       {/* Platform Status */}
       <div>
         <h3 className="text-xl font-semibold mb-4 text-[var(--text-primary)]">Platform Health</h3>
         <div className="grid grid-cols-4 gap-4">
-          <ComponentCard title="Ingress" status={status.platform.ingress.active} provider={status.platform.ingress.provider} />
-          <ComponentCard title="Metrics" status={status.platform.metrics.active} provider={status.platform.metrics.provider} />
-          <ComponentCard title="Logging" status={status.platform.logging.active} provider={status.platform.logging.provider} />
-          <ComponentCard title="Tracing" status={status.platform.tracing.active} provider={status.platform.tracing.provider} />
+          <ComponentCard title="Ingress" status={status?.platform.ingress.active || false} provider={status?.platform.ingress.provider || ''} />
+          <ComponentCard title="Metrics" status={status?.platform.metrics.active || false} provider={status?.platform.metrics.provider || ''} />
+          <ComponentCard title="Logging" status={status?.platform.logging.active || false} provider={status?.platform.logging.provider || ''} />
+          <ComponentCard title="Tracing" status={status?.platform.tracing.active || false} provider={status?.platform.tracing.provider || ''} />
         </div>
       </div>
 
@@ -52,9 +71,9 @@ export function DashboardView() {
       <div>
          <h3 className="text-xl font-semibold mb-4 text-[var(--text-primary)]">Applications</h3>
          <div className="surface p-4 flex flex-col gap-3">
-           {status.apps.length === 0 && <div className="text-[var(--text-muted)] text-sm">No apps registered.</div>}
-           {status.apps.map(app => (
-             <div key={app.name} className="flex items-center justify-between p-3 rounded-[var(--radius-sm)] bg-[var(--bg-base)] border border-[var(--border-light)]">
+           {(!status?.apps || status.apps.length === 0) && <div className="text-[var(--text-muted)] text-sm">No apps registered.</div>}
+           {status?.apps?.map(app => (
+             <div key={app.name} className="flex items-center justify-between p-3 rounded-[var(--radius-sm)] bg-[var(--bg-base)] border border-[var(--border-light)] hover:border-[var(--border-highlight)] transition-colors">
                <div className="flex items-center gap-3">
                  <Package className="text-[var(--text-muted)]" size={18} />
                  <span className="font-medium">{app.name}</span>
@@ -78,7 +97,7 @@ export function DashboardView() {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string, value: string }) {
   return (
-    <div className="surface p-6 flex items-center gap-4">
+    <div className="surface surface-interactive p-6 flex items-center gap-4">
       <div className="p-3 rounded-full bg-[var(--bg-base)] text-[var(--accent-primary)]">
         {icon}
       </div>
@@ -92,7 +111,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string
 
 function ComponentCard({ title, status, provider }: { title: string, status: boolean, provider: string }) {
   return (
-    <div className={`surface p-4 border-t-2 ${status ? 'border-t-[var(--status-success)]' : 'border-t-[var(--status-danger)]'}`}>
+    <div className={`surface surface-interactive p-4 border-t-2 ${status ? 'border-t-[var(--status-success)]' : 'border-t-[var(--status-danger)]'}`}>
       <div className="font-semibold text-lg mb-1">{title}</div>
       <div className="text-sm text-[var(--text-secondary)] mb-3">{provider || 'None'}</div>
       {status ? (

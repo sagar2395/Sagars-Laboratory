@@ -14,7 +14,7 @@ export function useActionEvents() {
     // Determine WebSocket URL based on current protocol
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/api/events`;
+    const wsUrl = `${protocol}//${host}/api/ws`;
 
     let ws: WebSocket;
     let reconnectTimer: number;
