@@ -4,12 +4,6 @@
     "035-ui-spa-scaffold",
     "036-ui-spa-views",
     "037-ui-spa-embed-and-build",
-    "018-make-observability-namespace-configurable",
-    "021-add-redis-cache-ttl-config",
-    "024-add-kyverno-clusterpolicy-manifests",
-    "028-add-loki-log-retention-policy",
-    "026-fix-chaos-mesh-containerd-socket",
-    "027-configure-terraform-remote-state",
     "038-verify-aks-end-to-end",
     "039-verify-eks-end-to-end"
   ],
@@ -42,7 +36,13 @@
     "025-fix-argocd-hardcoded-domain",
     "006-expand-ci-validation-for-infra-and-shell-assets",
     "011-add-container-image-security-scanning",
-    "023-enable-argocd-sync-in-cd-pipeline"
+    "023-enable-argocd-sync-in-cd-pipeline",
+    "018-make-observability-namespace-configurable",
+    "021-add-redis-cache-ttl-config",
+    "024-add-kyverno-clusterpolicy-manifests",
+    "028-add-loki-log-retention-policy",
+    "026-fix-chaos-mesh-containerd-socket",
+    "027-configure-terraform-remote-state"
   ],
   "blocked": []
 }

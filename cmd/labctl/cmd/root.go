@@ -61,8 +61,10 @@ var rootCmd = &cobra.Command{
 		exec.SetEnv("INGRESS_CLASS", cfg.IngressClass)
 		exec.SetEnv("STORAGE_CLASS", cfg.StorageClass)
 		exec.SetEnv("PROFILE", cfg.Profile)
-		reg = platform.NewRegistry(cfg.ProjectRoot)
+		exec.SetEnv("MONITORING_NAMESPACE", cfg.MonitoringNamespace)
+		reg = platform.NewRegistryWithNamespace(cfg.ProjectRoot, cfg.MonitoringNamespace)
 		scenes = scenario.NewEngine(cfg.ProjectRoot, cfg.DomainSuffix, cfg.Profile)
+		scenes.MonitoringNamespace = cfg.MonitoringNamespace
 		svcReg = services.NewRegistry(cfg.ProjectRoot)
 		rtm = runtime.NewManager(cfg.ProjectRoot, cfg.ClusterName)
 		slog.Debug("registries initialised", "runtimes", rtm.Names())

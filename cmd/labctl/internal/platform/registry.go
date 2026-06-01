@@ -11,9 +11,10 @@ import (
 
 // Provider represents a platform component provider (e.g., traefik, nginx).
 type Provider struct {
-	Category string // e.g., "ingress", "monitoring/metrics"
-	Name     string // e.g., "traefik", "prometheus"
-	Path     string // Filesystem path to the provider directory
+	Category     string // e.g., "ingress", "monitoring/metrics"
+	Name         string // e.g., "traefik", "prometheus"
+	Path         string // Filesystem path to the provider directory
+	monitoringNS string // resolved monitoring namespace (set by Registry)
 }
 
 // HasScript checks if the provider has a specific script.
@@ -22,9 +23,9 @@ func (p *Provider) HasScript(name string) bool {
 	return err == nil
 }
 
-// Namespace returns the conventional Kubernetes namespace for this provider.
-// Monitoring, logging, and tracing providers share the "monitoring" namespace.
-// Other providers use their own name as the namespace.
+// Namespace returns the Kubernetes namespace for this provider.
+// Monitoring, logging, and tracing providers share the configured monitoring
+// namespace (default "monitoring"). Other providers use their own name.
 func (p *Provider) Namespace() string {
 	top := p.Category
 	if i := strings.Index(top, "/"); i >= 0 {
@@ -32,6 +33,9 @@ func (p *Provider) Namespace() string {
 	}
 	switch top {
 	case "monitoring", "logging", "tracing":
+		if p.monitoringNS != "" {
+			return p.monitoringNS
+		}
 		return "monitoring"
 	default:
 		return p.Name
@@ -40,15 +44,27 @@ func (p *Provider) Namespace() string {
 
 // Registry discovers and manages platform component providers.
 type Registry struct {
-	ProjectRoot string
-	providers   map[string][]Provider // category -> providers
+	ProjectRoot  string
+	monitoringNS string
+	providers    map[string][]Provider // category -> providers
 }
 
 // NewRegistry scans the platform/ directory for available providers.
+// The monitoring namespace defaults to "monitoring".
 func NewRegistry(projectRoot string) *Registry {
+	return NewRegistryWithNamespace(projectRoot, "monitoring")
+}
+
+// NewRegistryWithNamespace is like NewRegistry but uses the given namespace for
+// monitoring, logging, and tracing providers (instead of "monitoring").
+func NewRegistryWithNamespace(projectRoot, monitoringNS string) *Registry {
+	if monitoringNS == "" {
+		monitoringNS = "monitoring"
+	}
 	r := &Registry{
-		ProjectRoot: projectRoot,
-		providers:   make(map[string][]Provider),
+		ProjectRoot:  projectRoot,
+		monitoringNS: monitoringNS,
+		providers:    make(map[string][]Provider),
 	}
 	r.scan()
 	return r
@@ -182,9 +198,10 @@ func (r *Registry) scanDir(dir, prefix string) {
 		// Check if this directory is a provider (has install.sh)
 		if _, err := os.Stat(filepath.Join(fullPath, "install.sh")); err == nil {
 			r.providers[prefix] = append(r.providers[prefix], Provider{
-				Category: prefix,
-				Name:     entry.Name(),
-				Path:     fullPath,
+				Category:     prefix,
+				Name:         entry.Name(),
+				Path:         fullPath,
+				monitoringNS: r.monitoringNS,
 			})
 		} else {
 			// Recurse one level deeper

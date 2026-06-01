@@ -431,9 +431,10 @@ func (s *Server) handleDashboardURLs(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	domain := s.cfg.DomainSuffix
+	monNS := s.cfg.MonitoringNamespace
 	var dashboards []DashboardURL
 
-	if k8s.NamespaceExists(ctx, "monitoring") {
+	if k8s.NamespaceExists(ctx, monNS) {
 		dashboards = append(dashboards, DashboardURL{
 			Name: "grafana", Label: "Grafana",
 			URL: fmt.Sprintf("http://grafana.%s", domain), Available: true, Category: "monitoring",
@@ -472,7 +473,7 @@ func (s *Server) handleDashboardURLs(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if k8s.ServiceExists(ctx, "monitoring", "loki-gateway") {
+	if k8s.ServiceExists(ctx, monNS, "loki-gateway") {
 		dashboards = append(dashboards, DashboardURL{
 			Name: "loki", Label: "Logs (Loki)",
 			URL:       fmt.Sprintf("http://grafana.%s/explore?orgId=1&left=%%7B%%22datasource%%22:%%22Loki%%22%%7D", domain),
@@ -480,7 +481,7 @@ func (s *Server) handleDashboardURLs(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if k8s.ServiceExists(ctx, "monitoring", "tempo") {
+	if k8s.ServiceExists(ctx, monNS, "tempo") {
 		dashboards = append(dashboards, DashboardURL{
 			Name: "tempo", Label: "Traces (Tempo)",
 			URL:       fmt.Sprintf("http://grafana.%s/explore?orgId=1&left=%%7B%%22datasource%%22:%%22Tempo%%22%%7D", domain),

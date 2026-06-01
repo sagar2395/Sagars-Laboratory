@@ -18,6 +18,13 @@ loki:
         index:
           prefix: index_
           period: 24h
+  # Log retention — default 7 days. Override via LOKI_RETENTION_HOURS env var.
+  # Set to 0 to disable retention (logs kept forever, PVC fills up eventually).
+  limits_config:
+    retention_period: 168h
+  compactor:
+    retention_enabled: true
+    delete_request_store: filesystem
 
 singleBinary:
   replicas: 1

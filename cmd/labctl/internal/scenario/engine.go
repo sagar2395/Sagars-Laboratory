@@ -74,21 +74,23 @@ type ExploreCommand struct {
 
 // Engine discovers, loads, and manages scenarios.
 type Engine struct {
-	ProjectRoot  string
-	DomainSuffix string
-	Profile      string // active runtime profile (k3d|aks|eks), used for preflight
-	scenarios    map[string]*Scenario
-	stateDir     string
+	ProjectRoot         string
+	DomainSuffix        string
+	Profile             string // active runtime profile (k3d|aks|eks), used for preflight
+	MonitoringNamespace string // namespace for monitoring/logging/tracing (default: "monitoring")
+	scenarios           map[string]*Scenario
+	stateDir            string
 }
 
 // NewEngine creates a scenario engine by scanning the scenarios/ directory.
 func NewEngine(projectRoot, domainSuffix, profile string) *Engine {
 	e := &Engine{
-		ProjectRoot:  projectRoot,
-		DomainSuffix: domainSuffix,
-		Profile:      profile,
-		scenarios:    make(map[string]*Scenario),
-		stateDir:     filepath.Join(projectRoot, ".labctl", "scenarios"),
+		ProjectRoot:         projectRoot,
+		DomainSuffix:        domainSuffix,
+		Profile:             profile,
+		MonitoringNamespace: "monitoring",
+		scenarios:           make(map[string]*Scenario),
+		stateDir:            filepath.Join(projectRoot, ".labctl", "scenarios"),
 	}
 	e.scan()
 	return e
@@ -458,7 +460,7 @@ func (e *Engine) installGrafanaDashboard(s *Scenario, comp *Component, exec *exe
 
 	ns := comp.Namespace
 	if ns == "" {
-		ns = "monitoring"
+		ns = e.MonitoringNamespace
 	}
 
 	for _, entry := range entries {
@@ -509,7 +511,7 @@ func (e *Engine) uninstallGrafanaDashboard(s *Scenario, comp *Component, exec *e
 
 	ns := comp.Namespace
 	if ns == "" {
-		ns = "monitoring"
+		ns = e.MonitoringNamespace
 	}
 
 	for _, entry := range entries {

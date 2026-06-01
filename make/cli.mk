@@ -7,7 +7,13 @@ CLI_UI_DEST := $(CLI_DIR)/ui/dist
 .PHONY: cli-build cli-build-all cli-install cli-tidy cli-clean
 
 cli-build:
-	@echo "Copying UI assets..."
+	@echo "Building UI (SPA)..."
+	@if command -v npm >/dev/null 2>&1; then \
+		cd ui && npm ci --prefer-offline && npm run build && cd ..; \
+	else \
+		echo "Warning: npm not found — using pre-built UI assets in $(CLI_UI_SRC). Run 'npm ci && npm run build' in ui/ to refresh."; \
+	fi
+	@echo "Copying UI assets into embed target..."
 	@cp -r $(CLI_UI_SRC)/* $(CLI_UI_DEST)/ 2>/dev/null || true
 	@echo "Building labctl for host ($(shell go env GOOS)/$(shell go env GOARCH))..."
 	@cd $(CLI_DIR) && go build -o ../../$(CLI_BIN) .
@@ -15,6 +21,12 @@ cli-build:
 
 # Cross-compile for all release targets. Outputs land in dist/.
 cli-build-all:
+	@echo "Building UI (SPA)..."
+	@if command -v npm >/dev/null 2>&1; then \
+		cd ui && npm ci --prefer-offline && npm run build && cd ..; \
+	else \
+		echo "Warning: npm not found — using pre-built UI assets."; \
+	fi
 	@echo "Copying UI assets..."
 	@cp -r $(CLI_UI_SRC)/* $(CLI_UI_DEST)/ 2>/dev/null || true
 	@mkdir -p dist

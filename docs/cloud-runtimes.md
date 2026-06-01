@@ -171,46 +171,96 @@ labctl runtime status
 labctl runtime down
 ```
 
-## Remote State
+## State Management
 
-For team use, enable remote Terraform state. Both environments have commented-out backend blocks:
+By default, Terraform stores state in a local `terraform.tfstate` file. This is
+fine for solo k3d work, but for cloud deployments (AKS/EKS) you need remote state
+so that CI and multiple operators share a consistent view.
 
-### Azure Blob Storage
+### How it works
+
+Backend configuration lives in `backend.tf` (gitignored) next to each environment's
+`main.tf`. The repo ships `backend.tf.example` in each environment showing both
+provider options. Pick the one that matches your runtime and copy it.
+
+### One-time setup: AzureRM backend (for AKS)
+
+**1. Create the storage resources (run once):**
+
+```bash
+az group create -n sagars-lab-tfstate -l eastus
+az storage account create -n sagarslabtfstate -g sagars-lab-tfstate -l eastus --sku Standard_LRS
+az storage container create -n tfstate --account-name sagarslabtfstate
+```
+
+**2. Create `backend.tf` from the example:**
+
+```bash
+cd foundation/terraform/environments/dev
+cp backend.tf.example backend.tf
+# Uncomment the azurerm block, comment out the s3 block
+```
+
+The `backend.tf` for dev should look like:
 
 ```hcl
-# In foundation/terraform/environments/dev/main.tf
-backend "azurerm" {
-  resource_group_name  = "terraform-state-rg"
-  storage_account_name = "sagarslabstate"
-  container_name       = "tfstate"
-  key                  = "dev.terraform.tfstate"
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "sagars-lab-tfstate"
+    storage_account_name = "sagarslabtfstate"
+    container_name       = "tfstate"
+    key                  = "dev/terraform.tfstate"
+  }
 }
 ```
 
-Create the storage account first:
+**3. Initialise (migrates any local state into the backend):**
 
 ```bash
-az group create -n terraform-state-rg -l eastus
-az storage account create -n sagarslabstate -g terraform-state-rg -l eastus --sku Standard_LRS
-az storage container create -n tfstate --account-name sagarslabstate
+terraform init -migrate-state
 ```
 
-### AWS S3
+### One-time setup: S3 backend (for EKS)
 
-```hcl
-# In foundation/terraform/environments/dev/main.tf
-backend "s3" {
-  bucket = "sagars-lab-tfstate"
-  key    = "dev/terraform.tfstate"
-  region = "us-east-1"
-}
-```
-
-Create the bucket first:
+**1. Create the S3 bucket and DynamoDB lock table:**
 
 ```bash
-aws s3 mb s3://sagars-lab-tfstate --region us-east-1
+aws s3api create-bucket \
+  --bucket sagars-lab-tfstate \
+  --region us-east-1 \
+  --create-bucket-configuration LocationConstraint=us-east-1
+
+aws s3api put-bucket-versioning \
+  --bucket sagars-lab-tfstate \
+  --versioning-configuration Status=Enabled
+
+aws dynamodb create-table \
+  --table-name sagars-lab-tfstate-lock \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
 ```
+
+**2. Create `backend.tf` from the example:**
+
+```bash
+cd foundation/terraform/environments/dev
+cp backend.tf.example backend.tf
+# Uncomment the s3 block, comment out the azurerm block
+```
+
+**3. Initialise:**
+
+```bash
+terraform init -migrate-state
+```
+
+### Local-only use (no backend.tf)
+
+Without a `backend.tf`, Terraform falls back to local state. The `*.tfstate` files
+are gitignored, so each operator has independent state. This is acceptable for
+one-off personal experiments on k3d, **not** for any shared or CI workflow.
 
 ## Building and Deploying to Cloud
 

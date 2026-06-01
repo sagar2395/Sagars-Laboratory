@@ -3,19 +3,9 @@
 
 terraform {
   required_version = ">= 1.5.0"
-
-  # Uncomment to use remote state:
-  # backend "azurerm" {
-  #   resource_group_name  = "terraform-state-rg"
-  #   storage_account_name = "sagarslabstate"
-  #   container_name       = "tfstate"
-  #   key                  = "staging.terraform.tfstate"
-  # }
-  # backend "s3" {
-  #   bucket = "sagars-lab-tfstate"
-  #   key    = "staging/terraform.tfstate"
-  #   region = "us-east-1"
-  # }
+  # Backend configuration lives in backend.tf (not checked in — see backend.tf.example).
+  # Without a backend.tf the state is stored locally in terraform.tfstate,
+  # which is fine for solo k3d experiments but not for shared/CI use.
 }
 
 variable "runtime" {

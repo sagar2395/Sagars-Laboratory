@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE=monitoring
+NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "Installing Loki (single-binary mode)..."
+# Log retention: default 7 days (168h). Set LOKI_RETENTION_HOURS to override.
+# Set to 0 to disable retention (logs never expire).
+RETENTION_HOURS="${LOKI_RETENTION_HOURS:-168}"
+if [ "$RETENTION_HOURS" = "0" ]; then
+  RETENTION_PERIOD="0s"
+else
+  RETENTION_PERIOD="${RETENTION_HOURS}h"
+fi
+
+echo "Installing Loki (single-binary mode, namespace=${NAMESPACE}, retention=${RETENTION_PERIOD})..."
 
 helm repo add grafana https://grafana.github.io/helm-charts --force-update
 helm repo update
@@ -15,10 +24,13 @@ if helm status loki -n "$NAMESPACE" 2>/dev/null | grep -q "pending-"; then
   helm delete loki -n "$NAMESPACE" --wait 2>/dev/null || true
 fi
 
+# Install with runtime retention override. Using --set (not sed -i) keeps the
+# script portable across macOS and Linux (avoids GNU-only sed -i behaviour).
 helm upgrade --install loki grafana/loki \
   --namespace "$NAMESPACE" \
   --create-namespace \
   -f "$SCRIPT_DIR/values.yaml" \
+  --set "loki.limits_config.retention_period=${RETENTION_PERIOD}" \
   --wait --timeout 5m
 
 echo "Waiting for Loki to be ready..."

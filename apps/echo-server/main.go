@@ -34,6 +34,7 @@ var (
 	redisURL    = getEnv("REDIS_URL", "")
 	logger      *slog.Logger
 	redisClient *redis.Client
+	cacheTTL    time.Duration
 
 	httpRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "http_requests_total",
@@ -65,6 +66,21 @@ func main() {
 	}
 	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
+
+	// Redis cache TTL (default 1h; "0" means no expiry)
+	const defaultCacheTTL = time.Hour
+	if raw := getEnv("CACHE_TTL", ""); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil {
+			logger.Warn("invalid CACHE_TTL value, using default 1h", "value", raw, "error", err)
+			cacheTTL = defaultCacheTTL
+		} else {
+			cacheTTL = d
+		}
+	} else {
+		cacheTTL = defaultCacheTTL
+	}
+	logger.Info("cache TTL configured", "ttl", cacheTTL)
 
 	// Redis client (optional)
 	if redisURL != "" {
@@ -308,7 +324,7 @@ func handleCache(w http.ResponseWriter, r *http.Request) {
 		}
 		defer r.Body.Close()
 
-		if err := redisClient.Set(ctx, key, string(body), 0).Err(); err != nil {
+		if err := redisClient.Set(ctx, key, string(body), cacheTTL).Err(); err != nil {
 			logger.Error("redis set error", "key", key, "error", err)
 			recordMetrics(r, http.StatusInternalServerError, start)
 			respondJSON(w, http.StatusInternalServerError, map[string]string{

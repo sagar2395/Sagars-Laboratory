@@ -1,0 +1,37 @@
+# Remote state backend configuration for the dev environment.
+#
+# Copy this file to backend.tf (which is gitignored) and uncomment ONE block
+# matching the cloud provider you are targeting (AKS → AzureRM, EKS → S3).
+#
+# One-time setup steps are in docs/cloud-runtimes.md → "State Management".
+#
+# After creating/editing backend.tf, run:
+#   terraform init -migrate-state
+# to move any existing local state into the remote backend.
+
+# ── AzureRM backend (for AKS) ────────────────────────────────────────────────
+# Prerequisites: an Azure Storage Account + container for state.
+# See docs/cloud-runtimes.md for the az CLI commands to create them.
+#
+# terraform {
+#   backend "azurerm" {
+#     resource_group_name  = "sagars-lab-tfstate"
+#     storage_account_name = "sagarslabtfstate"
+#     container_name       = "tfstate"
+#     key                  = "dev/terraform.tfstate"
+#   }
+# }
+
+# ── S3 backend (for EKS) ─────────────────────────────────────────────────────
+# Prerequisites: an S3 bucket + DynamoDB table for state locking.
+# See docs/cloud-runtimes.md for the aws CLI commands to create them.
+#
+# terraform {
+#   backend "s3" {
+#     bucket         = "sagars-lab-tfstate"
+#     key            = "dev/terraform.tfstate"
+#     region         = "us-east-1"
+#     dynamodb_table = "sagars-lab-tfstate-lock"
+#     encrypt        = true
+#   }
+# }
