@@ -41,9 +41,6 @@ type Config struct {
 	AppName         string
 	HelmReleaseName string
 	HelmValues      string
-
-	// Observability
-	MonitoringNamespace string
 }
 
 // AppConfig holds per-app configuration from app.env.
@@ -110,8 +107,6 @@ func Load(projectRoot string) (*Config, error) {
 	cfg.AppName = getEnvOrDefault("APP_NAME", "go-api")
 	cfg.HelmReleaseName = getEnvOrDefault("HELM_RELEASE_NAME", "go-api")
 	cfg.HelmValues = getEnvOrDefault("HELM_VALUES", "values-dev.yaml")
-
-	cfg.MonitoringNamespace = getEnvOrDefault("MONITORING_NAMESPACE", "monitoring")
 
 	return cfg, nil
 }

@@ -11,6 +11,9 @@
 bin/
 cmd/labctl/labctl
 *.exe
+apps/echo-server/echo-server
+apps/go-api/go-api
+apps/go-api/app
 
 ## Node / UI
 ui/node_modules/

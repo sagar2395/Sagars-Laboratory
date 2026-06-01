@@ -194,7 +194,7 @@ func TestProvider_Namespace(t *testing.T) {
 }
 
 func TestProvider_Namespace_CustomMonitoringNamespace(t *testing.T) {
-	p := Provider{Category: "logging", Name: "loki", MonitoringNamespace: "observability"}
+	p := Provider{Category: "logging", Name: "loki", monitoringNS: "observability"}
 	if got := p.Namespace(); got != "observability" {
 		t.Errorf("Namespace() = %q, want %q", got, "observability")
 	}
