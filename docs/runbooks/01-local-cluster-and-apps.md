@@ -34,12 +34,38 @@ curl http://echo-server.k3d.local/health
 
 ## Expected
 
-- `/health` returns 200 immediately; `/ready` returns 200 once dependencies are up.
-- `bin/labctl status` shows the correct **Kubernetes version** (Task 015) and the
-  correct pod counts parsed from JSON (Task 020).
-- echo-server's readiness probe passes only when it can serve (Task 007); it does
-  not flap.
-- Posting an oversized body to echo-server is rejected (Task 016).
+- `/health` returns `{"status":"ok"}` (plus a `redis` key when Redis is configured).
+- `/ready` always returns 200 — it is not gated on Redis.
+- `bin/labctl status` shows the correct **Kubernetes version** parsed from `kubectl version -o json`.
+- echo-server `/ready` passes even when Redis is temporarily down (Task 007).
+- Posting a body >1 MiB to `/echo` or `/cache` returns HTTP 413 (Task 016).
+- `labctl scenario up <name>` fails fast with a clear error if the runtime or a
+  prerequisite is missing — before any component install starts (Task 002).
+- API calls with path params like `../etc` or `app;rm` return HTTP 400 (Task 008).
+
+### Verify scenario preflight
+
+```bash
+# Should fail fast — k3d cluster does not support aks-only scenarios
+bin/labctl scenario up gitops-cicd   # check the runtimes field in scenario.yaml
+
+# Should fail if go-api is not deployed
+bin/labctl scenario up observability-sre
+```
+
+### Verify API input validation
+
+```bash
+curl -s -X POST http://localhost:3939/api/apps/..%2F..%2Fetc%2Fpasswd/deploy | jq .
+# -> {"error":"invalid app name ..."}  HTTP 400
+```
+
+### Verify body size limit
+
+```bash
+dd if=/dev/urandom bs=2M count=1 | curl -s -X POST -d @- http://echo-server.k3d.local/echo
+# -> {"error":"request body too large"}  HTTP 413
+```
 
 ## Alternative access (no /etc/hosts)
 

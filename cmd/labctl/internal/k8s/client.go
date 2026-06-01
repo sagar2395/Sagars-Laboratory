@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -56,17 +57,17 @@ func GetClusterInfo(ctx context.Context) (*ClusterInfo, error) {
 		info.Server = serverOut
 	}
 
-	// Get k8s version
-	versionOut, err := kubectl(ctx, "version", "--short", "-o", "json")
+	// Get k8s version via structured JSON (--short is deprecated since 1.24).
+	info.K8sVersion = "unknown"
+	versionJSON, err := kubectl(ctx, "version", "-o", "json")
 	if err == nil {
-		// Simple parse: look for serverVersion
-		if idx := strings.Index(versionOut, "gitVersion"); idx >= 0 {
-			sub := versionOut[idx:]
-			if start := strings.Index(sub, "\"v"); start >= 0 {
-				if end := strings.Index(sub[start+1:], "\""); end >= 0 {
-					info.K8sVersion = sub[start+1 : start+1+end]
-				}
-			}
+		var vOut struct {
+			ServerVersion struct {
+				GitVersion string `json:"gitVersion"`
+			} `json:"serverVersion"`
+		}
+		if json.Unmarshal([]byte(versionJSON), &vOut) == nil && vOut.ServerVersion.GitVersion != "" {
+			info.K8sVersion = vOut.ServerVersion.GitVersion
 		}
 	}
 
@@ -79,38 +80,53 @@ func GetClusterInfo(ctx context.Context) (*ClusterInfo, error) {
 	return info, nil
 }
 
-// GetNamespacePods returns pods in a namespace.
+// podListJSON is the minimal JSON structure returned by `kubectl get pods -o json`.
+type podListJSON struct {
+	Items []struct {
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
+		Status struct {
+			Phase             string `json:"phase"`
+			ContainerStatuses []struct {
+				Ready        bool  `json:"ready"`
+				RestartCount int32 `json:"restartCount"`
+			} `json:"containerStatuses"`
+		} `json:"status"`
+	} `json:"items"`
+}
+
+// GetNamespacePods returns pods in a namespace using JSON output for reliable parsing.
 func GetNamespacePods(ctx context.Context, namespace string) ([]PodInfo, error) {
-	out, err := kubectl(ctx, "get", "pods", "-n", namespace, "--no-headers",
-		"-o", "custom-columns=NAME:.metadata.name,STATUS:.status.phase,READY:.status.conditions[?(@.type=='Ready')].status,RESTARTS:.status.containerStatuses[0].restartCount,AGE:.metadata.creationTimestamp")
+	out, err := kubectl(ctx, "get", "pods", "-n", namespace, "-o", "json")
 	if err != nil {
 		return nil, err
 	}
 
+	var list podListJSON
+	if err := json.Unmarshal([]byte(out), &list); err != nil {
+		return nil, fmt.Errorf("parsing pod list JSON: %w", err)
+	}
+
 	var pods []PodInfo
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		if line == "" {
-			continue
+	for _, item := range list.Items {
+		readyCount := 0
+		totalCount := len(item.Status.ContainerStatuses)
+		var restarts int32
+		for _, cs := range item.Status.ContainerStatuses {
+			if cs.Ready {
+				readyCount++
+			}
+			restarts += cs.RestartCount
 		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		pod := PodInfo{
-			Name:      fields[0],
+
+		pods = append(pods, PodInfo{
+			Name:      item.Metadata.Name,
 			Namespace: namespace,
-			Status:    fields[1],
-		}
-		if len(fields) > 2 {
-			pod.Ready = fields[2]
-		}
-		if len(fields) > 3 {
-			pod.Restarts = fields[3]
-		}
-		if len(fields) > 4 {
-			pod.Age = fields[4]
-		}
-		pods = append(pods, pod)
+			Status:    item.Status.Phase,
+			Ready:     fmt.Sprintf("%d/%d", readyCount, totalCount),
+			Restarts:  fmt.Sprintf("%d", restarts),
+		})
 	}
 	return pods, nil
 }

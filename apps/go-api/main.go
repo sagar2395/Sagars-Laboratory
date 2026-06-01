@@ -26,6 +26,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// build-time version info injected via -ldflags
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildDate = "unknown"
+)
+
 var (
 	port            = getEnv("PORT", "8080")
 	shutdownTimeout = getDurationEnv("SHUTDOWN_TIMEOUT", 30*time.Second)
@@ -96,6 +103,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/ready", handleReady)
+	mux.HandleFunc("/version", handleVersion)
 	mux.HandleFunc("/toggle-failure", handleToggleFailure)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/", handleRoot)
@@ -185,14 +193,24 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"service":         serviceName,
-		"version":         "0.1.0",
+		"version":         version,
 		"simulateFailure": simulateFailure.Load(),
 		"endpoints": []string{
 			"/health          - Health check (always 200)",
 			"/ready           - Readiness check (503 when failure simulated)",
 			"/toggle-failure  - Toggle readiness failure simulation",
+			"/version         - Build version info",
 			"/metrics         - Prometheus metrics",
 		},
+	})
+}
+
+func handleVersion(w http.ResponseWriter, r *http.Request) {
+	respondJSON(w, http.StatusOK, map[string]string{
+		"app":       serviceName,
+		"version":   version,
+		"commit":    commit,
+		"buildDate": buildDate,
 	})
 }
 

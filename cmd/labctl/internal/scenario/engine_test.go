@@ -1,11 +1,26 @@
 package scenario
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// createPlatformDir creates a minimal platform/<category>/ stub for preflight tests.
+func createPlatformDir(t *testing.T, root, category string) {
+	t.Helper()
+	os.MkdirAll(filepath.Join(root, "platform", category), 0755)
+}
+
+// createAppEnv creates a minimal apps/<name>/app.env stub for preflight tests.
+func createAppEnv(t *testing.T, root, name string) {
+	t.Helper()
+	dir := filepath.Join(root, "apps", name)
+	os.MkdirAll(dir, 0755)
+	os.WriteFile(filepath.Join(dir, "app.env"), []byte("APP_NAME="+name+"\n"), 0644)
+}
 
 const testScenarioYAML = `name: test-scenario
 displayName: Test Scenario
@@ -55,7 +70,7 @@ func TestNewEngine_Discovery(t *testing.T) {
 	second = strings.Replace(second, "Test Scenario", "Second Scenario", 1)
 	createTestScenario(t, root, "second-scenario", second)
 
-	engine := NewEngine(root, "k3d.local")
+	engine := NewEngine(root, "k3d.local", "k3d")
 	scenarios := engine.List()
 
 	if len(scenarios) != 2 {
@@ -67,7 +82,7 @@ func TestGet(t *testing.T) {
 	root := t.TempDir()
 	createTestScenario(t, root, "test-scenario", testScenarioYAML)
 
-	engine := NewEngine(root, "k3d.local")
+	engine := NewEngine(root, "k3d.local", "k3d")
 
 	s, err := engine.Get("test-scenario")
 	if err != nil {
@@ -98,7 +113,7 @@ func TestGet_NotFound(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "scenarios"), 0755)
 
-	engine := NewEngine(root, "k3d.local")
+	engine := NewEngine(root, "k3d.local", "k3d")
 	_, err := engine.Get("nonexistent")
 	if err == nil {
 		t.Error("expected error for nonexistent scenario")
@@ -109,7 +124,7 @@ func TestResolveTemplate(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "scenarios"), 0755)
 
-	engine := NewEngine(root, "k3d.local")
+	engine := NewEngine(root, "k3d.local", "k3d")
 
 	tests := []struct {
 		input    string
@@ -133,7 +148,7 @@ func TestStatus(t *testing.T) {
 	root := t.TempDir()
 	createTestScenario(t, root, "test-scenario", testScenarioYAML)
 
-	engine := NewEngine(root, "k3d.local")
+	engine := NewEngine(root, "k3d.local", "k3d")
 	statuses := engine.Status()
 
 	if len(statuses) != 1 {
@@ -153,7 +168,7 @@ func TestIsActive_MarkActive(t *testing.T) {
 	root := t.TempDir()
 	createTestScenario(t, root, "test-scenario", testScenarioYAML)
 
-	engine := NewEngine(root, "k3d.local")
+	engine := NewEngine(root, "k3d.local", "k3d")
 
 	// Initially inactive
 	if engine.isActive("test-scenario") {
@@ -184,7 +199,7 @@ func TestNewEngine_InvalidYAML(t *testing.T) {
 	os.MkdirAll(dir, 0755)
 	os.WriteFile(filepath.Join(dir, "scenario.yaml"), []byte("invalid: [yaml: {"), 0644)
 
-	engine := NewEngine(root, "k3d.local")
+	engine := NewEngine(root, "k3d.local", "k3d")
 	scenarios := engine.List()
 	if len(scenarios) != 0 {
 		t.Errorf("expected 0 scenarios for invalid YAML, got %d", len(scenarios))
@@ -197,7 +212,7 @@ func TestNewEngine_MissingName(t *testing.T) {
 	os.MkdirAll(dir, 0755)
 	os.WriteFile(filepath.Join(dir, "scenario.yaml"), []byte("description: no name field"), 0644)
 
-	engine := NewEngine(root, "k3d.local")
+	engine := NewEngine(root, "k3d.local", "k3d")
 	scenarios := engine.List()
 	if len(scenarios) != 0 {
 		t.Errorf("expected 0 scenarios for missing name, got %d", len(scenarios))
@@ -253,5 +268,191 @@ metadata:
 				t.Fatalf("manifestHasExplicitNamespace() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Preflight tests
+// ---------------------------------------------------------------------------
+
+const scenarioWithRuntimesYAML = `name: runtime-scenario
+displayName: Runtime Scenario
+description: Tests runtime compatibility check
+category: testing
+runtimes:
+  - aks
+  - eks
+components: []
+`
+
+const scenarioAllRuntimesYAML = `name: all-runtimes-scenario
+displayName: All Runtimes
+description: No runtimes restriction
+category: testing
+components: []
+`
+
+func TestPreflight_RuntimeIncompatible(t *testing.T) {
+	root := t.TempDir()
+	createTestScenario(t, root, "runtime-scenario", scenarioWithRuntimesYAML)
+
+	engine := NewEngine(root, "k3d.local", "k3d") // active profile: k3d
+	s, err := engine.Get("runtime-scenario")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	err = engine.Preflight(s)
+	if err == nil {
+		t.Error("expected preflight error for incompatible runtime, got nil")
+	}
+	if !strings.Contains(err.Error(), "k3d") {
+		t.Errorf("error should mention active profile: %v", err)
+	}
+}
+
+func TestPreflight_RuntimeCompatible(t *testing.T) {
+	root := t.TempDir()
+	createTestScenario(t, root, "runtime-scenario", scenarioWithRuntimesYAML)
+
+	engine := NewEngine(root, "k3d.local", "aks") // active profile: aks — listed in scenario
+	s, _ := engine.Get("runtime-scenario")
+
+	if err := engine.Preflight(s); err != nil {
+		t.Errorf("expected no runtime error, got: %v", err)
+	}
+}
+
+func TestPreflight_NoRuntimeRestriction(t *testing.T) {
+	root := t.TempDir()
+	createTestScenario(t, root, "all-runtimes-scenario", scenarioAllRuntimesYAML)
+
+	engine := NewEngine(root, "k3d.local", "k3d")
+	s, _ := engine.Get("all-runtimes-scenario")
+
+	if err := engine.Preflight(s); err != nil {
+		t.Errorf("scenario with no runtimes list should pass for any profile: %v", err)
+	}
+}
+
+func TestPreflight_MissingPrerequisiteApp(t *testing.T) {
+	root := t.TempDir()
+	yaml := strings.ReplaceAll(testScenarioYAML, "apps:\n    - go-api", "apps:\n    - missing-app")
+	createTestScenario(t, root, "test-scenario", yaml)
+	// No apps/ directory created → app.env missing
+
+	engine := NewEngine(root, "k3d.local", "k3d")
+	s, _ := engine.Get("test-scenario")
+
+	err := engine.Preflight(s)
+	if err == nil {
+		t.Error("expected error for missing prerequisite app")
+	}
+	if !strings.Contains(err.Error(), "missing-app") {
+		t.Errorf("error should mention missing app name: %v", err)
+	}
+}
+
+func TestPreflight_MissingPrerequisitePlatform(t *testing.T) {
+	root := t.TempDir()
+	createTestScenario(t, root, "test-scenario", testScenarioYAML)
+	createAppEnv(t, root, "go-api")
+	// Platform dirs NOT created → should fail
+
+	engine := NewEngine(root, "k3d.local", "k3d")
+	s, _ := engine.Get("test-scenario")
+
+	err := engine.Preflight(s)
+	if err == nil {
+		t.Error("expected error for missing prerequisite platform")
+	}
+	if !strings.Contains(err.Error(), "ingress/traefik") {
+		t.Errorf("error should mention missing platform: %v", err)
+	}
+}
+
+func TestPreflight_MissingComponentFile(t *testing.T) {
+	root := t.TempDir()
+
+	// Remove the values file that createTestScenario normally creates
+	dir := filepath.Join(root, "scenarios", "test-scenario")
+	os.MkdirAll(filepath.Join(dir, "manifests"), 0755)
+	os.WriteFile(filepath.Join(dir, "scenario.yaml"), []byte(testScenarioYAML), 0644)
+	os.WriteFile(filepath.Join(dir, "manifests", "test.yaml"), []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test"), 0644)
+	// values/test.yaml intentionally NOT written
+
+	createAppEnv(t, root, "go-api")
+	createPlatformDir(t, root, "ingress/traefik")
+
+	engine := NewEngine(root, "k3d.local", "k3d")
+	s, _ := engine.Get("test-scenario")
+
+	err := engine.Preflight(s)
+	if err == nil {
+		t.Error("expected error for missing valuesFile")
+	}
+	if !strings.Contains(err.Error(), "valuesFile") {
+		t.Errorf("error should mention valuesFile: %v", err)
+	}
+}
+
+func TestPreflight_AllValid(t *testing.T) {
+	root := t.TempDir()
+	createTestScenario(t, root, "test-scenario", testScenarioYAML)
+	createAppEnv(t, root, "go-api")
+	createPlatformDir(t, root, "ingress/traefik")
+
+	engine := NewEngine(root, "k3d.local", "k3d")
+	s, _ := engine.Get("test-scenario")
+
+	if err := engine.Preflight(s); err != nil {
+		t.Errorf("expected no preflight errors, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Idempotency tests (task 019)
+// ---------------------------------------------------------------------------
+
+const minimalScenarioYAML = `name: minimal-scenario
+displayName: Minimal
+description: No components
+category: testing
+components: []
+`
+
+func TestUp_AlreadyActive_ReturnsErrAlreadyActive(t *testing.T) {
+	root := t.TempDir()
+	createTestScenario(t, root, "minimal-scenario", minimalScenarioYAML)
+
+	engine := NewEngine(root, "k3d.local", "k3d")
+
+	// Mark it active manually
+	if err := engine.markActive("minimal-scenario"); err != nil {
+		t.Fatalf("markActive: %v", err)
+	}
+
+	err := engine.Up("minimal-scenario", nil)
+	if err == nil {
+		t.Fatal("expected ErrAlreadyActive, got nil")
+	}
+	if !errors.Is(err, ErrAlreadyActive) {
+		t.Errorf("expected errors.Is(err, ErrAlreadyActive), got: %v", err)
+	}
+}
+
+func TestUp_NotActive_RunsNormally(t *testing.T) {
+	root := t.TempDir()
+	createTestScenario(t, root, "minimal-scenario", minimalScenarioYAML)
+
+	engine := NewEngine(root, "k3d.local", "k3d")
+
+	// No components → Up should succeed without needing an executor
+	err := engine.Up("minimal-scenario", nil)
+	if err != nil {
+		t.Errorf("expected nil error for no-component scenario, got: %v", err)
+	}
+	if !engine.isActive("minimal-scenario") {
+		t.Error("scenario should be active after Up")
 	}
 }

@@ -55,17 +55,23 @@ make teardown                # remove apps + platform + cluster
 bin/labctl hosts remove      # remove /etc/hosts entries
 ```
 
+## Cross-compilation (for releases)
+
+```bash
+make cli-build-all    # builds dist/labctl-{darwin,linux}-{arm64,amd64}
+```
+
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| `make setup-tools` downloads a Linux binary on macOS | Task 030 not done — bootstrap still hardcodes `linux/amd64`. |
-| `grep: invalid option -- P` during setup | GNU-only `grep -oP` — Task 030/034. |
 | `Cannot connect to the Docker daemon` on macOS | Start Docker Desktop / `colima start` / OrbStack. |
 | `bin/labctl: cannot execute binary file` | You're running a stale/foreign binary — `make cli-build` again. |
 | Ingress host won't resolve | `/etc/hosts` entry missing — `bin/labctl hosts add`. |
+| `labctl hosts add` says "permission denied" | Re-exec with sudo is automatic; approve the sudo prompt. |
 
 ## Notes for AI sessions
 
-This runbook is the acceptance check for Phase 0 tasks 030–034. If any step
-requires a manual edit to work on macOS, the corresponding task is **not** done.
+Phase 0 tasks 030–034 are complete. This runbook is the acceptance check — if
+any step requires a manual edit to work on macOS, investigate and reopen the
+relevant task.

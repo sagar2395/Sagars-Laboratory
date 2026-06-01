@@ -4,13 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/sagars-lab/labctl/internal/config"
-	"github.com/sagars-lab/labctl/internal/executor"
 	"github.com/sagars-lab/labctl/internal/k8s"
 )
+
+// validName matches identifiers safe to use as file-path segments and shell arguments.
+var validName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+
+func isValidName(s string) bool { return validName.MatchString(s) }
 
 // StatusResponse represents the overall lab status.
 type StatusResponse struct {
@@ -121,7 +126,7 @@ func (s *Server) handleListApps(w http.ResponseWriter, r *http.Request) {
 
 	apps, err := config.ListApps(s.cfg.ProjectRoot)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
 
@@ -151,26 +156,41 @@ func (s *Server) handleListApps(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAppDeploy(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid app name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+	jobID := s.exec.NextActionID()
 	go func() {
-		s.exec.RunScriptStreamed(fmt.Sprintf("Deploy %s", name), "engine/deploy.sh", "deploy", name)
+		s.exec.RunScriptStreamedWith(jobID, fmt.Sprintf("Deploy %s", name), "engine/deploy.sh", "deploy", name)
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "deploy", "app": name})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handleAppDestroy(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid app name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+	jobID := s.exec.NextActionID()
 	go func() {
-		s.exec.RunScriptStreamed(fmt.Sprintf("Destroy %s", name), "engine/deploy.sh", "destroy", name)
+		s.exec.RunScriptStreamedWith(jobID, fmt.Sprintf("Destroy %s", name), "engine/deploy.sh", "destroy", name)
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "destroy", "app": name})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handleAppBuild(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid app name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+	jobID := s.exec.NextActionID()
 	go func() {
-		s.exec.RunScriptStreamed(fmt.Sprintf("Build %s", name), "engine/build.sh", name)
+		s.exec.RunScriptStreamedWith(jobID, fmt.Sprintf("Build %s", name), "engine/build.sh", name)
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "build", "app": name})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handlePlatformStatus(w http.ResponseWriter, r *http.Request) {
@@ -196,65 +216,106 @@ func (s *Server) handlePlatformStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePlatformUp(w http.ResponseWriter, r *http.Request) {
+	jobID := s.exec.NextActionID()
+	label := "platform-up"
+	s.exec.BroadcastStart(jobID, label)
 	go func() {
-		// Install ingress
+		var lastErr error
 		if s.cfg.IngressProvider != "" {
-			s.registry.InstallStreamed("ingress", s.cfg.IngressProvider, s.exec)
+			if err := s.registry.InstallStreamed("ingress", s.cfg.IngressProvider, s.exec); err != nil {
+				lastErr = err
+			}
 		}
-		// Install metrics
 		if s.cfg.MetricsProvider != "" {
-			s.registry.InstallStreamed("monitoring/metrics", s.cfg.MetricsProvider, s.exec)
+			if err := s.registry.InstallStreamed("monitoring/metrics", s.cfg.MetricsProvider, s.exec); err != nil {
+				lastErr = err
+			}
 		}
-		// Install grafana
-		s.registry.InstallStreamed("monitoring", "grafana", s.exec)
-		// Install logging
+		if err := s.registry.InstallStreamed("monitoring", "grafana", s.exec); err != nil {
+			lastErr = err
+		}
 		if s.cfg.LoggingProvider != "" {
-			s.registry.InstallStreamed("logging", s.cfg.LoggingProvider, s.exec)
+			if err := s.registry.InstallStreamed("logging", s.cfg.LoggingProvider, s.exec); err != nil {
+				lastErr = err
+			}
 		}
-		// Install tracing
 		if s.cfg.TracingProvider != "" {
-			s.registry.InstallStreamed("tracing", s.cfg.TracingProvider, s.exec)
+			if err := s.registry.InstallStreamed("tracing", s.cfg.TracingProvider, s.exec); err != nil {
+				lastErr = err
+			}
 		}
+		s.exec.BroadcastEnd(jobID, label, lastErr)
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "platform-up"})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handlePlatformDown(w http.ResponseWriter, r *http.Request) {
+	jobID := s.exec.NextActionID()
+	label := "platform-down"
+	s.exec.BroadcastStart(jobID, label)
 	go func() {
+		var lastErr error
 		// Uninstall in reverse order
 		if s.cfg.TracingProvider != "" {
-			s.registry.UninstallStreamed("tracing", s.cfg.TracingProvider, s.exec)
+			if err := s.registry.UninstallStreamed("tracing", s.cfg.TracingProvider, s.exec); err != nil {
+				lastErr = err
+			}
 		}
 		if s.cfg.LoggingProvider != "" {
-			s.registry.UninstallStreamed("logging", s.cfg.LoggingProvider, s.exec)
+			if err := s.registry.UninstallStreamed("logging", s.cfg.LoggingProvider, s.exec); err != nil {
+				lastErr = err
+			}
 		}
-		s.registry.UninstallStreamed("monitoring", "grafana", s.exec)
+		if err := s.registry.UninstallStreamed("monitoring", "grafana", s.exec); err != nil {
+			lastErr = err
+		}
 		if s.cfg.MetricsProvider != "" {
-			s.registry.UninstallStreamed("monitoring/metrics", s.cfg.MetricsProvider, s.exec)
+			if err := s.registry.UninstallStreamed("monitoring/metrics", s.cfg.MetricsProvider, s.exec); err != nil {
+				lastErr = err
+			}
 		}
 		if s.cfg.IngressProvider != "" {
-			s.registry.UninstallStreamed("ingress", s.cfg.IngressProvider, s.exec)
+			if err := s.registry.UninstallStreamed("ingress", s.cfg.IngressProvider, s.exec); err != nil {
+				lastErr = err
+			}
 		}
+		s.exec.BroadcastEnd(jobID, label, lastErr)
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "platform-down"})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handleComponentUp(w http.ResponseWriter, r *http.Request) {
 	category := mux.Vars(r)["category"]
 	name := mux.Vars(r)["name"]
+	if !isValidName(category) || !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", "invalid category or component name: must match ^[a-zA-Z0-9_-]{1,64}$")
+		return
+	}
+	jobID := s.exec.NextActionID()
+	label := fmt.Sprintf("install %s/%s", category, name)
+	s.exec.BroadcastStart(jobID, label)
 	go func() {
-		s.registry.InstallStreamed(category, name, s.exec)
+		err := s.registry.InstallStreamed(category, name, s.exec)
+		s.exec.BroadcastEnd(jobID, label, err)
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": fmt.Sprintf("install %s/%s", category, name)})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handleComponentDown(w http.ResponseWriter, r *http.Request) {
 	category := mux.Vars(r)["category"]
 	name := mux.Vars(r)["name"]
+	if !isValidName(category) || !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", "invalid category or component name: must match ^[a-zA-Z0-9_-]{1,64}$")
+		return
+	}
+	jobID := s.exec.NextActionID()
+	label := fmt.Sprintf("uninstall %s/%s", category, name)
+	s.exec.BroadcastStart(jobID, label)
 	go func() {
-		s.registry.UninstallStreamed(category, name, s.exec)
+		err := s.registry.UninstallStreamed(category, name, s.exec)
+		s.exec.BroadcastEnd(jobID, label, err)
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": fmt.Sprintf("uninstall %s/%s", category, name)})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handleListScenarios(w http.ResponseWriter, r *http.Request) {
@@ -263,9 +324,13 @@ func (s *Server) handleListScenarios(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleScenarioInfo(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid scenario name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
 	sc, err := s.scenes.Get(name)
 	if err != nil {
-		respondError(w, http.StatusNotFound, err.Error())
+		respondError(w, http.StatusNotFound, "not_found", err.Error())
 		return
 	}
 
@@ -282,56 +347,32 @@ func (s *Server) handleScenarioInfo(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleScenarioUp(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid scenario name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+	jobID := s.exec.NextActionID()
+	label := fmt.Sprintf("Activate scenario: %s", name)
+	s.exec.BroadcastStart(jobID, label)
 	go func() {
-		if err := s.scenes.Up(name, s.exec); err != nil {
-			exitCode := 1
-			s.exec.Broadcast.Send(executor.ActionEvent{
-				ID:        fmt.Sprintf("scenario-up-%s", name),
-				Type:      "action_end",
-				Action:    fmt.Sprintf("Activate scenario: %s", name),
-				ExitCode:  &exitCode,
-				Error:     err.Error(),
-				Timestamp: time.Now(),
-			})
-		} else {
-			exitCode := 0
-			s.exec.Broadcast.Send(executor.ActionEvent{
-				ID:        fmt.Sprintf("scenario-up-%s", name),
-				Type:      "action_end",
-				Action:    fmt.Sprintf("Activate scenario: %s", name),
-				ExitCode:  &exitCode,
-				Timestamp: time.Now(),
-			})
-		}
+		s.exec.BroadcastEnd(jobID, label, s.scenes.Up(name, s.exec))
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "scenario-up", "scenario": name})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handleScenarioDown(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid scenario name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+	jobID := s.exec.NextActionID()
+	label := fmt.Sprintf("Deactivate scenario: %s", name)
+	s.exec.BroadcastStart(jobID, label)
 	go func() {
-		if err := s.scenes.Down(name, s.exec); err != nil {
-			exitCode := 1
-			s.exec.Broadcast.Send(executor.ActionEvent{
-				ID:        fmt.Sprintf("scenario-down-%s", name),
-				Type:      "action_end",
-				Action:    fmt.Sprintf("Deactivate scenario: %s", name),
-				ExitCode:  &exitCode,
-				Error:     err.Error(),
-				Timestamp: time.Now(),
-			})
-		} else {
-			exitCode := 0
-			s.exec.Broadcast.Send(executor.ActionEvent{
-				ID:        fmt.Sprintf("scenario-down-%s", name),
-				Type:      "action_end",
-				Action:    fmt.Sprintf("Deactivate scenario: %s", name),
-				ExitCode:  &exitCode,
-				Timestamp: time.Now(),
-			})
-		}
+		s.exec.BroadcastEnd(jobID, label, s.scenes.Down(name, s.exec))
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "scenario-down", "scenario": name})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
@@ -348,18 +389,32 @@ func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleServiceUp(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid service name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+	jobID := s.exec.NextActionID()
+	label := fmt.Sprintf("service-up: %s", name)
+	s.exec.BroadcastStart(jobID, label)
 	go func() {
-		s.svcs.Install(name, s.exec)
+		s.exec.BroadcastEnd(jobID, label, s.svcs.Install(name, s.exec))
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "service-up", "service": name})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handleServiceDown(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid service name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+	jobID := s.exec.NextActionID()
+	label := fmt.Sprintf("service-down: %s", name)
+	s.exec.BroadcastStart(jobID, label)
 	go func() {
-		s.svcs.Uninstall(name, s.exec)
+		s.exec.BroadcastEnd(jobID, label, s.svcs.Uninstall(name, s.exec))
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "service-down", "service": name})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 // DashboardURL represents a link to a platform dashboard.
@@ -494,16 +549,26 @@ func (s *Server) handleListRuntimes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRuntimeActivate(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid runtime name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+	jobID := s.exec.NextActionID()
 	go func() {
-		s.runtimes.Activate(name, s.exec)
+		s.runtimes.ActivateWith(jobID, name, s.exec)
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "runtime-activate", "runtime": name})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
 func (s *Server) handleRuntimeDeactivate(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid runtime name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+	jobID := s.exec.NextActionID()
 	go func() {
-		s.runtimes.Deactivate(name, s.exec)
+		s.runtimes.DeactivateWith(jobID, name, s.exec)
 	}()
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "started", "action": "runtime-deactivate", "runtime": name})
+	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }

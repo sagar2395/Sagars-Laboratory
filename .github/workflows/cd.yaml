@@ -84,3 +84,27 @@ jobs:
           git add apps/${{ matrix.app }}/deploy/helm/values-dev.yaml
           git diff --staged --quiet || git commit -m "chore: update ${{ matrix.app }} image to ${{ github.sha }}"
           git push
+
+  notify-argocd:
+    name: ArgoCD sync
+    runs-on: ubuntu-latest
+    needs: [detect-changes, update-manifests]
+    if: needs.detect-changes.outputs.apps != '[]' && secrets.ARGOCD_SERVER != ''
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        app: ${{ fromJson(needs.detect-changes.outputs.apps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ArgoCD CLI
+        run: |
+          . versions.env
+          curl -sSL -o /usr/local/bin/argocd \
+            "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_VERSION}/argocd-linux-amd64"
+          chmod +x /usr/local/bin/argocd
+      - name: Trigger ArgoCD sync
+        run: |
+          argocd app sync ${{ matrix.app }} \
+            --grpc-web \
+            --server ${{ secrets.ARGOCD_SERVER }} \
+            --auth-token ${{ secrets.ARGOCD_AUTH_TOKEN }}

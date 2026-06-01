@@ -1,6 +1,7 @@
 package scenario
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/sagars-lab/labctl/internal/executor"
 )
+
+// ErrAlreadyActive is returned by Up when the scenario is already active.
+// Callers should treat this as a no-op, not a failure.
+var ErrAlreadyActive = errors.New("scenario already active")
 
 // Scenario represents a lab scenario loaded from scenario.yaml.
 type Scenario struct {
@@ -71,15 +76,17 @@ type ExploreCommand struct {
 type Engine struct {
 	ProjectRoot  string
 	DomainSuffix string
+	Profile      string // active runtime profile (k3d|aks|eks), used for preflight
 	scenarios    map[string]*Scenario
 	stateDir     string
 }
 
 // NewEngine creates a scenario engine by scanning the scenarios/ directory.
-func NewEngine(projectRoot, domainSuffix string) *Engine {
+func NewEngine(projectRoot, domainSuffix, profile string) *Engine {
 	e := &Engine{
 		ProjectRoot:  projectRoot,
 		DomainSuffix: domainSuffix,
+		Profile:      profile,
 		scenarios:    make(map[string]*Scenario),
 		stateDir:     filepath.Join(projectRoot, ".labctl", "scenarios"),
 	}
@@ -107,6 +114,71 @@ func (e *Engine) Get(name string) (*Scenario, error) {
 	return s, nil
 }
 
+// Preflight validates a scenario before activation: checks runtime compatibility,
+// prerequisite directory existence, and component asset file existence.
+// It returns a combined error listing all failures so the user can fix them all at once.
+func (e *Engine) Preflight(s *Scenario) error {
+	var errs []string
+
+	// 1. Runtime compatibility — only checked when the scenario restricts runtimes.
+	if len(s.Runtimes) > 0 && e.Profile != "" {
+		ok := false
+		for _, r := range s.Runtimes {
+			if r == e.Profile {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			errs = append(errs, fmt.Sprintf(
+				"active profile %q is not in supported runtimes %v", e.Profile, s.Runtimes))
+		}
+	}
+
+	// 2. Prerequisite apps — check apps/<name>/app.env exists.
+	for _, app := range s.Prerequisites.Apps {
+		appEnv := filepath.Join(e.ProjectRoot, "apps", app, "app.env")
+		if _, err := os.Stat(appEnv); err != nil {
+			errs = append(errs, fmt.Sprintf("prerequisite app %q not found (expected %s)", app, appEnv))
+		}
+	}
+
+	// 3. Prerequisite platform components — check platform/<category>/ directory exists.
+	for _, p := range s.Prerequisites.Platform {
+		platformDir := filepath.Join(e.ProjectRoot, "platform", p)
+		if _, err := os.Stat(platformDir); err != nil {
+			errs = append(errs, fmt.Sprintf("prerequisite platform %q not found (expected %s)", p, platformDir))
+		}
+	}
+
+	// 4. Component asset files.
+	for _, comp := range s.Components {
+		if comp.ValuesFile != "" {
+			p := filepath.Join(s.Dir, comp.ValuesFile)
+			if _, err := os.Stat(p); err != nil {
+				errs = append(errs, fmt.Sprintf("component %q: valuesFile %q not found", comp.Name, p))
+			}
+		}
+		if comp.Path != "" && (comp.Type == "manifest" || comp.Type == "grafana-dashboard") {
+			p := filepath.Join(s.Dir, comp.Path)
+			if _, err := os.Stat(p); err != nil {
+				errs = append(errs, fmt.Sprintf("component %q: path %q not found", comp.Name, p))
+			}
+		}
+		if comp.Script != "" {
+			p := filepath.Join(s.Dir, comp.Script)
+			if _, err := os.Stat(p); err != nil {
+				errs = append(errs, fmt.Sprintf("component %q: script %q not found", comp.Name, p))
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("preflight failed for scenario %q:\n  - %s", s.Name, strings.Join(errs, "\n  - "))
+	}
+	return nil
+}
+
 // Up activates a scenario by installing all its components.
 func (e *Engine) Up(name string, exec *executor.Executor) error {
 	s, err := e.Get(name)
@@ -115,7 +187,11 @@ func (e *Engine) Up(name string, exec *executor.Executor) error {
 	}
 
 	if e.isActive(name) {
-		return fmt.Errorf("scenario %q is already active", name)
+		return fmt.Errorf("%w: %s", ErrAlreadyActive, name)
+	}
+
+	if err := e.Preflight(s); err != nil {
+		return err
 	}
 
 	fmt.Printf("Activating scenario: %s\n", s.DisplayName)
@@ -299,7 +375,8 @@ func (e *Engine) installHelm(s *Scenario, comp *Component, exec *executor.Execut
 		args = append(args, "--set", k+"="+resolved)
 	}
 
-	return exec.RunCommandStreamed("Helm install "+comp.Name, "helm", args...)
+	_, err := exec.RunCommandStreamed("Helm install "+comp.Name, "helm", args...)
+	return err
 }
 
 func (e *Engine) uninstallHelm(comp *Component, exec *executor.Executor) error {
@@ -307,7 +384,8 @@ func (e *Engine) uninstallHelm(comp *Component, exec *executor.Executor) error {
 	if ns == "" {
 		ns = "default"
 	}
-	return exec.RunCommandStreamed("Helm uninstall "+comp.Name, "helm", "uninstall", comp.Name, "--namespace", ns)
+	_, err := exec.RunCommandStreamed("Helm uninstall "+comp.Name, "helm", "uninstall", comp.Name, "--namespace", ns)
+	return err
 }
 
 func (e *Engine) installManifest(s *Scenario, comp *Component, exec *executor.Executor) error {
@@ -339,7 +417,8 @@ func (e *Engine) installManifest(s *Scenario, comp *Component, exec *executor.Ex
 		args = append(args, "--namespace", comp.Namespace)
 	}
 
-	return exec.RunCommandStreamed("Apply manifest "+comp.Name, "kubectl", args...)
+	_, err = exec.RunCommandStreamed("Apply manifest "+comp.Name, "kubectl", args...)
+	return err
 }
 
 func (e *Engine) uninstallManifest(s *Scenario, comp *Component, exec *executor.Executor) error {
@@ -366,7 +445,8 @@ func (e *Engine) uninstallManifest(s *Scenario, comp *Component, exec *executor.
 		args = append(args, "--namespace", comp.Namespace)
 	}
 
-	return exec.RunCommandStreamed("Delete manifest "+comp.Name, "kubectl", args...)
+	_, err = exec.RunCommandStreamed("Delete manifest "+comp.Name, "kubectl", args...)
+	return err
 }
 
 func (e *Engine) installGrafanaDashboard(s *Scenario, comp *Component, exec *executor.Executor) error {
@@ -450,7 +530,8 @@ func (e *Engine) runScript(s *Scenario, comp *Component, exec *executor.Executor
 		// Fallback to absolute path
 		relPath = filepath.Join(s.Dir, comp.Script)
 	}
-	return exec.RunScriptStreamed("Run script "+comp.Name, relPath)
+	_, err = exec.RunScriptStreamed("Run script "+comp.Name, relPath)
+	return err
 }
 
 // ResolveTemplate resolves Go template variables in a string (e.g., {{.DomainSuffix}}).

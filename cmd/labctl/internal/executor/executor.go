@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +35,12 @@ func New(projectRoot string) *Executor {
 	}
 }
 
+// NextActionID allocates and returns the next action ID without running anything.
+// Handlers call this before launching a goroutine to get the ID for the 202 response.
+func (e *Executor) NextActionID() string {
+	return fmt.Sprintf("action-%d", atomic.AddInt64(&e.actionSeq, 1))
+}
+
 // RunScript executes a shell script relative to the project root.
 func (e *Executor) RunScript(scriptPath string, args ...string) error {
 	absPath := filepath.Join(e.ProjectRoot, scriptPath)
@@ -41,37 +48,94 @@ func (e *Executor) RunScript(scriptPath string, args ...string) error {
 		return fmt.Errorf("script not found: %s", absPath)
 	}
 
+	slog.Debug("script start", "script", scriptPath, "args", args)
 	cmd := exec.Command("bash", append([]string{absPath}, args...)...)
 	cmd.Dir = e.ProjectRoot
 	cmd.Stdout = e.Stdout
 	cmd.Stderr = e.Stderr
 	cmd.Env = e.buildEnv()
 
-	return cmd.Run()
+	err := cmd.Run()
+	slog.Debug("script end", "script", scriptPath, "err", err)
+	return err
 }
 
 // RunScriptStreamed executes a shell script and streams output via the broadcaster.
-func (e *Executor) RunScriptStreamed(actionLabel, scriptPath string, args ...string) error {
+// It returns the action ID used to tag broadcast events so callers can correlate
+// the 202 HTTP response with the WebSocket stream.
+func (e *Executor) RunScriptStreamed(actionLabel, scriptPath string, args ...string) (string, error) {
 	absPath := filepath.Join(e.ProjectRoot, scriptPath)
 	if _, err := os.Stat(absPath); os.IsNotExist(err) {
 		errMsg := fmt.Sprintf("script not found: %s", absPath)
-		e.broadcastError(actionLabel, scriptPath, args, errMsg)
-		return fmt.Errorf("%s", errMsg)
+		id := e.broadcastError(actionLabel, scriptPath, args, errMsg)
+		return id, fmt.Errorf("%s", errMsg)
 	}
 
 	cmdArgs := append([]string{absPath}, args...)
 	return e.runStreamed(actionLabel, scriptPath+" "+strings.Join(args, " "), "bash", cmdArgs...)
 }
 
+// RunScriptStreamedWith executes a shell script using a caller-supplied action ID.
+// Use this when the handler pre-allocates an ID (via NextActionID) to include in the
+// 202 response body, so the WebSocket action_start event carries the same ID.
+func (e *Executor) RunScriptStreamedWith(actionID, actionLabel, scriptPath string, args ...string) error {
+	absPath := filepath.Join(e.ProjectRoot, scriptPath)
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		errMsg := fmt.Sprintf("script not found: %s", absPath)
+		cmdStr := scriptPath + " " + strings.Join(args, " ")
+		e.broadcastErrorWith(actionID, actionLabel, cmdStr, errMsg)
+		return fmt.Errorf("%s", errMsg)
+	}
+
+	cmdArgs := append([]string{absPath}, args...)
+	return e.runStreamedWith(actionID, actionLabel, scriptPath+" "+strings.Join(args, " "), "bash", cmdArgs...)
+}
+
 // RunCommandStreamed executes a command and streams output via the broadcaster.
-func (e *Executor) RunCommandStreamed(actionLabel, name string, args ...string) error {
+// It returns the action ID used to tag broadcast events.
+func (e *Executor) RunCommandStreamed(actionLabel, name string, args ...string) (string, error) {
 	cmdStr := name + " " + strings.Join(args, " ")
 	return e.runStreamed(actionLabel, cmdStr, name, args...)
 }
 
-func (e *Executor) runStreamed(actionLabel, cmdStr, name string, args ...string) error {
-	actionID := fmt.Sprintf("action-%d", atomic.AddInt64(&e.actionSeq, 1))
+// BroadcastStart emits an action_start event for a pre-allocated action ID.
+// Call this before launching a goroutine for composite operations (scenario, platform)
+// so the WS subscriber sees the start event immediately.
+func (e *Executor) BroadcastStart(actionID, actionLabel string) {
+	e.Broadcast.Send(ActionEvent{
+		ID:        actionID,
+		Type:      "action_start",
+		Action:    actionLabel,
+		Timestamp: time.Now(),
+	})
+}
 
+// BroadcastEnd emits an action_end event for a pre-allocated action ID.
+// Call this at the end of a goroutine for composite operations.
+func (e *Executor) BroadcastEnd(actionID, actionLabel string, err error) {
+	exitCode := 0
+	errStr := ""
+	if err != nil {
+		exitCode = 1
+		errStr = err.Error()
+	}
+	e.Broadcast.Send(ActionEvent{
+		ID:        actionID,
+		Type:      "action_end",
+		Action:    actionLabel,
+		ExitCode:  &exitCode,
+		Error:     errStr,
+		Timestamp: time.Now(),
+	})
+}
+
+func (e *Executor) runStreamed(actionLabel, cmdStr, name string, args ...string) (string, error) {
+	actionID := e.NextActionID()
+	return actionID, e.runStreamedWith(actionID, actionLabel, cmdStr, name, args...)
+}
+
+func (e *Executor) runStreamedWith(actionID, actionLabel, cmdStr, name string, args ...string) error {
+	slog.Debug("action start", "action", actionLabel, "cmd", cmdStr, "id", actionID)
 	e.Broadcast.Send(ActionEvent{
 		ID:        actionID,
 		Type:      "action_start",
@@ -118,6 +182,7 @@ func (e *Executor) runStreamed(actionLabel, cmdStr, name string, args ...string)
 		errStr = err.Error()
 	}
 
+	slog.Debug("action end", "action", actionLabel, "id", actionID, "exitCode", exitCode, "err", errStr)
 	e.Broadcast.Send(ActionEvent{
 		ID:        actionID,
 		Type:      "action_end",
@@ -149,9 +214,14 @@ func (e *Executor) streamOutput(wg *sync.WaitGroup, actionID, actionLabel string
 	}
 }
 
-func (e *Executor) broadcastError(actionLabel, scriptPath string, args []string, errMsg string) {
-	actionID := fmt.Sprintf("action-%d", atomic.AddInt64(&e.actionSeq, 1))
-	cmdStr := scriptPath + " " + strings.Join(args, " ")
+// broadcastError emits start+end events for a script-not-found failure and returns the action ID.
+func (e *Executor) broadcastError(actionLabel, scriptPath string, args []string, errMsg string) string {
+	actionID := e.NextActionID()
+	e.broadcastErrorWith(actionID, actionLabel, scriptPath+" "+strings.Join(args, " "), errMsg)
+	return actionID
+}
+
+func (e *Executor) broadcastErrorWith(actionID, actionLabel, cmdStr, errMsg string) {
 	e.Broadcast.Send(ActionEvent{
 		ID: actionID, Type: "action_start", Action: actionLabel,
 		Command: cmdStr, Timestamp: time.Now(),

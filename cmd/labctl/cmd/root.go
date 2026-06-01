@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -36,11 +37,20 @@ var rootCmd = &cobra.Command{
 			return nil
 		}
 
+		// Configure log level before doing anything else so debug output is visible.
+		logLevel := slog.LevelWarn
+		if verbose {
+			logLevel = slog.LevelDebug
+		}
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
+
+		slog.Debug("loading config", "projectDir", projectDir)
 		var err error
 		cfg, err = config.Load(projectDir)
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
 		}
+		slog.Debug("config loaded", "root", cfg.ProjectRoot, "profile", cfg.Profile, "cluster", cfg.ClusterName)
 
 		exec = executor.New(cfg.ProjectRoot)
 		// Propagate resolved config values so all child scripts inherit them.
@@ -52,9 +62,10 @@ var rootCmd = &cobra.Command{
 		exec.SetEnv("STORAGE_CLASS", cfg.StorageClass)
 		exec.SetEnv("PROFILE", cfg.Profile)
 		reg = platform.NewRegistry(cfg.ProjectRoot)
-		scenes = scenario.NewEngine(cfg.ProjectRoot, cfg.DomainSuffix)
+		scenes = scenario.NewEngine(cfg.ProjectRoot, cfg.DomainSuffix, cfg.Profile)
 		svcReg = services.NewRegistry(cfg.ProjectRoot)
 		rtm = runtime.NewManager(cfg.ProjectRoot, cfg.ClusterName)
+		slog.Debug("registries initialised", "runtimes", rtm.Names())
 		return nil
 	},
 }
@@ -68,5 +79,5 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&projectDir, "project-dir", "", "project root directory (auto-detected if not set)")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable debug-level logging (config load, script exec, API calls)")
 }
