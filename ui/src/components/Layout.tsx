@@ -7,6 +7,7 @@ export function Layout() {
   const { isConnected } = useActionEvents(); // keep WS connected globally
 
   return (
+<<<<<<< HEAD
     <div className="flex h-screen w-screen overflow-hidden relative text-[var(--text-primary)]">
       {/* Background Mesh Gradient */}
       <div className="mesh-bg"></div>
@@ -18,6 +19,16 @@ export function Layout() {
           <h1 className="text-xl font-bold tracking-tight">labctl</h1>
           <div title={isConnected ? "WebSocket Connected" : "WebSocket Disconnected"} 
                className={`ml-auto w-2.5 h-2.5 rounded-full ${isConnected ? 'status-dot-success' : 'bg-[var(--status-danger)]'}`}>
+=======
+    <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-base)]">
+      {/* Sidebar */}
+      <aside className="w-64 flex-shrink-0 flex flex-col surface-glass m-4 z-10 border-r border-transparent">
+        <div className="p-6 flex items-center gap-3 border-b border-[var(--border-light)]">
+          <Terminal size={24} className="text-[var(--accent-primary)]" />
+          <h1 className="text-xl font-bold tracking-tight">labctl</h1>
+          <div title={isConnected ? "WebSocket Connected" : "WebSocket Disconnected"} 
+               className={`ml-auto w-2 h-2 rounded-full ${isConnected ? 'bg-[var(--status-success)] shadow-[0_0_8px_var(--status-success)]' : 'bg-[var(--status-danger)]'}`}>
+>>>>>>> 9b97903 (Fixing conflict)
           </div>
         </div>
         
@@ -30,8 +41,13 @@ export function Layout() {
       </aside>
 
       {/* Main Content Area */}
+<<<<<<< HEAD
       <main className="flex-1 overflow-auto relative z-10 py-6 pr-6 animate-fade-in">
         <div className="h-full w-full bg-[var(--bg-surface)] backdrop-blur-md rounded-[var(--radius-lg)] border border-[var(--border-light)] shadow-[var(--shadow-md)] overflow-auto">
+=======
+      <main className="flex-1 overflow-auto relative animate-fade-in py-4 pr-4">
+        <div className="h-full w-full bg-[var(--bg-surface)] rounded-[var(--radius-lg)] border border-[var(--border-light)] shadow-[var(--shadow-md)] overflow-auto">
+>>>>>>> 9b97903 (Fixing conflict)
           <Outlet />
         </div>
       </main>
@@ -44,6 +60,7 @@ function NavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label
     <NavLink 
       to={to} 
       className={({isActive}) => `
+<<<<<<< HEAD
         flex items-center gap-3 p-3 rounded-[var(--radius-md)] transition-all duration-300
         ${isActive 
           ? 'bg-[var(--accent-primary)] bg-opacity-20 text-[var(--accent-primary)] border border-[var(--accent-glow)] shadow-[0_0_15px_var(--accent-glow)]' 
@@ -52,6 +69,16 @@ function NavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label
     >
       {icon}
       <span className="font-medium tracking-wide">{label}</span>
+=======
+        flex items-center gap-3 p-3 rounded-[var(--radius-md)] transition-all
+        ${isActive 
+          ? 'bg-[var(--accent-primary)] bg-opacity-20 text-[var(--accent-primary)] shadow-[inset_4px_0_0_var(--accent-primary)]' 
+          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-surface-elevated)] hover:text-[var(--text-primary)]'}
+      `}
+    >
+      {icon}
+      <span className="font-medium">{label}</span>
+>>>>>>> 9b97903 (Fixing conflict)
     </NavLink>
   );
 }

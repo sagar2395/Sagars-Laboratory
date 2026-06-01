@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Power, RefreshCcw } from 'lucide-react';
+<<<<<<< HEAD
 import { Modal } from '../components/Modal';
+=======
+>>>>>>> 9b97903 (Fixing conflict)
 
 export function PlatformView() {
   const [platform, setPlatform] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
+<<<<<<< HEAD
   const [error, setError] = useState<string | null>(null);
   const [uninstallConfirm, setUninstallConfirm] = useState<{category: string, name: string} | null>(null);
 
@@ -19,6 +23,13 @@ export function PlatformView() {
         setError(null);
       })
       .catch(err => setError(err.message))
+=======
+
+  const fetchPlatform = () => {
+    fetch('/api/platform/status')
+      .then(res => res.json())
+      .then(setPlatform)
+>>>>>>> 9b97903 (Fixing conflict)
       .finally(() => setLoading(false));
   };
 
@@ -30,6 +41,7 @@ export function PlatformView() {
 
   const handleComponentAction = async (category: string, name: string, active: boolean) => {
     if (active) {
+<<<<<<< HEAD
       setUninstallConfirm({ category, name });
     } else {
       await fetch(`/api/platform/${category}/${name}/up`, { method: 'POST' });
@@ -50,10 +62,21 @@ export function PlatformView() {
     setPlatform(prev => {
       const next = { ...prev };
       next[category] = next[category].map(p => p.name === name ? { ...p, installed: false } : p);
+=======
+      await fetch(`/api/platform/${category}/${name}/down`, { method: 'POST' });
+    } else {
+      await fetch(`/api/platform/${category}/${name}/up`, { method: 'POST' });
+    }
+    // Optimistic update
+    setPlatform(prev => {
+      const next = { ...prev };
+      next[category] = next[category].map(p => p.name === name ? { ...p, installed: !active } : p);
+>>>>>>> 9b97903 (Fixing conflict)
       return next;
     });
   };
 
+<<<<<<< HEAD
   if (loading && Object.keys(platform).length === 0) return <div className="p-8 text-[var(--text-secondary)] animate-pulse">Loading...</div>;
   if (error && Object.keys(platform).length === 0) return (
     <div className="p-8 max-w-6xl mx-auto animate-fade-in">
@@ -64,14 +87,21 @@ export function PlatformView() {
       </div>
     </div>
   );
+=======
+  if (loading) return <div className="p-8">Loading...</div>;
+>>>>>>> 9b97903 (Fixing conflict)
 
   return (
     <div className="p-8 max-w-6xl mx-auto flex flex-col gap-8 animate-fade-in">
       <div className="flex items-center justify-between">
+<<<<<<< HEAD
         <div className="flex items-center gap-4">
           <h2 className="text-2xl font-bold">Platform Components</h2>
           {error && <span className="badge badge-danger">Offline</span>}
         </div>
+=======
+        <h2 className="text-2xl font-bold">Platform Components</h2>
+>>>>>>> 9b97903 (Fixing conflict)
         <button className="btn btn-secondary text-sm" onClick={fetchPlatform}>
           <RefreshCcw size={14} className="mr-2" /> Refresh
         </button>
@@ -99,6 +129,7 @@ export function PlatformView() {
           </div>
         ))}
       </div>
+<<<<<<< HEAD
 
       <Modal 
         isOpen={uninstallConfirm !== null} 
@@ -113,6 +144,8 @@ export function PlatformView() {
           <button className="btn btn-danger" onClick={confirmUninstall}>Uninstall</button>
         </div>
       </Modal>
+=======
+>>>>>>> 9b97903 (Fixing conflict)
     </div>
   );
 }

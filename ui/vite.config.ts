@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { defineConfig, createLogger } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -12,6 +13,13 @@ logger.error = (msg, options) => {
 // https://vite.dev/config/
 export default defineConfig({
   customLogger: logger,
+=======
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vite.dev/config/
+export default defineConfig({
+>>>>>>> 9b97903 (Fixing conflict)
   plugins: [react()],
   server: {
     proxy: {

@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { AppStatusResp } from '../api/client';
 import { Package, UploadCloud, Trash2 } from 'lucide-react';
+<<<<<<< HEAD
 import { Modal } from '../components/Modal';
+=======
+>>>>>>> 9b97903 (Fixing conflict)
 
 export function AppsView() {
   const [apps, setApps] = useState<AppStatusResp[]>([]);
   const [loading, setLoading] = useState(true);
+<<<<<<< HEAD
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmApp, setDeleteConfirmApp] = useState<string | null>(null);
 
@@ -21,6 +25,13 @@ export function AppsView() {
         setError(null);
       })
       .catch(err => setError(err.message))
+=======
+
+  const fetchApps = () => {
+    fetch('/api/apps')
+      .then(res => res.json())
+      .then(setApps)
+>>>>>>> 9b97903 (Fixing conflict)
       .finally(() => setLoading(false));
   };
 
@@ -35,6 +46,7 @@ export function AppsView() {
     // Let polling catch the update
   };
 
+<<<<<<< HEAD
   const confirmDestroy = (name: string) => setDeleteConfirmApp(name);
   const cancelDestroy = () => setDeleteConfirmApp(null);
 
@@ -65,6 +77,21 @@ export function AppsView() {
       <div className="grid grid-cols-1 gap-4">
         {apps.map(app => (
           <div key={app.name} className="surface surface-interactive p-5 flex items-center justify-between">
+=======
+  const handleDestroy = async (name: string) => {
+    await apiClient.appDestroy(name);
+  };
+
+  if (loading) return <div className="p-8">Loading...</div>;
+
+  return (
+    <div className="p-8 max-w-6xl mx-auto flex flex-col gap-6 animate-fade-in">
+      <h2 className="text-2xl font-bold">Applications</h2>
+      
+      <div className="grid grid-cols-1 gap-4">
+        {apps.map(app => (
+          <div key={app.name} className="surface p-5 flex items-center justify-between">
+>>>>>>> 9b97903 (Fixing conflict)
             <div className="flex items-start gap-4">
               <div className="p-3 bg-[var(--bg-surface-elevated)] rounded-full text-[var(--accent-primary)]">
                 <Package size={24} />
@@ -97,7 +124,11 @@ export function AppsView() {
                 </button>
                 {app.deployed && (
                   <button 
+<<<<<<< HEAD
                     onClick={() => confirmDestroy(app.name)}
+=======
+                    onClick={() => handleDestroy(app.name)}
+>>>>>>> 9b97903 (Fixing conflict)
                     className="btn btn-secondary text-[var(--status-danger)] px-3 py-1.5 text-sm"
                   >
                     <Trash2 size={16} />
@@ -109,6 +140,7 @@ export function AppsView() {
         ))}
         {apps.length === 0 && <div className="surface p-8 text-center text-[var(--text-muted)]">No applications found in the workspace.</div>}
       </div>
+<<<<<<< HEAD
 
       <Modal 
         isOpen={deleteConfirmApp !== null} 
@@ -123,6 +155,8 @@ export function AppsView() {
           <button className="btn btn-danger" onClick={handleDestroy}>Destroy App</button>
         </div>
       </Modal>
+=======
+>>>>>>> 9b97903 (Fixing conflict)
     </div>
   );
 }

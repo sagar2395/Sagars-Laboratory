@@ -39,6 +39,9 @@
     "022-add-structured-error-responses",
     "029-validate-profile-and-app-name",
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 9b97903 (Fixing conflict)
 
     "013-add-version-endpoint-to-apps",
     "014-wire-verbose-flag-to-logger",
@@ -46,6 +49,7 @@
     "021-add-redis-cache-ttl-config",
     "024-add-kyverno-clusterpolicy-manifests",
     "028-add-loki-log-retention-policy",
+<<<<<<< HEAD
     "006-expand-ci-validation-for-infra-and-shell-assets",
     "011-add-container-image-security-scanning",
     "023-enable-argocd-sync-in-cd-pipeline",
@@ -67,6 +71,19 @@
     "011-add-container-image-security-scanning",
     "023-enable-argocd-sync-in-cd-pipeline"
 >>>>>>> dd2d4c6 (Updating Phase 0, 1, 2 implementation)
+=======
+    "006-expand-ci-validation-for-infra-and-shell-assets",
+    "011-add-container-image-security-scanning",
+    "023-enable-argocd-sync-in-cd-pipeline",
+    "026-fix-chaos-mesh-containerd-socket",
+    "027-configure-terraform-remote-state",
+    "038-verify-aks-end-to-end",
+    "039-verify-eks-end-to-end"
+  ],
+  "in_progress": [],
+  "done": [
+    "001-fix-platform-category-resolution-and-status"
+>>>>>>> 9b97903 (Fixing conflict)
   ],
   "blocked": []
 }
