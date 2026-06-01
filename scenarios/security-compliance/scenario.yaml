@@ -42,7 +42,7 @@ components:
   - name: security-dashboards
     type: grafana-dashboard
     path: dashboards/
-    namespace: monitoring
+    namespace: "{{.MonitoringNamespace}}"
 
 explore:
   urls:
@@ -55,8 +55,8 @@ explore:
       command: "kubectl get policyreports -A"
     - label: "View cluster policy reports"
       command: "kubectl get clusterpolicyreports"
-    - label: "Test policy — create non-compliant pod (should be blocked)"
-      command: "kubectl run test-privileged --image=nginx --restart=Never --overrides='{\"spec\":{\"containers\":[{\"name\":\"test\",\"image\":\"nginx\",\"securityContext\":{\"privileged\":true}}]}}' 2>&1 || echo 'Policy correctly blocked privileged pod'"
+    - label: "Test policy audit — create non-compliant pod"
+      command: "kubectl run test-privileged --image=nginx --restart=Never --overrides='{\"spec\":{\"containers\":[{\"name\":\"test\",\"image\":\"nginx\",\"securityContext\":{\"allowPrivilegeEscalation\":true}}]}}' && kubectl get clusterpolicyreports"
     - label: "List certificates"
       command: "kubectl get certificates -A"
     - label: "View network policies"
@@ -64,7 +64,7 @@ explore:
     - label: "Test network isolation"
       command: "kubectl run test-curl --image=curlimages/curl --restart=Never --rm -it -- curl -s --connect-timeout 3 http://go-api.go-api.svc.cluster.local:8080/health 2>&1 || echo 'Network policy blocked cross-namespace traffic'"
   tips:
-    - "Kyverno enforces policies at admission time — non-compliant resources are rejected before creation"
+    - "Kyverno policies run in Audit mode for this lab — non-compliant resources appear in policy reports without disrupting workloads"
     - "Policy reports show compliance status for existing resources (not just new ones)"
     - "Test with: kubectl run test --image=nginx -- Kyverno should enforce require-labels and disallow-privileged policies"
     - "cert-manager creates a self-signed CA, then a CA issuer — use lab-ca-issuer for certificates"

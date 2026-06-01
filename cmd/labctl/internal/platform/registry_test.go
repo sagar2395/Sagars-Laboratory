@@ -169,9 +169,9 @@ func TestNewRegistry_NestedCategoryLifecycle(t *testing.T) {
 
 func TestProvider_Namespace(t *testing.T) {
 	tests := []struct {
-		category  string
-		name      string
-		wantNS    string
+		category string
+		name     string
+		wantNS   string
 	}{
 		{"ingress", "traefik", "traefik"},
 		{"ingress", "nginx", "nginx"},
@@ -190,5 +190,12 @@ func TestProvider_Namespace(t *testing.T) {
 				t.Errorf("Namespace() = %q, want %q", got, tt.wantNS)
 			}
 		})
+	}
+}
+
+func TestProvider_Namespace_CustomMonitoringNamespace(t *testing.T) {
+	p := Provider{Category: "logging", Name: "loki", MonitoringNamespace: "observability"}
+	if got := p.Namespace(); got != "observability" {
+		t.Errorf("Namespace() = %q, want %q", got, "observability")
 	}
 }

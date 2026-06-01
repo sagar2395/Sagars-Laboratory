@@ -7,6 +7,10 @@
 
 - Runbook 00 (cluster up) + Runbook 01 (go-api deployed).
 - Platform monitoring installed (`make platform-up`).
+- Optional overrides:
+  - `MONITORING_NAMESPACE=observability`
+  - `LOKI_RETENTION_HOURS=336`
+  - `CACHE_TTL=30m` for echo-server Redis cache entries
 
 ## Steps
 
@@ -29,9 +33,31 @@ open http://grafana.k3d.local        # macOS;  xdg-open on Linux
 
 # 5. Check status + version of the running app
 curl http://go-api.k3d.local/version  # Task 013
+curl http://echo-server.k3d.local/version
 
-# 6. Tear the scenario down
+# 6. Confirm configurable namespace + Loki retention, if overridden
+kubectl -n "${MONITORING_NAMESPACE:-monitoring}" get pods
+kubectl -n "${MONITORING_NAMESPACE:-monitoring}" get prometheusrules
+kubectl exec -n "${MONITORING_NAMESPACE:-monitoring}" statefulset/loki -- \
+  cat /etc/loki/config/config.yaml | grep retention
+
+# 7. Optional: verify echo-server cache TTL with Redis configured
+curl -X POST "http://echo-server.k3d.local/cache?key=ttl-test" -d "ok"
+curl "http://echo-server.k3d.local/cache?key=ttl-test"
+
+# 8. Tear the scenario down
 bin/labctl scenario down observability-sre
+```
+
+## Security policy check
+
+```bash
+bin/labctl scenario up security-compliance
+kubectl get clusterpolicies
+kubectl run test-privileged --image=nginx --restart=Never \
+  --overrides='{"spec":{"containers":[{"name":"test","image":"nginx","securityContext":{"allowPrivilegeEscalation":true}}]}}'
+kubectl get clusterpolicyreports -A
+kubectl delete pod test-privileged --ignore-not-found
 ```
 
 ## Expected
@@ -42,6 +68,8 @@ bin/labctl scenario down observability-sre
 - Re-running `scenario up` is a no-op (Task 019, idempotency).
 - The observability namespace is configurable (Task 018) — not hardcoded.
 - Loki enforces a retention policy (Task 028).
+- Echo-server cache entries expire by default after 1 hour and honor `CACHE_TTL` (Task 021).
+- The security scenario installs four Kyverno ClusterPolicies in Audit mode (Task 024).
 - `/version` reflects the built image (Task 013); `--verbose` raises log detail
   (Task 014).
 

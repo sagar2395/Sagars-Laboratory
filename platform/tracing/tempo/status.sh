@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE=monitoring
+NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
 
 echo "=== Tempo Status ==="
 kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/name=tempo 2>/dev/null || echo "Tempo not found"

@@ -2,7 +2,11 @@
 set -euo pipefail
 
 NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
+RETENTION="${LOKI_RETENTION_HOURS:-168}h"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOKI_VALUES_FILE="$(mktemp "${TMPDIR:-/tmp}/loki-values.XXXXXX")"
+PROMTAIL_VALUES_FILE="$(mktemp "${TMPDIR:-/tmp}/promtail-values.XXXXXX")"
+trap 'rm -f "$LOKI_VALUES_FILE" "$PROMTAIL_VALUES_FILE"' EXIT
 
 # Log retention: default 7 days (168h). Set LOKI_RETENTION_HOURS to override.
 # Set to 0 to disable retention (logs never expire).
@@ -46,7 +50,7 @@ fi
 
 helm upgrade --install promtail grafana/promtail \
   --namespace "$NAMESPACE" \
-  -f "$SCRIPT_DIR/promtail-values.yaml" \
+  -f "$PROMTAIL_VALUES_FILE" \
   --wait --timeout 5m
 
 echo "Waiting for Promtail to be ready..."

@@ -23,4 +23,4 @@ prometheus:
   enabled: true
   servicemonitor:
     enabled: true
-    namespace: monitoring
+    namespace: "{{.MonitoringNamespace}}"

@@ -187,7 +187,7 @@ func TestLoad_Defaults(t *testing.T) {
 	envVars := []string{
 		"PROFILE", "CLUSTER_NAME", "HTTP_PORT", "HTTPS_PORT",
 		"INGRESS_CLASS", "STORAGE_CLASS", "DOMAIN_SUFFIX", "REGISTRY_TYPE",
-		"INGRESS_PROVIDER", "METRICS_PROVIDER", "APP_NAME",
+		"INGRESS_PROVIDER", "METRICS_PROVIDER", "MONITORING_NAMESPACE", "APP_NAME",
 	}
 	saved := map[string]string{}
 	for _, k := range envVars {
@@ -220,7 +220,33 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.DomainSuffix != "k3d.local" {
 		t.Errorf("DomainSuffix: got %q, want %q", cfg.DomainSuffix, "k3d.local")
 	}
+	if cfg.MonitoringNamespace != "monitoring" {
+		t.Errorf("MonitoringNamespace: got %q, want %q", cfg.MonitoringNamespace, "monitoring")
+	}
 	if cfg.IngressProvider != "traefik" {
 		t.Errorf("IngressProvider: got %q, want %q", cfg.IngressProvider, "traefik")
+	}
+}
+
+func TestLoad_MonitoringNamespaceOverride(t *testing.T) {
+	saved, ok := os.LookupEnv("MONITORING_NAMESPACE")
+	os.Setenv("MONITORING_NAMESPACE", "observability")
+	defer func() {
+		if ok {
+			os.Setenv("MONITORING_NAMESPACE", saved)
+		} else {
+			os.Unsetenv("MONITORING_NAMESPACE")
+		}
+	}()
+
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "runtimes", "k3d"), 0755)
+
+	cfg, err := Load(root)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MonitoringNamespace != "observability" {
+		t.Errorf("MonitoringNamespace: got %q, want %q", cfg.MonitoringNamespace, "observability")
 	}
 }

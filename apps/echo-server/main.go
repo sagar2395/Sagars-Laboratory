@@ -20,6 +20,7 @@ import (
 )
 
 const maxBodyBytes = 1 << 20 // 1 MiB
+const defaultCacheTTL = time.Hour
 
 // build-time version info injected via -ldflags
 var (
@@ -32,9 +33,9 @@ var (
 	port        = getEnv("PORT", "8080")
 	serviceName = getEnv("SERVICE_NAME", "echo-server")
 	redisURL    = getEnv("REDIS_URL", "")
+	cacheTTL    time.Duration
 	logger      *slog.Logger
 	redisClient *redis.Client
-	cacheTTL    time.Duration
 
 	httpRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "http_requests_total",
@@ -66,6 +67,7 @@ func main() {
 	}
 	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
+	cacheTTL = parseCacheTTL(getEnv("CACHE_TTL", defaultCacheTTL.String()))
 
 	// Redis cache TTL (default 1h; "0" means no expiry)
 	const defaultCacheTTL = time.Hour
@@ -122,7 +124,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		logger.Info("server starting", "port", port, "service", serviceName, "redis", redisURL != "")
+		logger.Info("server starting", "port", port, "service", serviceName, "redis", redisURL != "", "cache_ttl", cacheTTL.String())
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server error", "error", err)
 			os.Exit(1)
@@ -358,6 +360,18 @@ func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
+}
+
+func parseCacheTTL(value string) time.Duration {
+	if value == "" {
+		return defaultCacheTTL
+	}
+	ttl, err := time.ParseDuration(value)
+	if err != nil {
+		logger.Warn("invalid CACHE_TTL, using default", "value", value, "default", defaultCacheTTL.String(), "error", err)
+		return defaultCacheTTL
+	}
+	return ttl
 }
 
 func getEnv(key, defaultVal string) string {

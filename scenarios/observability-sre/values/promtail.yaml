@@ -1,7 +1,7 @@
 # Promtail - log collector shipping to Loki
 config:
   clients:
-    - url: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+    - url: http://loki-gateway.{{.MonitoringNamespace}}.svc.cluster.local/loki/api/v1/push
   snippets:
     pipelineStages:
       - cri: {}

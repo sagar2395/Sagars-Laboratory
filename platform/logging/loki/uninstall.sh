@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE=monitoring
+NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
 
 echo "Uninstalling Promtail..."
 helm uninstall promtail --namespace "$NAMESPACE" 2>/dev/null || true

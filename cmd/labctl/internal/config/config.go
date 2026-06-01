@@ -21,10 +21,11 @@ type Config struct {
 	HTTPSPort   string
 
 	// Runtime-specific
-	IngressClass string
-	StorageClass string
-	DomainSuffix string
-	RegistryType string
+	IngressClass        string
+	StorageClass        string
+	DomainSuffix        string
+	RegistryType        string
+	MonitoringNamespace string
 
 	// Provider selections
 	IngressProvider string
@@ -95,6 +96,7 @@ func Load(projectRoot string) (*Config, error) {
 	cfg.StorageClass = getEnvOrDefault("STORAGE_CLASS", "local-path")
 	cfg.DomainSuffix = getEnvOrDefault("DOMAIN_SUFFIX", "k3d.local")
 	cfg.RegistryType = getEnvOrDefault("REGISTRY_TYPE", "k3d-import")
+	cfg.MonitoringNamespace = getEnvOrDefault("MONITORING_NAMESPACE", "monitoring")
 
 	cfg.IngressProvider = getEnvOrDefault("INGRESS_PROVIDER", "traefik")
 	cfg.MetricsProvider = getEnvOrDefault("METRICS_PROVIDER", "prometheus")
