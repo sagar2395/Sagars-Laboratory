@@ -37,7 +37,7 @@ Tool versions are pinned in [`versions.env`](versions.env):
 
 | Tool | Version |
 |------|---------|
-| kubectl | 1.29.3 |
+| kubectl | 1.36.1 |
 | k3d | 5.8.3 |
 | Helm | 3.14.0 |
 | Docker | 29.2.1 |

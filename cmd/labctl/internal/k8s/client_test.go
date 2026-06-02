@@ -20,7 +20,7 @@ func parseVersionJSON(raw string) string {
 }
 
 func TestParseVersionJSON_HappyPath(t *testing.T) {
-	raw := `{"clientVersion":{"gitVersion":"v1.29.3"},"serverVersion":{"gitVersion":"v1.31.0+k3s1"}}`
+	raw := `{"clientVersion":{"gitVersion":"v1.36.1"},"serverVersion":{"gitVersion":"v1.31.0+k3s1"}}`
 	got := parseVersionJSON(raw)
 	if got != "v1.31.0+k3s1" {
 		t.Errorf("got %q, want %q", got, "v1.31.0+k3s1")
@@ -29,7 +29,7 @@ func TestParseVersionJSON_HappyPath(t *testing.T) {
 
 func TestParseVersionJSON_Offline(t *testing.T) {
 	// When cluster is unreachable, kubectl version -o json omits serverVersion.
-	raw := `{"clientVersion":{"gitVersion":"v1.29.3"}}`
+	raw := `{"clientVersion":{"gitVersion":"v1.36.1"}}`
 	got := parseVersionJSON(raw)
 	if got != "unknown" {
 		t.Errorf("got %q, want \"unknown\"", got)
