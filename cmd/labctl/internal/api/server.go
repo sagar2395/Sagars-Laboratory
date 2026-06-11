@@ -3,7 +3,10 @@ package api
 import (
 	"encoding/json"
 	"io/fs"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -42,7 +45,7 @@ func NewServer(cfg *config.Config, exec *executor.Executor, registry *platform.R
 		svcs:     svcs,
 		runtimes: rtm,
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
+			CheckOrigin: originAllowed,
 		},
 		uiFS: embeddedUI,
 	}
@@ -71,6 +74,7 @@ func (s *Server) setupRoutes() {
 	api.Use(jsonMiddleware)
 
 	api.HandleFunc("/status", s.handleStatus).Methods("GET", "OPTIONS")
+	api.HandleFunc("/jobs", s.handleJobs).Methods("GET", "OPTIONS")
 	api.HandleFunc("/apps", s.handleListApps).Methods("GET", "OPTIONS")
 	api.HandleFunc("/apps/{name}/build", s.handleAppBuild).Methods("POST", "OPTIONS")
 	api.HandleFunc("/apps/{name}/deploy", s.handleAppDeploy).Methods("POST", "OPTIONS")
@@ -106,13 +110,48 @@ func (s *Server) setupRoutes() {
 	s.router.PathPrefix("/").Handler(uiHandler)
 }
 
+// originAllowed reports whether a browser-supplied Origin header is trusted:
+// no Origin (curl, CLI clients), localhost origins (Vite dev server), or an
+// origin whose host matches the request host (the embedded UI itself).
+func originAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	oh := u.Hostname()
+	if oh == "localhost" || oh == "127.0.0.1" || oh == "::1" {
+		return true
+	}
+	rh := r.Host
+	if h, _, err := net.SplitHostPort(rh); err == nil {
+		rh = h
+	}
+	return strings.EqualFold(oh, rh)
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		origin := r.Header.Get("Origin")
+		if origin != "" && originAllowed(r) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// Reject cross-site state-changing requests. Browsers always attach
+		// an Origin header to cross-origin POSTs, so a malicious website
+		// can't trigger cluster actions on localhost; CLI clients send no
+		// Origin and are unaffected.
+		if r.Method == "POST" && origin != "" && !originAllowed(r) {
+			respondError(w, http.StatusForbidden, "forbidden_origin", "cross-origin requests are not allowed")
 			return
 		}
 		next.ServeHTTP(w, r)

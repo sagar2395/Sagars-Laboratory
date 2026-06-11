@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"github.com/sagars-lab/labctl/internal/config"
 	"github.com/sagars-lab/labctl/internal/k8s"
 )
@@ -284,11 +286,35 @@ func (s *Server) handlePlatformDown(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
 }
 
+// resolveCategory maps a URL-safe category segment to the registry's category
+// key. Nested categories like "monitoring/metrics" contain a slash and can't
+// appear as a single path segment, so the API accepts the last segment
+// ("metrics") and resolves it to the full key here.
+func (s *Server) resolveCategory(cat string) string {
+	cats := s.registry.Categories()
+	for _, c := range cats {
+		if c == cat {
+			return c
+		}
+	}
+	for _, c := range cats {
+		if strings.HasSuffix(c, "/"+cat) {
+			return c
+		}
+	}
+	return cat
+}
+
 func (s *Server) handleComponentUp(w http.ResponseWriter, r *http.Request) {
 	category := mux.Vars(r)["category"]
 	name := mux.Vars(r)["name"]
 	if !isValidName(category) || !isValidName(name) {
 		respondError(w, http.StatusBadRequest, "invalid_input", "invalid category or component name: must match ^[a-zA-Z0-9_-]{1,64}$")
+		return
+	}
+	category = s.resolveCategory(category)
+	if _, err := s.registry.GetProvider(category, name); err != nil {
+		respondError(w, http.StatusNotFound, "not_found", err.Error())
 		return
 	}
 	jobID := s.exec.NextActionID()
@@ -306,6 +332,11 @@ func (s *Server) handleComponentDown(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	if !isValidName(category) || !isValidName(name) {
 		respondError(w, http.StatusBadRequest, "invalid_input", "invalid category or component name: must match ^[a-zA-Z0-9_-]{1,64}$")
+		return
+	}
+	category = s.resolveCategory(category)
+	if _, err := s.registry.GetProvider(category, name); err != nil {
+		respondError(w, http.StatusNotFound, "not_found", err.Error())
 		return
 	}
 	jobID := s.exec.NextActionID()
@@ -495,6 +526,20 @@ func (s *Server) handleDashboardURLs(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, dashboards)
 }
 
+// WebSocket keepalive tuning. Pings keep idle connections alive through
+// proxies; the pong deadline detects half-dead connections server-side.
+const (
+	wsWriteWait  = 10 * time.Second
+	wsPongWait   = 60 * time.Second
+	wsPingPeriod = 25 * time.Second
+)
+
+// handleJobs returns the recent action/job history (newest first) so clients
+// can recover job state after a page reload or a dropped WebSocket.
+func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
+	respondJSON(w, http.StatusOK, s.exec.Broadcast.Jobs())
+}
+
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -507,37 +552,60 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer s.exec.Broadcast.Unsubscribe(actionCh)
 
 	// Periodic status updates
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	statusTicker := time.NewTicker(5 * time.Second)
+	defer statusTicker.Stop()
+	pingTicker := time.NewTicker(wsPingPeriod)
+	defer pingTicker.Stop()
 
-	// Read pump — discard incoming messages, detect close
+	// Keepalive: expect a pong (or any read) within wsPongWait.
+	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	})
+
+	// Read pump — discard incoming messages, detect close / dead peer
 	closeCh := make(chan struct{})
 	go func() {
+		defer close(closeCh)
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
-				close(closeCh)
 				return
 			}
 		}
 	}()
 
+	writeJSON := func(v interface{}) error {
+		_ = conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+		return conn.WriteJSON(v)
+	}
+	sendStatus := func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		info, _ := k8s.GetClusterInfo(ctx)
+		cancel()
+		return writeJSON(map[string]interface{}{"type": "status", "data": info})
+	}
+
+	// Send an immediate snapshot so a fresh client doesn't wait for the
+	// first ticker interval to learn the cluster state.
+	if err := sendStatus(); err != nil {
+		return
+	}
+
 	for {
 		select {
 		case <-closeCh:
 			return
-		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			info, _ := k8s.GetClusterInfo(ctx)
-			cancel()
-
-			if err := conn.WriteJSON(map[string]interface{}{
-				"type": "status",
-				"data": info,
-			}); err != nil {
+		case <-pingTicker.C:
+			_ = conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		case <-statusTicker.C:
+			if err := sendStatus(); err != nil {
 				return
 			}
 		case event := <-actionCh:
-			if err := conn.WriteJSON(map[string]interface{}{
+			if err := writeJSON(map[string]interface{}{
 				"type": "action",
 				"data": event,
 			}); err != nil {

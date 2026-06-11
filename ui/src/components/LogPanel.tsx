@@ -63,7 +63,15 @@ export function LogPanel({ entries, onClear }: LogPanelProps) {
       {open && (
         <div className="log-resize-handle" onMouseDown={onMouseDown} />
       )}
-      <div className="log-panel-header" onClick={() => setOpen(o => !o)}>
+      <div
+        className="log-panel-header"
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(o => !o) } }}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        aria-label="Toggle command output panel"
+      >
         <span className="log-panel-title">
           Command Output {entries.length > 0 ? `(${entries.length})` : ''}
         </span>
@@ -71,11 +79,16 @@ export function LogPanel({ entries, onClear }: LogPanelProps) {
           <button className="log-ctrl-btn" onClick={onClear}>Clear</button>
           <button
             className={`log-ctrl-btn${autoScroll ? ' active' : ''}`}
+            aria-pressed={autoScroll}
             onClick={() => setAutoScroll(a => !a)}
           >
             Auto-scroll
           </button>
-          <button className="log-toggle" onClick={() => setOpen(o => !o)}>
+          <button
+            className="log-toggle"
+            aria-label={open ? 'Collapse output panel' : 'Expand output panel'}
+            onClick={() => setOpen(o => !o)}
+          >
             {open ? '▼' : '▲'}
           </button>
         </div>

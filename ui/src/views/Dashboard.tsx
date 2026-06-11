@@ -1,24 +1,35 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../api/client'
-import type { StatusResponse, DashboardURL } from '../types'
+import type { ClusterInfo, StatusResponse, DashboardURL, NotifyFn } from '../types'
 import { Badge } from '../components/Badge'
+import { ErrorState } from '../components/ErrorState'
+import { useJobRunner } from '../hooks/useJobRunner'
+import type { ConfirmRequest } from '../components/ConfirmDialog'
 
 const REFRESH_SVG = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <polyline points="23 4 23 10 17 10" />
     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
   </svg>
 )
 
 interface DashboardProps {
-  notify: (level: 'info' | 'success' | 'error', title: string, detail?: string) => void
+  notify: NotifyFn
+  refreshTick: number
+  liveCluster: ClusterInfo | null
+  lastStatusAt: number | null
+  requestConfirm: (req: ConfirmRequest) => void
 }
 
-export function Dashboard({ notify }: DashboardProps) {
+const PLATFORM_CATEGORIES = ['ingress', 'metrics', 'logging', 'tracing', 'gitops', 'chaos', 'policy', 'secrets']
+
+export function Dashboard({ notify, refreshTick, liveCluster, lastStatusAt, requestConfirm }: DashboardProps) {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [dashboards, setDashboards] = useState<DashboardURL[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const { busy, run } = useJobRunner(notify)
 
   const load = useCallback(async () => {
     try {
@@ -28,19 +39,23 @@ export function Dashboard({ notify }: DashboardProps) {
       ])
       setStatus(s)
       setDashboards(d)
+      setLoadError(null)
     } catch (e) {
-      notify('error', 'Failed to load status', String(e))
+      setLoadError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [notify])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
-  // Reload every 30 s as backup
+  // Refresh when actions complete / WS reconnects
+  useEffect(() => { if (refreshTick > 0) load() }, [refreshTick, load])
+
+  // Periodic fallback refresh — skipped while the browser tab is hidden.
   useEffect(() => {
-    const t = setInterval(load, 30_000)
+    const t = setInterval(() => { if (!document.hidden) load() }, 30_000)
     return () => clearInterval(t)
   }, [load])
 
@@ -49,60 +64,46 @@ export function Dashboard({ notify }: DashboardProps) {
     await load()
   }
 
-  async function platformUp() {
-    try {
-      await api.platformUp()
-      notify('info', 'Platform install started', 'Installing all platform components…')
-    } catch (e) { notify('error', 'Platform up failed', String(e)) }
-  }
-
-  async function platformDown() {
-    try {
-      await api.platformDown()
-      notify('info', 'Platform removal started', 'Removing platform components…')
-    } catch (e) { notify('error', 'Platform down failed', String(e)) }
-  }
-
-  async function componentUp(cat: string, name: string) {
-    try {
-      await api.componentUp(cat, name)
-      notify('info', `Installing ${name}`, '')
-    } catch (e) { notify('error', `Install ${name} failed`, String(e)) }
-  }
-
-  async function componentDown(cat: string, name: string) {
-    try {
-      await api.componentDown(cat, name)
-      notify('info', `Removing ${name}`, '')
-    } catch (e) { notify('error', `Remove ${name} failed`, String(e)) }
-  }
-
-  async function deployApp(name: string) {
-    try {
-      await api.deployApp(name)
-      notify('info', `Deploy started`, `Deploying ${name}…`)
-    } catch (e) { notify('error', `Deploy ${name} failed`, String(e)) }
-  }
-
-  async function destroyApp(name: string) {
-    try {
-      await api.destroyApp(name)
-      notify('info', `Destroy started`, `Destroying ${name}…`)
-    } catch (e) { notify('error', `Destroy ${name} failed`, String(e)) }
-  }
-
+  // ── Render guards ─────────────────────────────────────────────────────────
   if (loading) {
-    return <div className="loading">Loading dashboard…</div>
+    return <div className="loading" role="status">Loading dashboard…</div>
+  }
+  if (loadError && !status) {
+    return (
+      <ErrorState
+        title="Failed to load status"
+        message={loadError}
+        onRetry={handleRefresh}
+        retrying={refreshing}
+      />
+    )
   }
 
-  const c = status?.cluster
+  // Prefer the live WebSocket cluster snapshot (pushed every 5 s) over the
+  // last fetched status, so the card stays current without polling.
+  const c = liveCluster ?? status?.cluster ?? null
   const p = status?.platform ?? {}
   const apps = status?.apps ?? []
   const links = dashboards.filter(d => d.available)
-  const platformCategories = ['ingress', 'metrics', 'logging', 'tracing', 'gitops', 'chaos', 'policy', 'secrets']
+  const updatedAgo = lastStatusAt ? Math.max(0, Math.round((Date.now() - lastStatusAt) / 1000)) : null
 
   return (
     <>
+      {/* Stale data hint after a failed refresh */}
+      {loadError && (
+        <div className="banner banner-warn" role="alert">
+          Refresh failed ({loadError}) — showing last known data.
+          <button className="btn btn-sm" style={{ marginLeft: 10 }} onClick={handleRefresh} disabled={refreshing}>Retry</button>
+        </div>
+      )}
+
+      {/* Cluster unreachable warning */}
+      {c && !c.connected && (
+        <div className="banner banner-warn" role="alert">
+          Cluster is unreachable — actions will fail until it is back. Try <code>labctl status</code> or switch the runtime.
+        </div>
+      )}
+
       {/* Quick links */}
       {links.length > 0 && (
         <div className="quick-links">
@@ -119,13 +120,22 @@ export function Dashboard({ notify }: DashboardProps) {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Cluster</span>
-            <button className={`btn-icon${refreshing ? ' spinning' : ''}`} onClick={handleRefresh} title="Refresh">
-              {REFRESH_SVG}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {updatedAgo !== null && <span className="last-updated">updated {updatedAgo}s ago</span>}
+              <button
+                className={`btn-icon${refreshing ? ' spinning' : ''}`}
+                onClick={handleRefresh}
+                disabled={refreshing}
+                title="Refresh"
+                aria-label="Refresh status"
+              >
+                {REFRESH_SVG}
+              </button>
+            </div>
           </div>
           {c ? (
             <div>
-              <div className="row"><span className="label">Context</span><span className="value">{c.context || 'N/A'}</span></div>
+              <div className="row"><span className="label">Context</span><span className="value truncate" title={c.context}>{c.context || 'N/A'}</span></div>
               <div className="row"><span className="label">K8s Version</span><span className="value">{c.k8sVersion || 'N/A'}</span></div>
               <div className="row"><span className="label">Nodes</span><span className="value">{c.nodeCount}</span></div>
               <div className="row">
@@ -134,7 +144,10 @@ export function Dashboard({ notify }: DashboardProps) {
               </div>
             </div>
           ) : (
-            <div className="empty-state">No cluster data</div>
+            <div className="empty-state">
+              No cluster detected.
+              <div className="empty-hint">Activate a runtime (top right) or run <code>labctl init</code> to create one.</div>
+            </div>
           )}
         </div>
 
@@ -143,10 +156,11 @@ export function Dashboard({ notify }: DashboardProps) {
           <div className="card-header">
             <span className="card-title">Platform Components</span>
           </div>
-          {platformCategories
+          {PLATFORM_CATEGORIES
             .filter(key => p[key])
             .map(key => {
               const comp = p[key]!
+              const bkey = `comp:${key}`
               return (
                 <div key={key} className="platform-row">
                   <span className="platform-name">{key}</span>
@@ -155,17 +169,59 @@ export function Dashboard({ notify }: DashboardProps) {
                     <Badge variant={comp.active ? 'running' : 'stopped'}>{comp.active ? 'Running' : 'Stopped'}</Badge>
                     {comp.provider && (
                       comp.active
-                        ? <button className="btn btn-sm btn-danger" onClick={() => componentDown(key, comp.provider)}>Remove</button>
-                        : <button className="btn btn-sm btn-primary" onClick={() => componentUp(key, comp.provider)}>Install</button>
+                        ? (
+                          <button
+                            className="btn btn-sm btn-danger"
+                            disabled={busy[bkey]}
+                            onClick={() => requestConfirm({
+                              title: `Remove ${comp.provider}?`,
+                              message: `This uninstalls the ${key} component "${comp.provider}" from the cluster. Workloads that depend on it may break.`,
+                              confirmLabel: 'Remove',
+                              onConfirm: () => run(bkey, `Remove ${comp.provider}`, () => api.componentDown(key, comp.provider), () => load()),
+                            })}
+                          >
+                            {busy[bkey] ? 'Removing…' : 'Remove'}
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-sm btn-primary"
+                            disabled={busy[bkey]}
+                            onClick={() => run(bkey, `Install ${comp.provider}`, () => api.componentUp(key, comp.provider), () => load())}
+                          >
+                            {busy[bkey] ? 'Installing…' : 'Install'}
+                          </button>
+                        )
                     )}
                   </div>
                 </div>
               )
             })}
-          {Object.keys(p).length === 0 && <div className="empty-state">No platform data</div>}
+          {Object.keys(p).length === 0 && (
+            <div className="empty-state">
+              No platform data.
+              <div className="empty-hint">Check that providers are configured in <code>.env</code> (INGRESS_PROVIDER, METRICS_PROVIDER, …).</div>
+            </div>
+          )}
           <div className="card-footer">
-            <button className="btn btn-primary" onClick={platformUp}>Install Platform</button>
-            <button className="btn btn-danger" onClick={platformDown}>Remove Platform</button>
+            <button
+              className="btn btn-primary"
+              disabled={busy['platform']}
+              onClick={() => run('platform', 'Platform install', () => api.platformUp(), () => load())}
+            >
+              {busy['platform'] ? 'Working…' : 'Install Platform'}
+            </button>
+            <button
+              className="btn btn-danger"
+              disabled={busy['platform']}
+              onClick={() => requestConfirm({
+                title: 'Remove the whole platform?',
+                message: 'This uninstalls ingress, metrics, Grafana, logging and tracing from the cluster. Dashboards and scenario components will stop working.',
+                confirmLabel: 'Remove platform',
+                onConfirm: () => run('platform', 'Platform removal', () => api.platformDown(), () => load()),
+              })}
+            >
+              Remove Platform
+            </button>
           </div>
         </div>
 
@@ -175,22 +231,45 @@ export function Dashboard({ notify }: DashboardProps) {
             <span className="card-title">Applications</span>
           </div>
           {apps.length === 0 ? (
-            <div className="empty-state">No applications found</div>
-          ) : apps.map(a => (
-            <div key={a.name} className="app-row">
-              <span className="app-name">{a.name}</span>
-              <span className="app-meta">
-                build: {a.buildStrategy || 'N/A'} · deploy: {a.deployStrategy || 'N/A'}
-                {a.replicas && ` · replicas: ${a.replicas}`}
-                {a.ready && ` · ready: ${a.ready}`}
-              </span>
-              <Badge variant={a.deployed ? 'running' : 'stopped'}>{a.deployed ? 'Deployed' : 'Not Deployed'}</Badge>
-              <div className="btn-group">
-                <button className="btn btn-sm btn-primary" onClick={() => deployApp(a.name)}>Deploy</button>
-                <button className="btn btn-sm btn-danger" onClick={() => destroyApp(a.name)}>Destroy</button>
-              </div>
+            <div className="empty-state">
+              No applications found.
+              <div className="empty-hint">Apps are discovered from <code>apps/&lt;name&gt;/app.env</code> in the project.</div>
             </div>
-          ))}
+          ) : apps.map(a => {
+            const bkey = `app:${a.name}`
+            return (
+              <div key={a.name} className="app-row">
+                <span className="app-name truncate" title={a.name}>{a.name}</span>
+                <span className="app-meta">
+                  build: {a.buildStrategy || 'N/A'} · deploy: {a.deployStrategy || 'N/A'}
+                  {a.replicas && ` · replicas: ${a.replicas}`}
+                  {a.ready && ` · ready: ${a.ready}`}
+                </span>
+                <Badge variant={a.deployed ? 'running' : 'stopped'}>{a.deployed ? 'Deployed' : 'Not Deployed'}</Badge>
+                <div className="btn-group">
+                  <button
+                    className="btn btn-sm btn-primary"
+                    disabled={busy[bkey]}
+                    onClick={() => run(bkey, `Deploy ${a.name}`, () => api.deployApp(a.name), () => load())}
+                  >
+                    {busy[bkey] ? 'Working…' : 'Deploy'}
+                  </button>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    disabled={busy[bkey]}
+                    onClick={() => requestConfirm({
+                      title: `Destroy ${a.name}?`,
+                      message: `This removes the "${a.name}" deployment and its resources from the cluster.`,
+                      confirmLabel: 'Destroy',
+                      onConfirm: () => run(bkey, `Destroy ${a.name}`, () => api.destroyApp(a.name), () => load()),
+                    })}
+                  >
+                    Destroy
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
     </>
