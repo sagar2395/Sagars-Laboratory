@@ -6,6 +6,29 @@ terraform {
   # Backend configuration lives in backend.tf (not checked in — see backend.tf.example).
   # Without a backend.tf the state is stored locally in terraform.tfstate,
   # which is fine for solo k3d experiments but not for shared/CI use.
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.80"
+    }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.30"
+    }
+  }
+}
+
+# Provider configuration. Both providers are declared because a single root
+# handles either runtime; only the one matching var.runtime evaluates resources
+# (the other module has count = 0, so its provider is never authenticated).
+# azurerm REQUIRES a features {} block or `terraform apply` fails outright.
+provider "azurerm" {
+  features {}
+}
+
+provider "aws" {
+  region = var.aws_region
 }
 
 variable "runtime" {

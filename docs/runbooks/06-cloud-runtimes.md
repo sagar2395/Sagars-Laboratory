@@ -60,7 +60,9 @@ bin/labctl runtime down --profile aks    # terraform destroy
 
 | Symptom | Fix |
 |---------|-----|
+| `terraform apply` fails: provider not configured / azurerm needs `features` | The `dev`/`staging` roots now declare `provider "azurerm" { features {} }` and `provider "aws"`. If you copied an older env, re-pull `foundation/terraform/environments/*/main.tf`. |
 | Terraform state lost between runs | Configure remote backend (Task 027). |
+| `apply` fails: k8s version not available | `kubernetes_version` defaults to `1.29`; AKS/EKS may have dropped it. Pass a currently-supported version, e.g. `-var="kubernetes_version=1.31"` (or bump the default in `environments/dev/main.tf`). |
 | Image pull denied on cloud | Registry auth: `az acr login` / `aws ecr get-login-password`. |
 | Chaos experiments fail on cloud | Containerd socket path is runtime-specific (Task 026). |
 | Ingress has no external IP | Cloud LB still provisioning, or wrong ingress class for the provider. |
