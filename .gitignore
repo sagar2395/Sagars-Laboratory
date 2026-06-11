@@ -49,3 +49,5 @@ Thumbs.db
 .labctl/
 
 .ai/logs/*
+## TypeScript incremental build info
+ui/*.tsbuildinfo

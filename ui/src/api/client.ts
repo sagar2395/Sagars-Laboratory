@@ -1,56 +1,96 @@
 import type {
   StatusResponse,
   AppInfo,
-  PlatformStatus,
+  PlatformProvidersMap,
   DashboardURL,
   Scenario,
   Runtime,
+  ActionAccepted,
+  JobInfo,
 } from '../types'
 
 const BASE = '/api'
 
-/** Generic fetch wrapper — throws Error with the server's error message on failures. */
-async function req<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, opts)
+/** Read (GET) requests should answer fast; the server caps k8s calls at 10 s. */
+const GET_TIMEOUT_MS = 15_000
+/** Action (POST) requests return 202 immediately; allow some slack. */
+const POST_TIMEOUT_MS = 30_000
+
+/** Generic fetch wrapper — throws Error with a useful message on every
+ *  failure mode: network down, timeout, HTTP error body, malformed JSON. */
+async function req<T>(path: string, opts?: RequestInit, timeoutMs = GET_TIMEOUT_MS): Promise<T> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+
+  let res: Response
+  try {
+    res = await fetch(BASE + path, { ...opts, signal: ctrl.signal })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s — the server may be busy or stuck`)
+    }
+    // fetch() rejects with TypeError when the server is unreachable
+    throw new Error('Cannot reach the labctl server — is `labctl ui` still running?')
+  } finally {
+    clearTimeout(timer)
+  }
+
   if (!res.ok) {
-    let msg = `HTTP ${res.status}`
+    let msg = `HTTP ${res.status} ${res.statusText}`.trim()
     try {
       const body = await res.json() as { error?: string }
       if (body.error) msg = body.error
-    } catch { /* ignore parse error */ }
+    } catch { /* non-JSON error body — keep the HTTP status message */ }
     throw new Error(msg)
   }
-  return res.json() as Promise<T>
+
+  try {
+    return await res.json() as T
+  } catch {
+    throw new Error('Server returned an invalid response (not JSON)')
+  }
+}
+
+function post(path: string) {
+  return req<ActionAccepted>(path, { method: 'POST' }, POST_TIMEOUT_MS)
 }
 
 export const api = {
   // ── Status ──────────────────────────────────────────────────────────────
   getStatus:    ()           => req<StatusResponse>('/status'),
   getDashboards: ()          => req<DashboardURL[]>('/dashboards'),
+  getJobs:      ()           => req<JobInfo[]>('/jobs'),
 
   // ── Apps ────────────────────────────────────────────────────────────────
   listApps:   ()             => req<AppInfo[]>('/apps'),
-  buildApp:   (name: string) => req<unknown>(`/apps/${enc(name)}/build`,   { method: 'POST' }),
-  deployApp:  (name: string) => req<unknown>(`/apps/${enc(name)}/deploy`,  { method: 'POST' }),
-  destroyApp: (name: string) => req<unknown>(`/apps/${enc(name)}/destroy`, { method: 'POST' }),
+  buildApp:   (name: string) => post(`/apps/${enc(name)}/build`),
+  deployApp:  (name: string) => post(`/apps/${enc(name)}/deploy`),
+  destroyApp: (name: string) => post(`/apps/${enc(name)}/destroy`),
 
   // ── Platform ─────────────────────────────────────────────────────────────
-  getPlatform:   ()                          => req<PlatformStatus>('/platform'),
-  platformUp:    ()                          => req<unknown>('/platform/up',   { method: 'POST' }),
-  platformDown:  ()                          => req<unknown>('/platform/down', { method: 'POST' }),
-  componentUp:   (cat: string, name: string) => req<unknown>(`/platform/component/${enc(cat)}/${enc(name)}/up`,   { method: 'POST' }),
-  componentDown: (cat: string, name: string) => req<unknown>(`/platform/component/${enc(cat)}/${enc(name)}/down`, { method: 'POST' }),
+  getPlatform:   ()                          => req<PlatformProvidersMap>('/platform'),
+  platformUp:    ()                          => post('/platform/up'),
+  platformDown:  ()                          => post('/platform/down'),
+  componentUp:   (cat: string, name: string) => post(`/platform/component/${enc(catSegment(cat))}/${enc(name)}/up`),
+  componentDown: (cat: string, name: string) => post(`/platform/component/${enc(catSegment(cat))}/${enc(name)}/down`),
 
   // ── Scenarios ─────────────────────────────────────────────────────────────
   listScenarios: ()             => req<Scenario[]>('/scenarios'),
   getScenario:   (name: string) => req<Scenario>(`/scenarios/${enc(name)}`),
-  scenarioUp:    (name: string) => req<unknown>(`/scenarios/${enc(name)}/up`,   { method: 'POST' }),
-  scenarioDown:  (name: string) => req<unknown>(`/scenarios/${enc(name)}/down`, { method: 'POST' }),
+  scenarioUp:    (name: string) => post(`/scenarios/${enc(name)}/up`),
+  scenarioDown:  (name: string) => post(`/scenarios/${enc(name)}/down`),
 
   // ── Runtimes ──────────────────────────────────────────────────────────────
   listRuntimes:     ()             => req<Runtime[]>('/runtimes'),
-  activateRuntime:  (name: string) => req<unknown>(`/runtimes/${enc(name)}/activate`,   { method: 'POST' }),
-  deactivateRuntime:(name: string) => req<unknown>(`/runtimes/${enc(name)}/deactivate`, { method: 'POST' }),
+  activateRuntime:  (name: string) => post(`/runtimes/${enc(name)}/activate`),
+  deactivateRuntime:(name: string) => post(`/runtimes/${enc(name)}/deactivate`),
 }
 
 function enc(s: string) { return encodeURIComponent(s) }
+
+/** Nested registry categories ("monitoring/metrics") can't travel as one URL
+ *  path segment — send the last segment; the server resolves it back. */
+function catSegment(cat: string) {
+  const parts = cat.split('/')
+  return parts[parts.length - 1]
+}

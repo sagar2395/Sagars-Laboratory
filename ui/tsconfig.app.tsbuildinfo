@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/api/client.ts","./src/components/badge.tsx","./src/components/logpanel.tsx","./src/components/notification.tsx","./src/hooks/usewebsocket.ts","./src/types/index.ts","./src/views/apps.tsx","./src/views/dashboard.tsx","./src/views/platform.tsx","./src/views/scenarios.tsx"],"version":"5.9.3"}
