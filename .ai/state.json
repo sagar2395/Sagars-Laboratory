@@ -1,6 +1,77 @@
 {
-  "_comment": "Single source of truth for task progress. Phases and exit criteria are in docs/ROADMAP.md. Move ids between the arrays as work proceeds.",
+  "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
+  "next": "040-scenario-format-v2",
+  "milestones": {
+    "M1-scenario-engine-v2": {
+      "priority": "P0",
+      "status": "todo",
+      "tasks": ["040", "041", "042", "043", "044"],
+      "note": "The gate: the checks primitive (040/041) unblocks M2, M3, and all verify-based scenarios."
+    },
+    "M2-incident-engine": {
+      "priority": "P0",
+      "status": "todo",
+      "tasks": ["045", "046", "047", "048", "049"],
+      "blocked_by": ["M1-scenario-engine-v2"]
+    },
+    "M3-learning-assessment": {
+      "priority": "P1",
+      "status": "todo",
+      "tasks": ["050", "051", "052", "053"],
+      "blocked_by": ["M1-scenario-engine-v2", "M2-incident-engine"]
+    },
+    "M4-stack-expansion": {
+      "priority": "P1",
+      "status": "todo",
+      "tasks": ["054", "055", "056", "057", "058"],
+      "blocked_by": ["M1-scenario-engine-v2"],
+      "note": "054/055/056 have no hard dependency on M1 and can be parallelized early."
+    },
+    "M5-multi-env-day2": {
+      "priority": "P2",
+      "status": "todo",
+      "tasks": ["059", "060", "061"],
+      "blocked_by": ["M1-scenario-engine-v2"]
+    },
+    "M6-team-mode-runtimes": {
+      "priority": "P2",
+      "status": "todo",
+      "tasks": ["062", "063", "064"],
+      "blocked_by": ["M3-learning-assessment"]
+    },
+    "part1-cloud-verification": {
+      "priority": "P2",
+      "status": "todo",
+      "tasks": ["038", "039"],
+      "note": "Leftover Part I Phase 6 — requires real cloud accounts and spend; do deliberately."
+    }
+  },
   "todo": [
+    "040-scenario-format-v2",
+    "041-scenario-verification-engine",
+    "042-traffic-generator",
+    "043-lab-snapshot-reset",
+    "044-scenario-catalog",
+    "045-fault-library",
+    "046-incident-command-group",
+    "047-progressive-hints",
+    "048-mttr-tracking",
+    "049-oncall-drill",
+    "050-learning-paths",
+    "051-challenge-mode",
+    "052-score-persistence-api",
+    "053-ui-learn-challenge-views",
+    "054-mesh-platform-category",
+    "055-data-platform-category",
+    "056-secrets-platform-category",
+    "057-autoscaling-category",
+    "058-new-stack-scenarios",
+    "059-env-promotion-simulation",
+    "060-day2-ops-drills",
+    "061-cost-capacity-scenario",
+    "062-auth-rbac",
+    "063-team-sessions-shared-deploy",
+    "064-kind-gke-runtimes",
     "038-verify-aks-end-to-end",
     "039-verify-eks-end-to-end"
   ],
