@@ -1,7 +1,7 @@
-# Runbook 07 — Scenario Engine v2: Stages, Objectives, Checks, Verify & Traffic
+# Runbook 07 — Scenario Engine v2: Checks, Verify, Traffic & Snapshot/Reset
 
-Covers milestone **M1** (tasks 040–042). Lab snapshot/reset and the
-scenario catalog (tasks 043–044) will extend this runbook when they ship.
+Covers milestone **M1** (tasks 040–043). The scenario catalog (task 044)
+will extend this runbook when it ships.
 
 ## Prereqs
 
@@ -93,10 +93,46 @@ kubectl get namespace traffic   # → NotFound
 bin/labctl traffic status        # → "Traffic generator: not running"
 ```
 
-### 6. Schema validation gate (what CI runs)
+### 6. Snapshot, reset, restore — the fast-iteration loop
+
+With the observability scenario active and go-api deployed:
 
 ```bash
-cd cmd/labctl && go test ./internal/scenario/ ./internal/checks/ && cd ../..
+bin/labctl lab snapshot before-reset
+bin/labctl lab snapshots
+```
+
+**Expected:** the snapshot lists your installed platform components
+(`ingress/...`, `monitoring/...`), `go-api` under apps, and
+`observability-sre` under scenarios. Note: platform components only appear
+if they were installed through labctl after task 043 (the markers live in
+`.labctl/platform/`).
+
+Reset the lab:
+
+```bash
+bin/labctl lab reset --yes
+```
+
+**Expected:** steps print in order — traffic-stop, scenario-down,
+app-destroy, platform-uninstall (ingress is skipped) — and finish in
+< 5 minutes on k3d. `labctl scenario status` shows nothing active;
+`kubectl get ns` no longer shows the scenario/app namespaces.
+
+Restore and prove convergence:
+
+```bash
+bin/labctl lab restore before-reset
+bin/labctl scenario verify observability-sre --watch --timeout 5m
+```
+
+**Expected:** restore replays platform → apps → scenarios, and verify goes
+green — the snapshot's checks are the proof that restore actually converged.
+
+### 7. Schema validation gate (what CI runs)
+
+```bash
+cd cmd/labctl && go test ./internal/... && cd ../..
 ```
 
 **Expected:** all tests pass. Break a scenario on purpose (e.g. change a

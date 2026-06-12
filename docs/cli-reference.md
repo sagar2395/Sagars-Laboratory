@@ -273,6 +273,42 @@ List the available profiles (discovered from `services/traffic/profiles/`).
 
 ---
 
+### `labctl lab` — Snapshot, restore, reset
+
+Lab-level state operations for fast iteration. A snapshot records **intent**
+(which platform components, apps, and scenarios are active) as a small YAML
+file in `.labctl/snapshots/` — not cluster bytes. Restore replays the normal
+idempotent install paths; reset tears everything down to post-init.
+
+```bash
+labctl lab snapshot before-gameday    # record current state
+labctl lab snapshots                  # list saved snapshots
+labctl lab reset                      # interactive teardown (keeps cluster + ingress)
+labctl lab reset --yes                # non-interactive
+labctl lab restore before-gameday     # converge back: platform → apps → scenarios
+labctl lab delete before-gameday
+```
+
+Details:
+
+- **Snapshot sources** — platform components from labctl's install markers
+  (`.labctl/platform/`, written by `platform up`/`down`; installs done
+  outside labctl are not tracked), scenarios from the scenario engine's
+  state, apps by live kubectl probe.
+- **Restore order** — ingress first, then monitoring, then remaining
+  platform components, then apps, then scenarios. Already-active pieces are
+  skipped (idempotent), so restoring over a half-converged lab is safe.
+- **Reset** — stops traffic, deactivates all scenarios, destroys deployed
+  apps, uninstalls platform components **except the ingress category**, and
+  keeps going past individual failures, reporting what stuck at the end.
+  The cluster itself stays up.
+
+REST equivalents: `GET/POST/DELETE /api/lab/snapshots[/{name}]`,
+`POST /api/lab/snapshots/{name}/restore` (async, returns a job id),
+`POST /api/lab/reset?confirm=true` (async; refuses without `confirm`).
+
+---
+
 ### Services
 
 Manage shared services (Redis, etc.) that apps depend on.
