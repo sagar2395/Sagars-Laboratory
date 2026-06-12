@@ -16,7 +16,7 @@ Each runbook maps to a phase or milestone in `docs/ROADMAP.md`.
 | [05-ci-cd.md](05-ci-cd.md) | CI checks + CD + ArgoCD sync | 5 |
 | [06-cloud-runtimes.md](06-cloud-runtimes.md) | Provision & tear down AKS/EKS | 6 |
 | [07-scenario-engine-v2.md](07-scenario-engine-v2.md) | Checks + `scenario verify`, traffic generator, lab snapshot/reset, scenario packs | M1 |
-| 08-incident-engine.md *(planned)* | Inject faults, hints, MTTR, on-call drill | M2 |
+| [08-incident-engine.md](08-incident-engine.md) | Fault library, inject/status/resolve, game-day mode (hints/MTTR/on-call pending 047–049) | M2 |
 | 09-learning-and-challenges.md *(planned)* | Learning paths, challenges, scores, UI | M3 |
 | 10-stack-expansion.md *(planned)* | Mesh, data, secrets, autoscaling stacks + scenarios | M4 |
 | 11-multi-env-day2.md *(planned)* | Env promotion, upgrade/drain/backup drills, cost | M5 |

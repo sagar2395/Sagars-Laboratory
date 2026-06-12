@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "045-fault-library",
+  "next": "047-progressive-hints",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -16,14 +16,15 @@
     },
     "M2-incident-engine": {
       "priority": "P0",
-      "status": "todo",
+      "status": "in_progress",
       "tasks": [
         "045",
         "046",
         "047",
         "048",
         "049"
-      ]
+      ],
+      "note": "045/046 done (fault library + incident command/API). 047-049 remain."
     },
     "M3-learning-assessment": {
       "priority": "P1",
@@ -89,8 +90,6 @@
     }
   },
   "todo": [
-    "045-fault-library",
-    "046-incident-command-group",
     "047-progressive-hints",
     "048-mttr-tracking",
     "049-oncall-drill",
@@ -119,6 +118,8 @@
     "042-traffic-generator",
     "043-lab-snapshot-reset",
     "044-scenario-catalog",
+    "045-fault-library",
+    "046-incident-command-group",
     "004-improve-runtime-detection-and-status-reporting",
     "005-make-platform-targets-provider-aware",
     "009-add-helm-pre-deploy-lint-and-readiness-wait",

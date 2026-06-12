@@ -9,6 +9,7 @@ import (
 
 	"github.com/sagars-lab/labctl/internal/config"
 	"github.com/sagars-lab/labctl/internal/executor"
+	"github.com/sagars-lab/labctl/internal/incident"
 	"github.com/sagars-lab/labctl/internal/platform"
 	"github.com/sagars-lab/labctl/internal/runtime"
 	"github.com/sagars-lab/labctl/internal/scenario"
@@ -23,6 +24,7 @@ var (
 	exec   *executor.Executor
 	reg    *platform.Registry
 	scenes *scenario.Engine
+	incEng *incident.Engine
 	svcReg *services.Registry
 	rtm    *runtime.Manager
 )
@@ -65,6 +67,7 @@ var rootCmd = &cobra.Command{
 		reg = platform.NewRegistryWithNamespace(cfg.ProjectRoot, cfg.MonitoringNamespace)
 		scenes = scenario.NewEngine(cfg.ProjectRoot, cfg.DomainSuffix, cfg.Profile)
 		scenes.MonitoringNamespace = cfg.MonitoringNamespace
+		incEng = incident.NewEngine(cfg.ProjectRoot, cfg.DomainSuffix)
 		svcReg = services.NewRegistry(cfg.ProjectRoot)
 		rtm = runtime.NewManager(cfg.ProjectRoot, cfg.ClusterName)
 		slog.Debug("registries initialised", "runtimes", rtm.Names())

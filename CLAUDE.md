@@ -32,8 +32,9 @@ boundary.
   four original scenarios work on macOS + Linux with k3d.
 - ❌ Cloud runtimes (AKS/EKS) never verified against real accounts (tasks 038/039).
 - 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
-  **M1 is complete** (scenario format v2 + verify, traffic generator, lab
-  snapshot/reset, scenario catalog). Next: M2, the incident engine (045–049).
+  **M1 is complete**; M2 (incident engine) is in progress — the fault
+  library + `labctl incident` (045/046) shipped; hints, MTTR, and on-call
+  drills (047–049) remain.
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**
@@ -69,6 +70,7 @@ web UI source ......... ui/                      Frontend (being rebuilt as SPA)
 apps .................. apps/<name>/             Source + app.env + deploy/helm/
 platform components ... platform/<category>/<provider>/   install.sh/uninstall.sh/status.sh/values.yaml
 scenarios ............. scenarios/<name>/        scenario.yaml + manifests/values/dashboards
+incidents ............. incidents/<name>/        fault.yaml + inject/resolve.sh + hints/solution
 runtimes .............. runtimes/<profile>/      up.sh/down.sh/runtime.env  (k3d|aks|eks)
 build/deploy engine ... engine/                  strategy dispatch (docker|acr|ecr; helm)
 services .............. services/<name>/         shared deps (redis)

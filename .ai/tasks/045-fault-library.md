@@ -16,8 +16,14 @@ production faults. Each fault is a directory `incidents/<name>/` containing:
 the 040 schema, alert expectation), `inject.sh`, `resolve.sh`, `hints.md`
 (progressive hints), `solution.md` (full walkthrough).
 
-First six faults: `crashloop-bad-config`, `oom-kill`, `dns-blackhole`,
-`bad-deploy-rollout`, `pvc-full`, `noisy-neighbor` (CPU hog pod).
+First six faults: `crashloop-bad-config`, `oom-kill`, `network-blackhole`,
+`bad-deploy-rollout`, `service-selector-broken`, `noisy-neighbor` (CPU hog pod).
+
+> Implementation note: the originally planned `dns-blackhole` and `pvc-full`
+> were swapped for `network-blackhole` (deny-all-ingress NetworkPolicy) and
+> `service-selector-broken` (empty endpoints) — same teaching goals, but
+> their detection works reliably on a default k3d cluster, whereas DNS exec
+> probes and PVC behavior vary with the local CNI/storage setup.
 
 ## Files to Modify
 - `incidents/README.md` (the contract, mirroring platform/README.md style)

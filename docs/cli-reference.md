@@ -285,6 +285,34 @@ List the available profiles (discovered from `services/traffic/profiles/`).
 
 ---
 
+### `labctl incident` — Fault injection & game days
+
+Inject realistic, reversible production faults from `incidents/` and
+practice diagnosing them; the fault's detection check confirms when you've
+actually fixed it. See `incidents/README.md` for the fault contract.
+
+```bash
+labctl incident list                          # browse the fault library
+labctl incident inject oom-kill               # break the lab on purpose
+labctl incident inject --random --silent      # game-day mode: surprise fault, name hidden
+labctl incident inject --random --seed 42     # reproducible pick (same fault for the whole team)
+labctl incident inject --random --category network
+labctl incident status                        # runs the detection check; clears state when it passes
+labctl incident resolve                       # escape hatch: undo the active fault
+labctl incident resolve <name>                # works even if active state was lost
+```
+
+Rules: one active incident at a time (`--force` to override); injection is
+gated on the fault's prerequisite apps being present; `resolve.sh` always
+restores the lab regardless of partial manual fixes.
+
+REST: `GET /api/incidents`, `POST /api/incidents/{name}/inject[?silent&force]`,
+`POST /api/incidents/inject-random[?seed&category]`, `GET /api/incidents/status`,
+`POST /api/incidents/resolve[?name=]`. Silent mode hides the fault's identity
+in API responses until it is resolved.
+
+---
+
 ### `labctl lab` — Snapshot, restore, reset
 
 Lab-level state operations for fast iteration. A snapshot records **intent**

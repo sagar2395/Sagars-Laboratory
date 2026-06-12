@@ -14,6 +14,7 @@ import (
 
 	"github.com/sagars-lab/labctl/internal/config"
 	"github.com/sagars-lab/labctl/internal/executor"
+	"github.com/sagars-lab/labctl/internal/incident"
 	"github.com/sagars-lab/labctl/internal/platform"
 	"github.com/sagars-lab/labctl/internal/runtime"
 	"github.com/sagars-lab/labctl/internal/scenario"
@@ -22,28 +23,30 @@ import (
 
 // Server is the API server that backs the web UI.
 type Server struct {
-	cfg      *config.Config
-	exec     *executor.Executor
-	registry *platform.Registry
-	scenes   *scenario.Engine
-	svcs     *services.Registry
-	runtimes *runtime.Manager
-	router   *mux.Router
-	upgrader websocket.Upgrader
-	uiFS     fs.FS
+	cfg       *config.Config
+	exec      *executor.Executor
+	registry  *platform.Registry
+	scenes    *scenario.Engine
+	incidents *incident.Engine
+	svcs      *services.Registry
+	runtimes  *runtime.Manager
+	router    *mux.Router
+	upgrader  websocket.Upgrader
+	uiFS      fs.FS
 }
 
 // NewServer creates a new API server. The embeddedUI parameter should be the
 // embedded ui/dist filesystem (from go:embed). If nil or empty, the server
 // falls back to serving UI files from the project's ui/dist/ directory.
-func NewServer(cfg *config.Config, exec *executor.Executor, registry *platform.Registry, scenes *scenario.Engine, svcs *services.Registry, rtm *runtime.Manager, embeddedUI fs.FS) *Server {
+func NewServer(cfg *config.Config, exec *executor.Executor, registry *platform.Registry, scenes *scenario.Engine, incidents *incident.Engine, svcs *services.Registry, rtm *runtime.Manager, embeddedUI fs.FS) *Server {
 	s := &Server{
-		cfg:      cfg,
-		exec:     exec,
-		registry: registry,
-		scenes:   scenes,
-		svcs:     svcs,
-		runtimes: rtm,
+		cfg:       cfg,
+		exec:      exec,
+		registry:  registry,
+		scenes:    scenes,
+		incidents: incidents,
+		svcs:      svcs,
+		runtimes:  rtm,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: originAllowed,
 		},
@@ -90,6 +93,11 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/scenarios/{name}/up", s.handleScenarioUp).Methods("POST", "OPTIONS")
 	api.HandleFunc("/scenarios/{name}/down", s.handleScenarioDown).Methods("POST", "OPTIONS")
 	api.HandleFunc("/scenarios/{name}/verify", s.handleScenarioVerify).Methods("POST", "OPTIONS")
+	api.HandleFunc("/incidents", s.handleListIncidents).Methods("GET", "OPTIONS")
+	api.HandleFunc("/incidents/inject-random", s.handleIncidentInjectRandom).Methods("POST", "OPTIONS")
+	api.HandleFunc("/incidents/status", s.handleIncidentStatus).Methods("GET", "OPTIONS")
+	api.HandleFunc("/incidents/resolve", s.handleIncidentResolve).Methods("POST", "OPTIONS")
+	api.HandleFunc("/incidents/{name}/inject", s.handleIncidentInject).Methods("POST", "OPTIONS")
 	api.HandleFunc("/lab/snapshots", s.handleLabSnapshots).Methods("GET", "OPTIONS")
 	api.HandleFunc("/lab/snapshots/{name}", s.handleLabSnapshotTake).Methods("POST", "OPTIONS")
 	api.HandleFunc("/lab/snapshots/{name}", s.handleLabSnapshotDelete).Methods("DELETE", "OPTIONS")
