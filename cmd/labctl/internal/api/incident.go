@@ -112,6 +112,36 @@ func (s *Server) handleIncidentStatus(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, res)
 }
 
+// handleIncidentHint reveals the next hint (recorded against the run).
+func (s *Server) handleIncidentHint(w http.ResponseWriter, r *http.Request) {
+	h, err := s.incidents.NextHint()
+	if err != nil {
+		switch {
+		case errors.Is(err, incident.ErrNoActive):
+			respondError(w, http.StatusConflict, "no_active_incident", err.Error())
+		case errors.Is(err, incident.ErrNoMoreHints):
+			respondError(w, http.StatusConflict, "no_more_hints", err.Error())
+		default:
+			respondError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		}
+		return
+	}
+	respondJSON(w, http.StatusOK, h)
+}
+
+// handleIncidentHistory returns past runs with MTTR data.
+func (s *Server) handleIncidentHistory(w http.ResponseWriter, r *http.Request) {
+	recs, err := s.incidents.History()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+	if recs == nil {
+		recs = []incident.Record{}
+	}
+	respondJSON(w, http.StatusOK, recs)
+}
+
 func (s *Server) handleIncidentResolve(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name != "" && !isValidName(name) {

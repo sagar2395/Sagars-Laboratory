@@ -1,7 +1,7 @@
-# Runbook 08 — Incident Engine: Faults, Game Days & the Escape Hatch
+# Runbook 08 — Incident Engine: Faults, Game Days, Hints & MTTR
 
-Covers milestone **M2** (tasks 045–046 so far; hints/MTTR/on-call drills —
-047–049 — will extend this runbook as they ship).
+Covers milestone **M2** (tasks 045–048; the on-call drill — 049 — will
+extend this runbook when it ships).
 
 ## Prereqs
 
@@ -82,7 +82,37 @@ bin/labctl incident resolve                  # cleans up oom-kill
 bin/labctl incident resolve crashloop-bad-config   # explicit-name resolve for the first one
 ```
 
-### 6. Make it visible (recommended)
+### 6. Hints when you're stuck
+
+With an incident active:
+
+```bash
+bin/labctl incident hint     # gentle nudge
+bin/labctl incident hint     # more specific
+bin/labctl incident hint     # near-answer
+bin/labctl incident hint     # "no more hints"
+bin/labctl incident solution # full walkthrough (asks for confirmation)
+```
+
+**Expected:** hints reveal in order, survive CLI restarts, and the count is
+recorded on the run. `solution` prints the fault's complete diagnosis +
+fix.
+
+### 7. MTTR history
+
+After resolving a couple of incidents (one manually, one via `resolve`):
+
+```bash
+bin/labctl incident history
+```
+
+**Expected:** one row per run with TIME-TO-CHECK (injection → your first
+`status` call), MTTR (injection → resolution), HINTS used, and RESOLVED BY
+(`manual` when the detection check passed, `auto` when you used the escape
+hatch). Records live in `.labctl/history/incidents.jsonl` and survive
+restarts.
+
+### 8. Make it visible (recommended)
 
 Run traffic during a fault and watch Grafana:
 
@@ -93,7 +123,7 @@ bin/labctl incident inject noisy-neighbor
 bin/labctl incident resolve && bin/labctl traffic stop
 ```
 
-### 7. Validation gate (what CI runs)
+### 9. Validation gate (what CI runs)
 
 ```bash
 cd cmd/labctl && go test ./internal/incident/ && cd ../..

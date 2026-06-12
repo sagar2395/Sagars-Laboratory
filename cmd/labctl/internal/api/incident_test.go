@@ -169,6 +169,71 @@ func TestHandleIncidentResolve(t *testing.T) {
 	}
 }
 
+func TestHandleIncidentHintAndHistory(t *testing.T) {
+	s, root := newIncidentServer(t)
+
+	// Hint with nothing active → 409.
+	w := httptest.NewRecorder()
+	s.handleIncidentHint(w, httptest.NewRequest(http.MethodPost, "/api/incidents/hint", nil))
+	if w.Code != http.StatusConflict {
+		t.Fatalf("hint without active: got %d", w.Code)
+	}
+
+	// Inject, take all three hints, then exhaust them.
+	req := httptest.NewRequest(http.MethodPost, "/api/incidents/api-fault/inject", nil)
+	req = setVars(req, map[string]string{"name": "api-fault"})
+	s.handleIncidentInject(httptest.NewRecorder(), req)
+
+	for i := 1; i <= 3; i++ {
+		w = httptest.NewRecorder()
+		s.handleIncidentHint(w, httptest.NewRequest(http.MethodPost, "/api/incidents/hint", nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("hint %d: got %d (%s)", i, w.Code, w.Body.String())
+		}
+		var h struct{ Index, Total int }
+		json.Unmarshal(w.Body.Bytes(), &h)
+		if h.Index != i || h.Total != 3 {
+			t.Fatalf("hint %d: %+v", i, h)
+		}
+	}
+	w = httptest.NewRecorder()
+	s.handleIncidentHint(w, httptest.NewRequest(http.MethodPost, "/api/incidents/hint", nil))
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "no_more_hints") {
+		t.Fatalf("exhausted hints: %d %s", w.Code, w.Body.String())
+	}
+
+	// Resolve manually and read history: 1 record, 3 hints used.
+	os.Remove(filepath.Join(root, "incidents", "api-fault", "BROKEN"))
+	s.handleIncidentStatus(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/incidents/status", nil))
+
+	w = httptest.NewRecorder()
+	s.handleIncidentHistory(w, httptest.NewRequest(http.MethodGet, "/api/incidents/history", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("history: %d", w.Code)
+	}
+	var recs []struct {
+		Fault      string `json:"fault"`
+		HintsUsed  int    `json:"hintsUsed"`
+		ResolvedBy string `json:"resolvedBy"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &recs); err != nil || len(recs) != 1 {
+		t.Fatalf("history response: %v %s", err, w.Body.String())
+	}
+	if recs[0].HintsUsed != 3 || recs[0].ResolvedBy != "manual" {
+		t.Fatalf("record: %+v", recs[0])
+	}
+}
+
+func TestHandleIncidentHistory_EmptyIsJSONArray(t *testing.T) {
+	s, _ := newIncidentServer(t)
+	w := httptest.NewRecorder()
+	s.handleIncidentHistory(w, httptest.NewRequest(http.MethodGet, "/api/incidents/history", nil))
+	var recs []json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &recs); err != nil {
+		t.Fatalf("must be a JSON array even when empty: %s", w.Body.String())
+	}
+}
+
 func TestHandleListIncidents(t *testing.T) {
 	s, _ := newIncidentServer(t)
 	w := httptest.NewRecorder()

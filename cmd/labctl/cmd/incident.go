@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -159,7 +161,85 @@ var incidentResolveCmd = &cobra.Command{
 	},
 }
 
+var incidentHintCmd = &cobra.Command{
+	Use:          "hint",
+	Short:        "Reveal the next hint for the active incident (recorded — costs score in challenges)",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		h, err := incEng.NextHint()
+		if errors.Is(err, incident.ErrNoMoreHints) {
+			fmt.Println(err.Error())
+			fmt.Println("Still stuck? labctl incident solution shows the full walkthrough.")
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Hint %d of %d:\n\n%s\n", h.Index, h.Total, h.Text)
+		return nil
+	},
+}
+
+var solutionYes bool
+
+var incidentSolutionCmd = &cobra.Command{
+	Use:          "solution [fault-name]",
+	Short:        "Show the full walkthrough (spoiler!)",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := ""
+		if len(args) == 1 {
+			name = args[0]
+		}
+		if !solutionYes {
+			fmt.Print("This spoils the exercise. Type 'yes' to continue: ")
+			line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+			if strings.TrimSpace(line) != "yes" {
+				fmt.Println("Aborted. Try 'labctl incident hint' instead.")
+				return nil
+			}
+		}
+		text, err := incEng.Solution(name)
+		if err != nil {
+			return err
+		}
+		fmt.Println(text)
+		return nil
+	},
+}
+
+var incidentHistoryCmd = &cobra.Command{
+	Use:   "history",
+	Short: "Show past incident runs with MTTR and hints used",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		recs, err := incEng.History()
+		if err != nil {
+			return err
+		}
+		if len(recs) == 0 {
+			fmt.Println("No incident history yet. Run one: labctl incident inject --random")
+			return nil
+		}
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+		fmt.Fprintln(w, "WHEN\tFAULT\tSEVERITY\tTIME-TO-CHECK\tMTTR\tHINTS\tRESOLVED BY")
+		for _, r := range recs {
+			detect := "-"
+			if !r.FirstCheckedAt.IsZero() {
+				detect = (time.Duration(r.DetectSeconds) * time.Second).String()
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+				r.InjectedAt.Format("2006-01-02 15:04"), r.Fault, r.Severity,
+				detect, (time.Duration(r.ResolveSeconds) * time.Second).String(),
+				r.HintsUsed, r.ResolvedBy)
+		}
+		w.Flush()
+		return nil
+	},
+}
+
 func init() {
+	incidentSolutionCmd.Flags().BoolVar(&solutionYes, "yes", false, "skip the spoiler confirmation")
 	incidentInjectCmd.Flags().BoolVar(&injectRandom, "random", false, "pick a random eligible fault")
 	incidentInjectCmd.Flags().BoolVar(&injectSilent, "silent", false, "don't reveal which fault was injected")
 	incidentInjectCmd.Flags().BoolVar(&injectForce, "force", false, "inject even if another incident is active")
@@ -170,5 +250,8 @@ func init() {
 	incidentCmd.AddCommand(incidentInjectCmd)
 	incidentCmd.AddCommand(incidentStatusCmd)
 	incidentCmd.AddCommand(incidentResolveCmd)
+	incidentCmd.AddCommand(incidentHintCmd)
+	incidentCmd.AddCommand(incidentSolutionCmd)
+	incidentCmd.AddCommand(incidentHistoryCmd)
 	rootCmd.AddCommand(incidentCmd)
 }

@@ -32,9 +32,9 @@ boundary.
   four original scenarios work on macOS + Linux with k3d.
 - ❌ Cloud runtimes (AKS/EKS) never verified against real accounts (tasks 038/039).
 - 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
-  **M1 is complete**; M2 (incident engine) is in progress — the fault
-  library + `labctl incident` (045/046) shipped; hints, MTTR, and on-call
-  drills (047–049) remain.
+  **M1 is complete**; M2 (incident engine) is nearly done — fault library,
+  `labctl incident`, progressive hints, and MTTR history (045–048) shipped;
+  only the on-call drill (049) remains, then M3 (learning & assessment).
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**

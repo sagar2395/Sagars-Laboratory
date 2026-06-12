@@ -106,6 +106,9 @@ type Active struct {
 	InjectedAt    time.Time `yaml:"injectedAt" json:"injectedAt"`
 	Silent        bool      `yaml:"silent" json:"silent"`
 	HintsRevealed int       `yaml:"hintsRevealed" json:"hintsRevealed"`
+	// FirstCheckedAt is when `incident status` first ran — the proxy for
+	// time-to-detect in the run record (task 048).
+	FirstCheckedAt time.Time `yaml:"firstCheckedAt,omitempty" json:"firstCheckedAt,omitempty"`
 }
 
 // Engine discovers faults and manages the (single) active incident.
@@ -368,6 +371,14 @@ func (e *Engine) Status(ctx context.Context, runner *checks.Runner) (*StatusResu
 		return nil, fmt.Errorf("active incident %q no longer exists in the library: %w", active.Fault, err)
 	}
 
+	// First status call timestamps "detection" for the MTTR record.
+	if active.FirstCheckedAt.IsZero() {
+		active.FirstCheckedAt = time.Now().UTC()
+		if err := e.saveActive(active); err != nil {
+			return nil, fmt.Errorf("recording first check: %w", err)
+		}
+	}
+
 	runner.ScriptDir = f.Dir
 	for k, v := range f.targetEnv() {
 		runner.Env = append(runner.Env, k+"="+v)
@@ -376,6 +387,7 @@ func (e *Engine) Status(ctx context.Context, runner *checks.Runner) (*StatusResu
 
 	res := &StatusResult{Active: active, Fault: f, Check: result, Resolved: result.Pass}
 	if result.Pass {
+		e.finishRun(active, f, "manual")
 		e.clearActive()
 	}
 	return res, nil
@@ -403,6 +415,8 @@ func (e *Engine) Resolve(name string, exec *executor.Executor) (*Fault, error) {
 		return f, fmt.Errorf("resolving %s: %w", f.Name, err)
 	}
 	if active, _ := e.Active(); active != nil && active.Fault == f.Name {
+		// The escape hatch resolves the lab but scores as a non-completion.
+		e.finishRun(active, f, "auto")
 		e.clearActive()
 	}
 	return f, nil

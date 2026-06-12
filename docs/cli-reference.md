@@ -298,6 +298,9 @@ labctl incident inject --random --silent      # game-day mode: surprise fault, n
 labctl incident inject --random --seed 42     # reproducible pick (same fault for the whole team)
 labctl incident inject --random --category network
 labctl incident status                        # runs the detection check; clears state when it passes
+labctl incident hint                          # next progressive hint (recorded — costs score later)
+labctl incident solution [--yes]              # full walkthrough (spoiler; asks for confirmation)
+labctl incident history                       # past runs: time-to-check, MTTR, hints used, resolved-by
 labctl incident resolve                       # escape hatch: undo the active fault
 labctl incident resolve <name>                # works even if active state was lost
 ```
@@ -306,8 +309,16 @@ Rules: one active incident at a time (`--force` to override); injection is
 gated on the fault's prerequisite apps being present; `resolve.sh` always
 restores the lab regardless of partial manual fixes.
 
+Timing: the first `incident status` call timestamps "time-to-check"
+(detection proxy); resolution (detection check passing, or the escape
+hatch) closes the run. Each run is appended to
+`.labctl/history/incidents.jsonl` with MTTR, hints used, and whether it was
+resolved manually or via `resolve` (the latter counts as a non-completion
+for future challenge scoring).
+
 REST: `GET /api/incidents`, `POST /api/incidents/{name}/inject[?silent&force]`,
 `POST /api/incidents/inject-random[?seed&category]`, `GET /api/incidents/status`,
+`POST /api/incidents/hint`, `GET /api/incidents/history`,
 `POST /api/incidents/resolve[?name=]`. Silent mode hides the fault's identity
 in API responses until it is resolved.
 
