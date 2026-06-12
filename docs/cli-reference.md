@@ -231,6 +231,18 @@ bounded to ~12s — use the CLI's `--watch` for long convergence).
 
 ---
 
+#### `labctl scenario install <git-url>[@ref]`
+
+Install a scenario pack from a git repository into `.labctl/catalog/`.
+Every scenario in the pack is schema-validated before it becomes visible.
+Flags: `--name` (default: repo basename), `--force` (replace an installed
+pack). Companion commands: `labctl scenario packs` (list installed packs)
+and `labctl scenario uninstall <pack-name>`. See "Scenario Packs" in
+`docs/scenarios.md` — including the security note: packs run scripts on
+your cluster, install only trusted sources.
+
+---
+
 ### `labctl traffic` — Synthetic load generation
 
 Run a k6 load generator in-cluster so scenarios, incidents, and autoscaling

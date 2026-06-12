@@ -1,7 +1,6 @@
-# Runbook 07 — Scenario Engine v2: Checks, Verify, Traffic & Snapshot/Reset
+# Runbook 07 — Scenario Engine v2: Checks, Verify, Traffic, Snapshot/Reset & Catalog
 
-Covers milestone **M1** (tasks 040–043). The scenario catalog (task 044)
-will extend this runbook when it ships.
+Covers milestone **M1** (tasks 040–044) end to end.
 
 ## Prereqs
 
@@ -129,7 +128,43 @@ bin/labctl scenario verify observability-sre --watch --timeout 5m
 **Expected:** restore replays platform → apps → scenarios, and verify goes
 green — the snapshot's checks are the proof that restore actually converged.
 
-### 7. Schema validation gate (what CI runs)
+### 7. Install a scenario pack from git
+
+Create a tiny local pack and install it (no network needed):
+
+```bash
+mkdir -p /tmp/demo-pack/latency-lab
+cat > /tmp/demo-pack/latency-lab/scenario.yaml <<'EOF'
+name: latency-lab
+displayName: "Latency Lab"
+description: "Community pack demo"
+category: testing
+components: []
+checks:
+  - name: app-up
+    type: http
+    url: "http://go-api.{{.DomainSuffix}}/health"
+EOF
+git -C /tmp/demo-pack init -q && git -C /tmp/demo-pack add -A && \
+  git -C /tmp/demo-pack -c user.email=t@t -c user.name=t commit -qm pack
+
+bin/labctl scenario install file:///tmp/demo-pack --name demo-pack
+bin/labctl scenario list
+bin/labctl scenario verify latency-lab
+```
+
+**Expected:** install reports 1 scenario; `list` shows `latency-lab` with
+SOURCE `demo-pack`; `verify` runs its check like any in-repo scenario.
+Break the pack's `type:` field and reinstall with `--force`: the whole pack
+is rejected and nothing remains in `.labctl/catalog/`.
+
+Clean up:
+
+```bash
+bin/labctl scenario uninstall demo-pack
+```
+
+### 8. Schema validation gate (what CI runs)
 
 ```bash
 cd cmd/labctl && go test ./internal/... && cd ../..

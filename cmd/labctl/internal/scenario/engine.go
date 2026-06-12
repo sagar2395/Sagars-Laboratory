@@ -46,6 +46,7 @@ type Scenario struct {
 	// Runtime fields (not from YAML)
 	Dir    string `yaml:"-" json:"-"`
 	Active bool   `yaml:"-" json:"active"`
+	Source string `yaml:"-" json:"source,omitempty"` // "" = in-repo; else the catalog pack name
 }
 
 // Stage is an ordered group of components that can be reasoned about
@@ -81,6 +82,23 @@ func (s *Scenario) stagesOrDefault() []Stage {
 
 var validComponentTypes = map[string]bool{
 	"helm": true, "manifest": true, "grafana-dashboard": true, "script": true,
+}
+
+// unsafePath reports whether a scenario asset path could escape the
+// scenario directory (absolute, or containing a ".." segment).
+func unsafePath(p string) bool {
+	if p == "" {
+		return false
+	}
+	if filepath.IsAbs(p) {
+		return true
+	}
+	for _, seg := range strings.Split(filepath.ToSlash(p), "/") {
+		if seg == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // Validate reports every schema problem in the scenario at once, naming the
@@ -130,6 +148,14 @@ func (s *Scenario) Validate() error {
 		case c.Type == "script" && c.Script == "":
 			add("%s: script component requires script", where)
 		}
+		// Asset paths must stay inside the scenario directory — external
+		// packs (task 044) are untrusted, and in-repo scenarios have no
+		// business escaping their dir either.
+		for field, p := range map[string]string{"valuesFile": c.ValuesFile, "path": c.Path, "script": c.Script} {
+			if unsafePath(p) {
+				add("%s: %s %q must be a relative path inside the scenario directory", where, field, p)
+			}
+		}
 	}
 
 	checkNames := map[string]bool{}
@@ -142,6 +168,9 @@ func (s *Scenario) Validate() error {
 				add("check %q: duplicate check name", c.Name)
 			}
 			checkNames[c.Name] = true
+		}
+		if unsafePath(c.Script) {
+			add("check %q: script %q must be a relative path inside the scenario directory", c.Name, c.Script)
 		}
 	}
 
@@ -466,27 +495,80 @@ type ScenarioStatus struct {
 }
 
 func (e *Engine) scan() {
+	// In-repo scenarios scan first, so on name collisions they always win
+	// over catalog packs.
 	scenariosDir := filepath.Join(e.ProjectRoot, "scenarios")
-	entries, err := os.ReadDir(scenariosDir)
+	if entries, err := os.ReadDir(scenariosDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			e.loadInto(filepath.Join(scenariosDir, entry.Name()), "", entry.Name())
+		}
+	}
+
+	// Installed catalog packs (task 044) live under .labctl/catalog/<pack>/.
+	packs, err := os.ReadDir(e.CatalogDir())
 	if err != nil {
 		return
 	}
+	for _, pack := range packs {
+		if pack.IsDir() {
+			e.scanPack(filepath.Join(e.CatalogDir(), pack.Name()), pack.Name())
+		}
+	}
+}
 
+// scanPack loads scenarios from an installed pack: either a single scenario
+// at the pack root, or a collection of scenario directories.
+func (e *Engine) scanPack(dir, packName string) {
+	if _, err := os.Stat(filepath.Join(dir, "scenario.yaml")); err == nil {
+		e.loadInto(dir, packName, packName)
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		yamlPath := filepath.Join(scenariosDir, entry.Name(), "scenario.yaml")
-		s, err := e.loadScenario(yamlPath)
-		if err != nil {
-			// Record but keep going — one broken scenario must not hide the rest.
-			// LoadErrors() surfaces these (and the repo test fails CI on them).
-			e.loadErrors[entry.Name()] = err
+		// Non-scenario dirs inside a pack (docs/, .github/, …) are fine.
+		if _, err := os.Stat(filepath.Join(dir, entry.Name(), "scenario.yaml")); err != nil {
 			continue
 		}
-		s.Dir = filepath.Join(scenariosDir, entry.Name())
-		e.scenarios[s.Name] = s
+		e.loadInto(filepath.Join(dir, entry.Name()), packName, packName+"/"+entry.Name())
 	}
+}
+
+// loadInto loads one scenario dir, recording failures and collisions under
+// the given key. One broken scenario must not hide the rest; LoadErrors()
+// surfaces these (and the repo test fails CI on in-repo ones).
+func (e *Engine) loadInto(dir, source, key string) {
+	s, err := e.loadScenario(filepath.Join(dir, "scenario.yaml"))
+	if err != nil {
+		e.loadErrors[key] = err
+		return
+	}
+	if existing, ok := e.scenarios[s.Name]; ok {
+		from := "the repository"
+		if existing.Source != "" {
+			from = "pack " + existing.Source
+		}
+		e.loadErrors[key] = fmt.Errorf("scenario name %q already provided by %s — skipped", s.Name, from)
+		return
+	}
+	s.Dir = dir
+	s.Source = source
+	e.scenarios[s.Name] = s
+}
+
+// rescan rebuilds the scenario index from disk (used after pack changes).
+func (e *Engine) rescan() {
+	e.scenarios = make(map[string]*Scenario)
+	e.loadErrors = make(map[string]error)
+	e.scan()
 }
 
 // LoadErrors returns scenarios that were discovered but failed to load or
@@ -500,6 +582,12 @@ func (e *Engine) LoadErrors() map[string]error {
 }
 
 func (e *Engine) loadScenario(path string) (*Scenario, error) {
+	return loadScenarioFile(path)
+}
+
+// loadScenarioFile parses and validates a scenario.yaml. It is package-level
+// so pack validation (catalog.go) can use it without an Engine.
+func loadScenarioFile(path string) (*Scenario, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

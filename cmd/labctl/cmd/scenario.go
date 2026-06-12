@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -29,15 +30,26 @@ var scenarioListCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "NAME\tDISPLAY NAME\tCATEGORY\tSTATUS")
+		fmt.Fprintln(w, "NAME\tDISPLAY NAME\tCATEGORY\tSOURCE\tSTATUS")
 		for _, s := range scenarios {
 			status := "inactive"
 			if s.Active {
 				status = "active"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.Name, s.DisplayName, s.Category, status)
+			source := s.Source
+			if source == "" {
+				source = "repo"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.Name, s.DisplayName, s.Category, source, status)
 		}
 		w.Flush()
+
+		if errs := scenes.LoadErrors(); len(errs) > 0 {
+			fmt.Fprintf(os.Stderr, "\nWarning: %d scenario(s) failed to load (run with -v for details):\n", len(errs))
+			for key, err := range errs {
+				fmt.Fprintf(os.Stderr, "  %s: %v\n", key, err)
+			}
+		}
 		return nil
 	},
 }
@@ -195,6 +207,70 @@ func orDash(s string) string {
 	return s
 }
 
+var (
+	packName  string
+	packForce bool
+)
+
+var scenarioInstallCmd = &cobra.Command{
+	Use:   "install <git-url>[@ref]",
+	Short: "Install a scenario pack from a git repository",
+	Long: `Clones a scenario pack into .labctl/catalog/ and validates every
+scenario in it against the schema before it becomes visible. A pack is a
+git repo containing one scenario (scenario.yaml at the root) or a
+collection of scenario directories.
+
+SECURITY: packs run scripts and apply manifests on your cluster — only
+install sources you trust. Packs never auto-update; reinstall with --force
+to upgrade.`,
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		pack, err := scenes.InstallPack(args[0], packName, packForce, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Installed pack %q with %d scenario(s):\n", pack.Name, len(pack.Scenarios))
+		for _, s := range pack.Scenarios {
+			fmt.Printf("  - %s\n", s)
+		}
+		fmt.Printf("\nActivate with: labctl scenario up <name>\nRemove with:   labctl scenario uninstall %s\n", pack.Name)
+		return nil
+	},
+}
+
+var scenarioUninstallCmd = &cobra.Command{
+	Use:   "uninstall <pack-name>",
+	Short: "Remove an installed scenario pack",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := scenes.UninstallPack(args[0]); err != nil {
+			return err
+		}
+		fmt.Printf("Pack %q removed.\n", args[0])
+		return nil
+	},
+}
+
+var scenarioPacksCmd = &cobra.Command{
+	Use:   "packs",
+	Short: "List installed scenario packs",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		packs := scenes.Packs()
+		if len(packs) == 0 {
+			fmt.Println("No packs installed. Install one with: labctl scenario install <git-url>")
+			return nil
+		}
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+		fmt.Fprintln(w, "PACK\tSCENARIOS")
+		for _, p := range packs {
+			fmt.Fprintf(w, "%s\t%s\n", p.Name, strings.Join(p.Scenarios, ", "))
+		}
+		w.Flush()
+		return nil
+	},
+}
+
 var scenarioInfoCmd = &cobra.Command{
 	Use:   "info [scenario-name]",
 	Short: "Show detailed information about a scenario",
@@ -289,11 +365,17 @@ func init() {
 	scenarioVerifyCmd.Flags().DurationVar(&verifyTimeout, "timeout", 5*time.Minute, "overall deadline in --watch mode")
 	scenarioVerifyCmd.Flags().DurationVar(&verifyCheckTimeout, "check-timeout", 30*time.Second, "per-check timeout")
 
+	scenarioInstallCmd.Flags().StringVar(&packName, "name", "", "pack name (default: repository basename)")
+	scenarioInstallCmd.Flags().BoolVar(&packForce, "force", false, "replace the pack if it is already installed")
+
 	scenarioCmd.AddCommand(scenarioListCmd)
 	scenarioCmd.AddCommand(scenarioUpCmd)
 	scenarioCmd.AddCommand(scenarioDownCmd)
 	scenarioCmd.AddCommand(scenarioStatusCmd)
 	scenarioCmd.AddCommand(scenarioInfoCmd)
 	scenarioCmd.AddCommand(scenarioVerifyCmd)
+	scenarioCmd.AddCommand(scenarioInstallCmd)
+	scenarioCmd.AddCommand(scenarioUninstallCmd)
+	scenarioCmd.AddCommand(scenarioPacksCmd)
 	rootCmd.AddCommand(scenarioCmd)
 }

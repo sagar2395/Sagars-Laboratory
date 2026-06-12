@@ -1,53 +1,94 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "044-scenario-catalog",
+  "next": "045-fault-library",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
-      "status": "in_progress",
-      "tasks": ["040", "041", "042", "043", "044"],
-      "note": "040-043 done (checks, verify, traffic, snapshot/reset). Only 044 (catalog) remains."
+      "status": "done",
+      "tasks": [
+        "040",
+        "041",
+        "042",
+        "043",
+        "044"
+      ],
+      "note": "Complete: checks/verify, traffic generator, lab snapshot/reset, scenario catalog."
     },
     "M2-incident-engine": {
       "priority": "P0",
       "status": "todo",
-      "tasks": ["045", "046", "047", "048", "049"],
-      "blocked_by": ["M1-scenario-engine-v2"]
+      "tasks": [
+        "045",
+        "046",
+        "047",
+        "048",
+        "049"
+      ]
     },
     "M3-learning-assessment": {
       "priority": "P1",
       "status": "todo",
-      "tasks": ["050", "051", "052", "053"],
-      "blocked_by": ["M1-scenario-engine-v2", "M2-incident-engine"]
+      "tasks": [
+        "050",
+        "051",
+        "052",
+        "053"
+      ],
+      "blocked_by": [
+        "M1-scenario-engine-v2",
+        "M2-incident-engine"
+      ]
     },
     "M4-stack-expansion": {
       "priority": "P1",
       "status": "todo",
-      "tasks": ["054", "055", "056", "057", "058"],
-      "blocked_by": ["M1-scenario-engine-v2"],
+      "tasks": [
+        "054",
+        "055",
+        "056",
+        "057",
+        "058"
+      ],
+      "blocked_by": [
+        "M1-scenario-engine-v2"
+      ],
       "note": "054/055/056 have no hard dependency on M1 and can be parallelized early."
     },
     "M5-multi-env-day2": {
       "priority": "P2",
       "status": "todo",
-      "tasks": ["059", "060", "061"],
-      "blocked_by": ["M1-scenario-engine-v2"]
+      "tasks": [
+        "059",
+        "060",
+        "061"
+      ],
+      "blocked_by": [
+        "M1-scenario-engine-v2"
+      ]
     },
     "M6-team-mode-runtimes": {
       "priority": "P2",
       "status": "todo",
-      "tasks": ["062", "063", "064"],
-      "blocked_by": ["M3-learning-assessment"]
+      "tasks": [
+        "062",
+        "063",
+        "064"
+      ],
+      "blocked_by": [
+        "M3-learning-assessment"
+      ]
     },
     "part1-cloud-verification": {
       "priority": "P2",
       "status": "todo",
-      "tasks": ["038", "039"],
-      "note": "Leftover Part I Phase 6 — requires real cloud accounts and spend; do deliberately."
+      "tasks": [
+        "038",
+        "039"
+      ],
+      "note": "Leftover Part I Phase 6 \u2014 requires real cloud accounts and spend; do deliberately."
     }
   },
   "todo": [
-    "044-scenario-catalog",
     "045-fault-library",
     "046-incident-command-group",
     "047-progressive-hints",
@@ -77,6 +118,7 @@
     "041-scenario-verification-engine",
     "042-traffic-generator",
     "043-lab-snapshot-reset",
+    "044-scenario-catalog",
     "004-improve-runtime-detection-and-status-reporting",
     "005-make-platform-targets-provider-aware",
     "009-add-helm-pre-deploy-lint-and-readiness-wait",
