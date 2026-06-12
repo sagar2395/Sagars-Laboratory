@@ -231,6 +231,48 @@ bounded to ~12s — use the CLI's `--watch` for long convergence).
 
 ---
 
+### `labctl traffic` — Synthetic load generation
+
+Run a k6 load generator in-cluster so scenarios, incidents, and autoscaling
+play out under realistic traffic. The generator lives in its own `traffic`
+namespace; scripts are in `services/traffic/`.
+
+#### `labctl traffic start`
+
+Start (or restart — running it again replaces the active run) the generator.
+
+```bash
+labctl traffic start                                   # steady 10 rps for 10m at go-api
+labctl traffic start --profile spike --rps 20          # 20 rps baseline, 200 rps spike
+labctl traffic start --profile soak --duration 4h
+labctl traffic start --target http://echo-server.k3d.local/ --rps 50
+```
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--profile` | `steady` | `steady` (constant), `spike` (10x burst, fixed ~6m shape), `soak` (long sustained) |
+| `--rps` | `10` | requests/sec (baseline for spike) |
+| `--duration` | profile default | run length (`30s`, `10m`, `1h30m`); steady 10m, soak 2h, spike fixed |
+| `--target` | go-api `/health` (in-cluster) | URL to load |
+
+Set `K6_PROMETHEUS_RW_SERVER_URL` to also push k6's own metrics into
+Prometheus via remote write (requires the receiver enabled); by default,
+watch the load through the target app's request metrics in Grafana.
+
+#### `labctl traffic stop`
+
+Stop the generator and remove everything it created (job, configmap, namespace).
+
+#### `labctl traffic status`
+
+Show whether a run is active, its profile, pods, and recent k6 output.
+
+#### `labctl traffic profiles`
+
+List the available profiles (discovered from `services/traffic/profiles/`).
+
+---
+
 ### Services
 
 Manage shared services (Redis, etc.) that apps depend on.

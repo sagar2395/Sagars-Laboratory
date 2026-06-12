@@ -12,7 +12,8 @@ import (
 )
 
 // repoRoot walks up from the package directory until it finds the project
-// root (identified by the scenarios/ and platform/ directories).
+// root (identified by the scenarios/ directory plus the Makefile, so Go
+// package dirs can't be mistaken for it).
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
@@ -20,7 +21,7 @@ func repoRoot(t *testing.T) string {
 		t.Fatalf("getwd: %v", err)
 	}
 	for {
-		if dirExists(filepath.Join(dir, "scenarios")) && dirExists(filepath.Join(dir, "platform")) {
+		if dirExists(filepath.Join(dir, "scenarios")) && dirExists(filepath.Join(dir, "platform")) && fileExists(filepath.Join(dir, "Makefile")) {
 			return dir
 		}
 		parent := filepath.Dir(dir)
@@ -34,6 +35,11 @@ func repoRoot(t *testing.T) string {
 func dirExists(p string) bool {
 	info, err := os.Stat(p)
 	return err == nil && info.IsDir()
+}
+
+func fileExists(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && !info.IsDir()
 }
 
 func TestRepoScenarios_AllLoadAndValidate(t *testing.T) {

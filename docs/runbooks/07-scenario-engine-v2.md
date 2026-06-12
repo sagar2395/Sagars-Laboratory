@@ -1,8 +1,7 @@
-# Runbook 07 — Scenario Engine v2: Stages, Objectives, Checks & Verify
+# Runbook 07 — Scenario Engine v2: Stages, Objectives, Checks, Verify & Traffic
 
-Covers milestone **M1** (tasks 040–041). Traffic generator, lab
-snapshot/reset, and the scenario catalog (tasks 042–044) will extend this
-runbook when they ship.
+Covers milestone **M1** (tasks 040–042). Lab snapshot/reset and the
+scenario catalog (tasks 043–044) will extend this runbook when they ship.
 
 ## Prereqs
 
@@ -64,7 +63,37 @@ curl -s -X POST localhost:3939/api/scenarios/observability-sre/verify | jq .
 **Expected:** JSON with `"passed": true` and a `results` array of 5 entries,
 each with `name`, `type`, `pass`, `got`, `want`, `durationMs`.
 
-### 5. Schema validation gate (what CI runs)
+### 5. Generate traffic and watch the impact
+
+```bash
+bin/labctl traffic profiles
+bin/labctl traffic start --profile steady --rps 20 --duration 10m
+bin/labctl traffic status
+```
+
+**Expected:** `start` creates the `traffic` namespace and a `traffic-k6`
+job; `status` shows the job running and recent k6 output. In Grafana, the
+go-api request-rate panel climbs to ~20 rps within a minute.
+
+Now make it interesting — spike it and watch the dashboards:
+
+```bash
+bin/labctl traffic start --profile spike --rps 10
+```
+
+**Expected:** restarting while running replaces the run (no error). The
+rate holds ~10 rps for 1 minute, ramps to ~100 rps for 2 minutes, then
+recovers. Latency panels react during the spike.
+
+Stop and confirm cleanup:
+
+```bash
+bin/labctl traffic stop
+kubectl get namespace traffic   # → NotFound
+bin/labctl traffic status        # → "Traffic generator: not running"
+```
+
+### 6. Schema validation gate (what CI runs)
 
 ```bash
 cd cmd/labctl && go test ./internal/scenario/ ./internal/checks/ && cd ../..
@@ -77,6 +106,7 @@ the repo test must fail naming the file and field. Revert afterwards.
 ## Cleanup
 
 ```bash
+bin/labctl traffic stop
 bin/labctl scenario down observability-sre
 kill %1 2>/dev/null  # stop labctl ui if started
 ```
