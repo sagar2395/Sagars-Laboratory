@@ -15,7 +15,7 @@ Each runbook maps to a phase or milestone in `docs/ROADMAP.md`.
 | [04-observability-scenario.md](04-observability-scenario.md) | Logs in Loki, traces in Tempo, dashboards | 4 |
 | [05-ci-cd.md](05-ci-cd.md) | CI checks + CD + ArgoCD sync | 5 |
 | [06-cloud-runtimes.md](06-cloud-runtimes.md) | Provision & tear down AKS/EKS | 6 |
-| 07-scenario-engine-v2.md *(planned)* | Checks, verify, traffic, snapshot/reset, catalog | M1 |
+| [07-scenario-engine-v2.md](07-scenario-engine-v2.md) | Stages/objectives/checks + `scenario verify` (traffic, snapshot, catalog pending 042–044) | M1 |
 | 08-incident-engine.md *(planned)* | Inject faults, hints, MTTR, on-call drill | M2 |
 | 09-learning-and-challenges.md *(planned)* | Learning paths, challenges, scores, UI | M3 |
 | 10-stack-expansion.md *(planned)* | Mesh, data, secrets, autoscaling stacks + scenarios | M4 |

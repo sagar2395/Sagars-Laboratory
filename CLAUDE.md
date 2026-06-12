@@ -31,8 +31,9 @@ boundary.
 - ✅ Homelab hardening (ROADMAP **Part I**) is done: CLI, SPA UI, CI, and all
   four original scenarios work on macOS + Linux with k3d.
 - ❌ Cloud runtimes (AKS/EKS) never verified against real accounts (tasks 038/039).
-- 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6, tasks 040–064) is
-  planned, not started. **M1 (scenario checks + verify) gates everything else.**
+- 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway: M1's
+  core is done (040 scenario format v2, 041 `scenario verify` + check
+  runners); 042–044 (traffic, snapshot/reset, catalog) are next.
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**

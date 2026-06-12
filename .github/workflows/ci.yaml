@@ -61,6 +61,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: gofmt
+        working-directory: cmd/labctl
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed on:"; echo "$unformatted"; exit 1
+          fi
       - name: Go vet
         working-directory: cmd/labctl
         run: go vet ./...

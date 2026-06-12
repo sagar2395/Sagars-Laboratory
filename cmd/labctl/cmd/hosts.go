@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	osexec "os/exec"
 	"os"
+	osexec "os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"

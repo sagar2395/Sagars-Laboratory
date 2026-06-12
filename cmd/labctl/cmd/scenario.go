@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"text/tabwriter"
+	"time"
 
+	"github.com/sagars-lab/labctl/internal/checks"
 	scenariopkg "github.com/sagars-lab/labctl/internal/scenario"
 	"github.com/spf13/cobra"
 )
@@ -98,6 +101,100 @@ var scenarioStatusCmd = &cobra.Command{
 	},
 }
 
+var (
+	verifyWatch        bool
+	verifyInterval     time.Duration
+	verifyTimeout      time.Duration
+	verifyCheckTimeout time.Duration
+)
+
+var scenarioVerifyCmd = &cobra.Command{
+	Use:   "verify [scenario-name]",
+	Short: "Run a scenario's checks and report pass/fail",
+	Long: `Runs the machine-verifiable checks declared in the scenario's
+checks block (scenario format v2) and reports each result. Exits non-zero
+if any check fails, so it is safe to use in CI and scripts.
+
+With --watch, checks are re-run every --interval until they all pass or
+--timeout elapses — useful right after 'scenario up' while pods settle.`,
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true, // a failing check is a result, not a usage error
+	RunE: func(cmd *cobra.Command, args []string) error {
+		runner := newCheckRunner()
+		ctx := context.Background()
+		deadline := time.Now().Add(verifyTimeout)
+
+		for {
+			results, err := scenes.Verify(ctx, args[0], runner)
+			if err != nil {
+				return err
+			}
+			printCheckResults(results)
+			if checks.AllPass(results) {
+				fmt.Printf("All %d checks passed.\n", len(results))
+				return nil
+			}
+			failed := 0
+			for _, r := range results {
+				if !r.Pass {
+					failed++
+				}
+			}
+			if !verifyWatch || time.Now().After(deadline) {
+				return fmt.Errorf("%d of %d checks failed", failed, len(results))
+			}
+			fmt.Printf("\n%d of %d checks failing — retrying in %s (until %s)...\n\n",
+				failed, len(results), verifyInterval, deadline.Format("15:04:05"))
+			time.Sleep(verifyInterval)
+		}
+	},
+}
+
+// newCheckRunner builds a check runner wired to the lab's config: the
+// Prometheus endpoint (PROMETHEUS_URL env override, else the ingress
+// hostname) and the standard script environment.
+func newCheckRunner() *checks.Runner {
+	r := checks.NewRunner()
+	r.DefaultTimeout = verifyCheckTimeout
+	promURL := os.Getenv("PROMETHEUS_URL")
+	if promURL == "" {
+		promURL = "http://prometheus." + cfg.DomainSuffix
+	}
+	r.PrometheusURL = promURL
+	r.Env = []string{
+		"DOMAIN_SUFFIX=" + cfg.DomainSuffix,
+		"MONITORING_NAMESPACE=" + cfg.MonitoringNamespace,
+		"PROJECT_ROOT=" + cfg.ProjectRoot,
+	}
+	return r
+}
+
+func printCheckResults(results []checks.Result) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	for _, r := range results {
+		mark := "PASS"
+		if !r.Pass {
+			mark = "FAIL"
+		}
+		detail := ""
+		if r.Got != "" || r.Want != "" {
+			detail = fmt.Sprintf("got: %s, want: %s", orDash(r.Got), orDash(r.Want))
+		}
+		if r.Error != "" {
+			detail = "error: " + r.Error
+		}
+		fmt.Fprintf(w, "%s\t%s\t(%s)\t%s\t%dms\n", mark, r.Name, r.Type, detail, r.DurationMS)
+	}
+	w.Flush()
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
 var scenarioInfoCmd = &cobra.Command{
 	Use:   "info [scenario-name]",
 	Short: "Show detailed information about a scenario",
@@ -132,9 +229,15 @@ var scenarioInfoCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Printf("\nComponents (%d):\n", len(s.Components))
-		for _, c := range s.Components {
-			fmt.Printf("  - %s [%s]", c.Name, c.Type)
+		if len(s.Objectives) > 0 {
+			fmt.Printf("\nObjectives:\n")
+			for _, o := range s.Objectives {
+				fmt.Printf("  - %s\n", o)
+			}
+		}
+
+		printComponent := func(c scenariopkg.Component, indent string) {
+			fmt.Printf("%s- %s [%s]", indent, c.Name, c.Type)
 			if c.Chart != "" {
 				fmt.Printf(" chart=%s", c.Chart)
 			}
@@ -142,6 +245,28 @@ var scenarioInfoCmd = &cobra.Command{
 				fmt.Printf(" ns=%s", c.Namespace)
 			}
 			fmt.Println()
+		}
+
+		if len(s.Stages) > 0 {
+			fmt.Printf("\nStages (%d):\n", len(s.Stages))
+			for _, st := range s.Stages {
+				fmt.Printf("  %s:\n", st.Name)
+				for _, c := range st.Components {
+					printComponent(c, "    ")
+				}
+			}
+		} else {
+			fmt.Printf("\nComponents (%d):\n", len(s.Components))
+			for _, c := range s.Components {
+				printComponent(c, "  ")
+			}
+		}
+
+		if len(s.Checks) > 0 {
+			fmt.Printf("\nChecks (%d) — run 'labctl scenario verify %s':\n", len(s.Checks), s.Name)
+			for _, c := range s.Checks {
+				fmt.Printf("  - %s [%s]\n", c.Name, c.Type)
+			}
 		}
 
 		if len(s.Explore.URLs) > 0 || len(s.Explore.Commands) > 0 {
@@ -159,10 +284,16 @@ var scenarioInfoCmd = &cobra.Command{
 }
 
 func init() {
+	scenarioVerifyCmd.Flags().BoolVar(&verifyWatch, "watch", false, "re-run checks until they all pass or --timeout elapses")
+	scenarioVerifyCmd.Flags().DurationVar(&verifyInterval, "interval", 10*time.Second, "delay between re-runs in --watch mode")
+	scenarioVerifyCmd.Flags().DurationVar(&verifyTimeout, "timeout", 5*time.Minute, "overall deadline in --watch mode")
+	scenarioVerifyCmd.Flags().DurationVar(&verifyCheckTimeout, "check-timeout", 30*time.Second, "per-check timeout")
+
 	scenarioCmd.AddCommand(scenarioListCmd)
 	scenarioCmd.AddCommand(scenarioUpCmd)
 	scenarioCmd.AddCommand(scenarioDownCmd)
 	scenarioCmd.AddCommand(scenarioStatusCmd)
 	scenarioCmd.AddCommand(scenarioInfoCmd)
+	scenarioCmd.AddCommand(scenarioVerifyCmd)
 	rootCmd.AddCommand(scenarioCmd)
 }

@@ -201,6 +201,34 @@ Show which scenarios are currently active.
 labctl scenario status
 ```
 
+#### `labctl scenario verify <name>`
+
+Run the scenario's machine-verifiable `checks` (scenario format v2) and
+report pass/fail per check. Exits non-zero if any check fails, so it is
+safe in CI and scripts. See `docs/scenarios.md` for the checks schema.
+
+```bash
+labctl scenario verify observability-sre
+
+# Re-run until everything passes (useful right after `scenario up`)
+labctl scenario verify observability-sre --watch --interval 10s --timeout 5m
+```
+
+Flags:
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--watch` | off | re-run checks until all pass or `--timeout` elapses |
+| `--interval` | `10s` | delay between re-runs in watch mode |
+| `--timeout` | `5m` | overall watch deadline |
+| `--check-timeout` | `30s` | per-check timeout |
+
+`promql` checks query Prometheus at `http://prometheus.<DOMAIN_SUFFIX>` by
+default; override with the `PROMETHEUS_URL` environment variable.
+
+The REST equivalent is `POST /api/scenarios/{name}/verify` (synchronous,
+bounded to ~12s — use the CLI's `--watch` for long convergence).
+
 ---
 
 ### Services

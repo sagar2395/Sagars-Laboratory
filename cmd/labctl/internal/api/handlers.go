@@ -2,16 +2,20 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"github.com/sagars-lab/labctl/internal/checks"
 	"github.com/sagars-lab/labctl/internal/config"
 	"github.com/sagars-lab/labctl/internal/k8s"
+	"github.com/sagars-lab/labctl/internal/scenario"
 )
 
 // validName matches identifiers safe to use as file-path segments and shell arguments.
@@ -407,6 +411,50 @@ func (s *Server) handleScenarioDown(w http.ResponseWriter, r *http.Request) {
 		s.exec.BroadcastEnd(jobID, label, s.scenes.Down(name, s.exec))
 	}()
 	respondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID, "status": "accepted"})
+}
+
+// handleScenarioVerify runs the scenario's checks synchronously and returns
+// the per-check results. The overall run is bounded to stay inside the HTTP
+// server's write timeout; use the CLI's --watch mode for long convergence.
+func (s *Server) handleScenarioVerify(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	if !isValidName(name) {
+		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid scenario name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
+		return
+	}
+
+	runner := checks.NewRunner()
+	runner.DefaultTimeout = 10 * time.Second
+	promURL := os.Getenv("PROMETHEUS_URL")
+	if promURL == "" {
+		promURL = "http://prometheus." + s.cfg.DomainSuffix
+	}
+	runner.PrometheusURL = promURL
+	runner.Env = []string{
+		"DOMAIN_SUFFIX=" + s.cfg.DomainSuffix,
+		"MONITORING_NAMESPACE=" + s.cfg.MonitoringNamespace,
+		"PROJECT_ROOT=" + s.cfg.ProjectRoot,
+	}
+
+	// Server WriteTimeout is 15s — bound the whole verify run below that.
+	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
+	defer cancel()
+
+	results, err := s.scenes.Verify(ctx, name, runner)
+	if err != nil {
+		if errors.Is(err, scenario.ErrNoChecks) {
+			respondError(w, http.StatusBadRequest, "no_checks", err.Error())
+			return
+		}
+		respondError(w, http.StatusNotFound, "not_found", err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"scenario": name,
+		"passed":   checks.AllPass(results),
+		"results":  results,
+	})
 }
 
 func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
