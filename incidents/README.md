@@ -16,6 +16,7 @@ Every fault is a directory `incidents/<name>/` with:
 | `resolve.sh` | The escape hatch. Always restores the lab, even after a partial manual fix. |
 | `hints.md` | Progressive hints, one `## Hint N` section each (revealed by `labctl incident hint`) |
 | `solution.md` | Full diagnosis + fix walkthrough (spoiler — `labctl incident solution`) |
+| `alerts/rule.yaml` | Required iff `expectAlert` is set: the PrometheusRule that fires the page (armed by `inject.sh`, disarmed by `resolve.sh`) |
 | `manifests/`, `checks/` | Optional supporting files |
 
 ### fault.yaml
@@ -36,7 +37,21 @@ detection:                        # same schema as scenario checks
   type: script                    # http | kubectl | promql | script
   script: checks/resolved.sh
   timeoutSeconds: 30
+expectAlert: LabFaultCrashLoop    # optional: this alert should page (049)
 ```
+
+### Paging (`expectAlert`, on-call drills)
+
+A fault that sets `expectAlert` must ship `alerts/rule.yaml` — a
+PrometheusRule labeled `release: prometheus` (so kube-prometheus-stack
+loads it) whose alert carries `labfault: "true"` (so Alertmanager routes it
+to the pager — see `platform/monitoring/metrics/prometheus/values.yaml`).
+`inject.sh` arms the rule (tolerating a missing monitoring stack),
+`resolve.sh` disarms it, and `labctl incident status` reports whether the
+page fired by querying the Alertmanager API
+(`ALERTMANAGER_URL`, default `http://alertmanager.<DOMAIN_SUFFIX>`).
+Pages land in the in-cluster **pager** (`labctl service up pager`) unless
+`ALERT_WEBHOOK_URL` points Alertmanager somewhere else.
 
 ## Rules for fault authors
 

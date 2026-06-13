@@ -12,6 +12,13 @@ if [ -n "$ORIGINAL" ]; then
   exit 0
 fi
 
+# Arm the paging rule first so the on-call drill measures real detection.
+# Tolerate a missing prometheus operator — the fault still works unpaged.
+MON_NS="${MONITORING_NAMESPACE:-monitoring}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+kubectl apply -n "$MON_NS" -f "$SCRIPT_DIR/alerts/rule.yaml" 2>/dev/null \
+  || echo "Note: alert rule not installed (monitoring stack missing?) — continuing without paging."
+
 CURRENT_IMAGE="$(kubectl -n "$NS" get deploy "$DEPLOY" -o 'jsonpath={.spec.template.spec.containers[0].image}')"
 CONTAINER="$(kubectl -n "$NS" get deploy "$DEPLOY" -o 'jsonpath={.spec.template.spec.containers[0].name}')"
 

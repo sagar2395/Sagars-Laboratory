@@ -68,6 +68,10 @@ var rootCmd = &cobra.Command{
 		scenes = scenario.NewEngine(cfg.ProjectRoot, cfg.DomainSuffix, cfg.Profile)
 		scenes.MonitoringNamespace = cfg.MonitoringNamespace
 		incEng = incident.NewEngine(cfg.ProjectRoot, cfg.DomainSuffix)
+		incEng.AlertmanagerURL = os.Getenv("ALERTMANAGER_URL")
+		if incEng.AlertmanagerURL == "" {
+			incEng.AlertmanagerURL = "http://alertmanager." + cfg.DomainSuffix
+		}
 		svcReg = services.NewRegistry(cfg.ProjectRoot)
 		rtm = runtime.NewManager(cfg.ProjectRoot, cfg.ClusterName)
 		slog.Debug("registries initialised", "runtimes", rtm.Names())

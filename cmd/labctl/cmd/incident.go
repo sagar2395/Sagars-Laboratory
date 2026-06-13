@@ -127,6 +127,18 @@ var incidentStatusCmd = &cobra.Command{
 			res.Active.InjectedAt.Format(time.RFC3339),
 			time.Since(res.Active.InjectedAt).Round(time.Second))
 
+		if res.Alert != nil {
+			switch {
+			case res.Alert.Error != "":
+				fmt.Printf("Alert:     %s — could not query Alertmanager (%s)\n", res.Alert.Expected, res.Alert.Error)
+			case res.Alert.Fired:
+				fmt.Printf("Alert:     %s FIRING since %s — the page went out\n",
+					res.Alert.Expected, res.Alert.Since.Format(time.RFC3339))
+			default:
+				fmt.Printf("Alert:     %s not firing (rules evaluate within ~1-2 minutes of injection)\n", res.Alert.Expected)
+			}
+		}
+
 		if res.Resolved {
 			fmt.Printf("\nRESOLVED — detection check %q passes. Nice work.\n", res.Check.Name)
 			fmt.Printf("It was: %s — %s\n", res.Fault.Name, res.Fault.DisplayName)

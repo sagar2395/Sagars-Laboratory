@@ -1,7 +1,12 @@
-# Runbook 08 — Incident Engine: Faults, Game Days, Hints & MTTR
+# Runbook 08 — Incident Engine: Faults, Game Days, Hints, MTTR & On-Call
 
-Covers milestone **M2** (tasks 045–048; the on-call drill — 049 — will
-extend this runbook when it ships).
+Covers milestone **M2** (tasks 045–049) end to end.
+
+> The on-call drill (section 9) reconfigures Alertmanager and runs real
+> alert rules — it needs a live k3d lab with the monitoring stack and has
+> not yet been verified against a real cluster. Treat the first run as the
+> verification pass for tasks 049's cluster-side behavior and file issues
+> for anything that drifts (alert expressions, service names).
 
 ## Prereqs
 
@@ -123,7 +128,49 @@ bin/labctl incident inject noisy-neighbor
 bin/labctl incident resolve && bin/labctl traffic stop
 ```
 
-### 9. Validation gate (what CI runs)
+### 9. On-call drill: fault → page → triage → fix
+
+One-time setup — install the pager and (re)apply the monitoring stack so
+Alertmanager picks up the lab-fault route:
+
+```bash
+bin/labctl service up pager
+bin/labctl platform up monitoring/metrics    # reapplies values incl. the pager route
+```
+
+Run the drill:
+
+```bash
+bin/labctl incident inject oom-kill
+# Wait ~2 minutes: rule evaluation + the alert's `for: 1m` window.
+bin/labctl incident status
+```
+
+**Expected:** the status output gains an `Alert:` line —
+`LabFaultOOMKill FIRING since <time> — the page went out`. The page itself
+is visible on the pager:
+
+```bash
+bin/labctl service status pager        # shows PAGE log lines
+kubectl logs deploy/pager -n pager | grep ^PAGE
+```
+
+Triage from the page (it names the namespace and symptom), fix the memory
+limit, then:
+
+```bash
+bin/labctl incident status             # RESOLVED; Alertmanager clears within minutes
+```
+
+To page a real channel instead of the lab pager, set `ALERT_WEBHOOK_URL`
+(any Alertmanager-compatible webhook bridge) and re-run
+`labctl platform up monitoring/metrics`.
+
+Paging faults: `oom-kill`, `crashloop-bad-config`, `bad-deploy-rollout`.
+The other three faults are detection-only (their symptoms don't map to a
+reliable default metric — candidates for blackbox/SLO rules later).
+
+### 10. Validation gate (what CI runs)
 
 ```bash
 cd cmd/labctl && go test ./internal/incident/ && cd ../..

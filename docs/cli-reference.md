@@ -316,6 +316,15 @@ hatch) closes the run. Each run is appended to
 resolved manually or via `resolve` (the latter counts as a non-completion
 for future challenge scoring).
 
+On-call drills: faults with an `expectAlert` (`oom-kill`,
+`crashloop-bad-config`, `bad-deploy-rollout`) arm a PrometheusRule on
+injection; Alertmanager routes the firing alert to the in-cluster pager
+(`labctl service up pager`) or to `ALERT_WEBHOOK_URL` if set when
+installing `monitoring/metrics`. `incident status` shows whether the page
+fired by querying Alertmanager (`ALERTMANAGER_URL`, default
+`http://alertmanager.<DOMAIN_SUFFIX>` via the ingress created by the
+metrics provider). See runbook 08 §9 for the full drill.
+
 REST: `GET /api/incidents`, `POST /api/incidents/{name}/inject[?silent&force]`,
 `POST /api/incidents/inject-random[?seed&category]`, `GET /api/incidents/status`,
 `POST /api/incidents/hint`, `GET /api/incidents/history`,

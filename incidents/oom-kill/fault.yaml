@@ -14,3 +14,4 @@ detection:
   type: script
   script: checks/resolved.sh
   timeoutSeconds: 30
+expectAlert: LabFaultOOMKill

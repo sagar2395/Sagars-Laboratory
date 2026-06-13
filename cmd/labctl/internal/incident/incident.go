@@ -38,6 +38,10 @@ type Fault struct {
 	Target        Target        `yaml:"target" json:"target"`
 	Prerequisites Prerequisites `yaml:"prerequisites" json:"prerequisites"`
 	Detection     checks.Check  `yaml:"detection" json:"detection"` // passes ⇔ the fault is RESOLVED
+	// ExpectAlert names the Alertmanager alert this fault should fire (task
+	// 049). inject.sh arms the matching PrometheusRule from alerts/rule.yaml;
+	// `incident status` reports whether the page went out.
+	ExpectAlert string `yaml:"expectAlert,omitempty" json:"expectAlert,omitempty"`
 
 	Dir string `yaml:"-" json:"-"`
 }
@@ -115,9 +119,12 @@ type Active struct {
 type Engine struct {
 	ProjectRoot  string
 	DomainSuffix string
-	faults       map[string]*Fault
-	loadErrors   map[string]error
-	stateDir     string
+	// AlertmanagerURL is where Status queries fired alerts (task 049).
+	// Callers set it from ALERTMANAGER_URL or the ingress default.
+	AlertmanagerURL string
+	faults          map[string]*Fault
+	loadErrors      map[string]error
+	stateDir        string
 }
 
 // NewEngine scans incidents/ under the project root.
@@ -177,6 +184,12 @@ func loadFault(dir string) (*Fault, error) {
 	if f.Detection.Script != "" {
 		if _, err := os.Stat(filepath.Join(dir, f.Detection.Script)); err != nil {
 			return nil, fmt.Errorf("detection script %q not found in the fault directory", f.Detection.Script)
+		}
+	}
+	// A fault that promises a page must ship the rule that fires it.
+	if f.ExpectAlert != "" {
+		if _, err := os.Stat(filepath.Join(dir, "alerts", "rule.yaml")); err != nil {
+			return nil, fmt.Errorf("fault declares expectAlert %q but has no alerts/rule.yaml", f.ExpectAlert)
 		}
 	}
 	f.Dir = dir
@@ -354,6 +367,8 @@ type StatusResult struct {
 	Fault    *Fault        `json:"fault"`
 	Check    checks.Result `json:"check"`
 	Resolved bool          `json:"resolved"`
+	// Alert is set when the fault declares expectAlert: did the page fire?
+	Alert *AlertStatus `json:"alert,omitempty"`
 }
 
 // Status runs the active fault's detection check. When it passes, the
@@ -386,6 +401,9 @@ func (e *Engine) Status(ctx context.Context, runner *checks.Runner) (*StatusResu
 	result := runner.Run(ctx, e.resolveCheck(f.Detection))
 
 	res := &StatusResult{Active: active, Fault: f, Check: result, Resolved: result.Pass}
+	if f.ExpectAlert != "" {
+		res.Alert = queryAlert(ctx, runner.HTTPClient, e.AlertmanagerURL, f.ExpectAlert)
+	}
 	if result.Pass {
 		e.finishRun(active, f, "manual")
 		e.clearActive()

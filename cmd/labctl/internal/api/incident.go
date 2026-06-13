@@ -22,6 +22,12 @@ func (s *Server) incidentRunner() *checks.Runner {
 		promURL = "http://prometheus." + s.cfg.DomainSuffix
 	}
 	r.PrometheusURL = promURL
+	if s.incidents.AlertmanagerURL == "" {
+		s.incidents.AlertmanagerURL = os.Getenv("ALERTMANAGER_URL")
+		if s.incidents.AlertmanagerURL == "" {
+			s.incidents.AlertmanagerURL = "http://alertmanager." + s.cfg.DomainSuffix
+		}
+	}
 	return r
 }
 

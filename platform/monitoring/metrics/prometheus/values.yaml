@@ -119,7 +119,29 @@ prometheus:
 # Alertmanager
 alertmanager:
   enabled: true
-  
+
+  # Route lab-fault alerts (incidents/, task 049) to the pager webhook so
+  # on-call drills get a real page. Everything else keeps the null route.
+  # The webhook URL default targets the in-cluster pager service
+  # (services/pager); install.sh overrides it when ALERT_WEBHOOK_URL is set.
+  config:
+    route:
+      receiver: "null"
+      group_by: ['alertname']
+      routes:
+        - receiver: labfault-pager
+          matchers:
+            - labfault = "true"
+          group_wait: 10s
+          group_interval: 30s
+          repeat_interval: 5m
+    receivers:
+      - name: "null"
+      - name: labfault-pager
+        webhook_configs:
+          - url: http://pager.pager.svc.cluster.local:8080/alert
+            send_resolved: true
+
   alertmanagerSpec:
     storage:
       volumeClaimTemplate:
@@ -128,7 +150,7 @@ alertmanager:
           resources:
             requests:
               storage: 2Gi
-    
+
     resources:
       requests:
         cpu: 100m
@@ -136,9 +158,9 @@ alertmanager:
       limits:
         cpu: 200m
         memory: 256Mi
-  
+
   ingress:
-    enabled: false  # Keep Alertmanager internal for homelab
+    enabled: false  # exposed via the Traefik ingress created in install.sh instead
 
 # Grafana (managed by separate Grafana install script)
 grafana:
