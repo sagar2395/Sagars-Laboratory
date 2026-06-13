@@ -1,10 +1,15 @@
 # ROADMAP — Path to the Desired State
 
-> The single plan of record. Work phases top-to-bottom; within a phase, work by
-> task id. Status of each task lives in `.ai/state.json`; details in `.ai/tasks/`.
-> Last updated: 2026-06-01
+> The single plan of record. **Part I** (phases 0–7) is the original homelab
+> hardening plan — nearly complete. **Part II** (milestones M1–M6) is the
+> Platform Engineering Simulator era — the long-term build-out. Vision and
+> feature rationale: `docs/SIMULATOR.md`. Status of each task lives in
+> `.ai/state.json`; details in `.ai/tasks/`.
+> Last updated: 2026-06-11
 
 ---
+
+# Part I — Homelab hardening (phases 0–7)
 
 ## Desired end state
 
@@ -224,7 +229,7 @@ tribal knowledge required.
 
 ---
 
-## Task ↔ phase index
+## Task ↔ phase index (Part I)
 
 | Phase | Task ids |
 |-------|----------|
@@ -237,3 +242,176 @@ tribal knowledge required.
 | 6 | 026, 027, 038, 039 |
 | 7 | (docs/release — no numbered tasks) |
 | done | 001 |
+
+---
+
+# Part II — Platform Engineering Simulator (milestones M1–M6)
+
+> Vision and feature rationale: `docs/SIMULATOR.md`. Read it once before
+> working any Part II task. Milestones are ordered by priority; **M1 is the
+> foundation everything else builds on** (the `checks` primitive). M2–M3 are
+> the core simulator value. M4–M6 expand breadth and can be parallelized once
+> M1 is done.
+
+```
+M1  Scenario Engine v2 (checks, traffic, snapshot, catalog)   P0  ── gate
+                │
+   ┌────────────┼──────────────┐
+M2  Incident    M3  Learning &  M4  Stack
+    Engine          Assessment      Expansion        P0/P1
+   └────────────┴──────────────┘
+                │
+M5  Multi-Env & Day-2 Ops                            P2
+M6  Team Mode & New Runtimes                         P2
+```
+
+---
+
+## M1 — Scenario Engine v2 `[P0 — the gate for everything]`
+
+**Goal:** scenarios become verifiable simulations. Introduce `stages`,
+`objectives`, and machine-checkable `checks` to the scenario format; add the
+traffic generator, lab snapshot/reset, and external scenario packs.
+
+**Tasks**
+
+| Id | Title | Priority |
+|----|-------|----------|
+| 040 | Scenario format v2: stages, objectives, checks schema + parser | P0 |
+| 041 | Verification engine: `labctl scenario verify` with http/kubectl/promql/script check runners | P0 |
+| 042 | Traffic generator: k6-based load profiles as a platform service | P1 |
+| 043 | Lab snapshot & reset: `labctl lab snapshot/restore/reset` | P1 |
+| 044 | Scenario catalog: `labctl scenario install <git-url>` for external packs | P2 |
+
+**Exit criterion:** every existing scenario has at least 3 checks and
+`labctl scenario verify <name>` passes on a freshly activated scenario and
+fails when a component is deleted. Traffic profiles run against go-api.
+`lab reset` returns a dirty cluster to the post-init state in < 5 minutes.
+
+**Runbook:** `docs/runbooks/07-scenario-engine-v2.md`
+
+---
+
+## M2 — Incident Engine (game days) `[P0/P1 — depends on M1]`
+
+**Goal:** realistic, reversible production faults with guided resolution,
+MTTR measurement, and on-call drills.
+
+**Tasks**
+
+| Id | Title | Priority |
+|----|-------|----------|
+| 045 | Fault library: `incidents/<name>/` contract (inject.sh, resolve.sh, fault.yaml, hints.md) + first 6 faults | P0 |
+| 046 | `labctl incident` command group: inject / list / status / resolve / --random | P0 |
+| 047 | Progressive hints + solution walkthroughs (`labctl incident hint`) | P1 |
+| 048 | MTTR tracking: time-to-detect / time-to-resolve recorded per run | P1 |
+| 049 | On-call drill: Alertmanager → webhook receiver, full page-triage-fix loop | P2 |
+
+**Exit criterion:** `labctl incident inject --random` breaks the lab in a
+way that fires an alert; `incident status` detects resolution via the
+fault's check; MTTR is recorded and queryable. All faults are reversible
+via `resolve.sh` (the escape hatch).
+
+**Runbook:** `docs/runbooks/08-incident-engine.md`
+
+---
+
+## M3 — Learning & Assessment `[P1 — depends on M1; M2 enriches it]`
+
+**Goal:** guided learning paths and timed, auto-graded challenges with
+persistent scores — usable by individuals and by teams testing skills.
+
+**Tasks**
+
+| Id | Title | Priority |
+|----|-------|----------|
+| 050 | Learning path format (`learn/<path>/path.yaml`) + `labctl learn` command | P1 |
+| 051 | Challenge mode: timed runs, hidden hints, grade from checks (`labctl challenge`) | P1 |
+| 052 | Score & progress persistence in `.labctl/` + REST API endpoints | P1 |
+| 053 | Web UI: Learn, Challenges, and Leaderboard views | P2 |
+
+**Exit criterion:** a new user can `labctl learn start kubernetes-foundations`
+and complete a module with verified checks; a challenge produces a score
+(checks passed, time, hints used) that survives restarts and shows in the UI.
+
+**Runbook:** `docs/runbooks/09-learning-and-challenges.md`
+
+---
+
+## M4 — Stack Expansion `[P1/P2 — depends on M1]`
+
+**Goal:** swap and compare real-world stacks on identical workloads. Every
+new platform category ships with a scenario that uses it.
+
+**Tasks**
+
+| Id | Title | Priority |
+|----|-------|----------|
+| 054 | `platform/mesh` category: istio + linkerd providers | P1 |
+| 055 | `platform/data` category: kafka (strimzi) + postgres (cnpg) providers | P1 |
+| 056 | `platform/secrets` category: vault + external-secrets providers | P2 |
+| 057 | `platform/autoscaling` category: keda provider + scale-on-load scenario | P2 |
+| 058 | New scenarios: mesh-traffic-management, event-driven-arch, secrets-management | P1 |
+
+**Exit criterion:** `MESH_PROVIDER=istio labctl platform up mesh` then swap
+to linkerd on the same workload; the three new scenarios activate, verify,
+and deactivate cleanly on k3d.
+
+**Runbook:** `docs/runbooks/10-stack-expansion.md`
+
+---
+
+## M5 — Multi-Env & Day-2 Ops `[P2 — depends on M1, M4 (gitops)]`
+
+**Goal:** simulate release engineering across environments and the scary
+day-2 operations, locally and for free.
+
+**Tasks**
+
+| Id | Title | Priority |
+|----|-------|----------|
+| 059 | Multi-cluster env promotion: dev → staging → prod via GitOps, as a scenario | P2 |
+| 060 | Day-2 drills: cluster upgrade, node drain under load, backup/restore — as checked scenarios | P2 |
+| 061 | Cost & capacity: opencost provider + right-sizing exercise scenario | P2 |
+
+**Exit criterion:** an image promoted dev → prod purely via Git; the upgrade
+drill records measured downtime via checks; opencost shows per-namespace cost.
+
+**Runbook:** `docs/runbooks/11-multi-env-day2.md`
+
+---
+
+## M6 — Team Mode & New Runtimes `[P2 — last]`
+
+**Goal:** teams share one simulator deployment; broaden runtime support.
+
+**Tasks**
+
+| Id | Title | Priority |
+|----|-------|----------|
+| 062 | Optional auth + per-user RBAC on REST API / UI | P2 |
+| 063 | Team sessions: labctl server Helm chart for shared remote deploy + shared leaderboard | P2 |
+| 064 | New runtimes: kind (CI-friendly) and GKE | P2 |
+
+**Exit criterion:** two users with separate identities use one deployed
+simulator; their challenge scores appear on a shared leaderboard; `labctl
+runtime up --profile kind` works headless in CI.
+
+**Runbook:** `docs/runbooks/12-team-mode.md`
+
+---
+
+## Task ↔ milestone index (Part II)
+
+| Milestone | Priority | Task ids |
+|-----------|----------|----------|
+| M1 | P0 | 040, 041, 042, 043, 044 |
+| M2 | P0/P1 | 045, 046, 047, 048, 049 |
+| M3 | P1 | 050, 051, 052, 053 |
+| M4 | P1/P2 | 054, 055, 056, 057, 058 |
+| M5 | P2 | 059, 060, 061 |
+| M6 | P2 | 062, 063, 064 |
+
+**Picking the next task:** take the lowest-numbered unblocked task of the
+highest-priority milestone in `.ai/state.json` (`milestones` block tracks
+per-milestone status; `next` points at the recommended pick).

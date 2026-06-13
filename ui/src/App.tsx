@@ -8,16 +8,22 @@ import { Dashboard } from './views/Dashboard'
 import { Scenarios } from './views/Scenarios'
 import { Platform } from './views/Platform'
 import { Apps } from './views/Apps'
+import { Learn } from './views/Learn'
+import { Challenges } from './views/Challenges'
+import { Results } from './views/Results'
 import { api } from './api/client'
 import { completeJob, reconcileJobs, hasTrackedJobs, trackJob } from './lib/jobs'
 
-type Tab = 'dashboard' | 'scenarios' | 'platform' | 'apps'
+type Tab = 'dashboard' | 'scenarios' | 'platform' | 'apps' | 'learn' | 'challenges' | 'results'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'dashboard',  label: 'Dashboard'  },
   { id: 'scenarios',  label: 'Scenarios'  },
   { id: 'platform',   label: 'Platform'   },
   { id: 'apps',       label: 'Apps'       },
+  { id: 'learn',      label: 'Learn'      },
+  { id: 'challenges', label: 'Challenges' },
+  { id: 'results',    label: 'Results'    },
 ]
 
 let notifSeq = 0
@@ -264,9 +270,12 @@ export default function App() {
               requestConfirm={setConfirm}
             />
           )}
-          {tab === 'scenarios'  && <Scenarios notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
-          {tab === 'platform'   && <Platform  notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
-          {tab === 'apps'       && <Apps      notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
+          {tab === 'scenarios'  && <Scenarios   notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
+          {tab === 'platform'   && <Platform    notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
+          {tab === 'apps'       && <Apps        notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
+          {tab === 'learn'      && <Learn       notify={notify} refreshTick={refreshTick} />}
+          {tab === 'challenges' && <Challenges  notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
+          {tab === 'results'    && <Results     notify={notify} refreshTick={refreshTick} />}
         </ErrorBoundary>
       </main>
 

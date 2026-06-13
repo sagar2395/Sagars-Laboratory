@@ -14,6 +14,7 @@ import (
 
 	"github.com/sagars-lab/labctl/internal/config"
 	"github.com/sagars-lab/labctl/internal/executor"
+	"github.com/sagars-lab/labctl/internal/incident"
 	"github.com/sagars-lab/labctl/internal/platform"
 	"github.com/sagars-lab/labctl/internal/runtime"
 	"github.com/sagars-lab/labctl/internal/scenario"
@@ -22,28 +23,30 @@ import (
 
 // Server is the API server that backs the web UI.
 type Server struct {
-	cfg      *config.Config
-	exec     *executor.Executor
-	registry *platform.Registry
-	scenes   *scenario.Engine
-	svcs     *services.Registry
-	runtimes *runtime.Manager
-	router   *mux.Router
-	upgrader websocket.Upgrader
-	uiFS     fs.FS
+	cfg       *config.Config
+	exec      *executor.Executor
+	registry  *platform.Registry
+	scenes    *scenario.Engine
+	incidents *incident.Engine
+	svcs      *services.Registry
+	runtimes  *runtime.Manager
+	router    *mux.Router
+	upgrader  websocket.Upgrader
+	uiFS      fs.FS
 }
 
 // NewServer creates a new API server. The embeddedUI parameter should be the
 // embedded ui/dist filesystem (from go:embed). If nil or empty, the server
 // falls back to serving UI files from the project's ui/dist/ directory.
-func NewServer(cfg *config.Config, exec *executor.Executor, registry *platform.Registry, scenes *scenario.Engine, svcs *services.Registry, rtm *runtime.Manager, embeddedUI fs.FS) *Server {
+func NewServer(cfg *config.Config, exec *executor.Executor, registry *platform.Registry, scenes *scenario.Engine, incidents *incident.Engine, svcs *services.Registry, rtm *runtime.Manager, embeddedUI fs.FS) *Server {
 	s := &Server{
-		cfg:      cfg,
-		exec:     exec,
-		registry: registry,
-		scenes:   scenes,
-		svcs:     svcs,
-		runtimes: rtm,
+		cfg:       cfg,
+		exec:      exec,
+		registry:  registry,
+		scenes:    scenes,
+		incidents: incidents,
+		svcs:      svcs,
+		runtimes:  rtm,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: originAllowed,
 		},
@@ -89,6 +92,32 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/scenarios/{name}", s.handleScenarioInfo).Methods("GET", "OPTIONS")
 	api.HandleFunc("/scenarios/{name}/up", s.handleScenarioUp).Methods("POST", "OPTIONS")
 	api.HandleFunc("/scenarios/{name}/down", s.handleScenarioDown).Methods("POST", "OPTIONS")
+	api.HandleFunc("/scenarios/{name}/verify", s.handleScenarioVerify).Methods("POST", "OPTIONS")
+	api.HandleFunc("/incidents", s.handleListIncidents).Methods("GET", "OPTIONS")
+	api.HandleFunc("/incidents/inject-random", s.handleIncidentInjectRandom).Methods("POST", "OPTIONS")
+	api.HandleFunc("/incidents/status", s.handleIncidentStatus).Methods("GET", "OPTIONS")
+	api.HandleFunc("/incidents/resolve", s.handleIncidentResolve).Methods("POST", "OPTIONS")
+	api.HandleFunc("/incidents/hint", s.handleIncidentHint).Methods("POST", "OPTIONS")
+	api.HandleFunc("/incidents/history", s.handleIncidentHistory).Methods("GET", "OPTIONS")
+	api.HandleFunc("/incidents/{name}/inject", s.handleIncidentInject).Methods("POST", "OPTIONS")
+	api.HandleFunc("/lab/snapshots", s.handleLabSnapshots).Methods("GET", "OPTIONS")
+	api.HandleFunc("/lab/snapshots/{name}", s.handleLabSnapshotTake).Methods("POST", "OPTIONS")
+	api.HandleFunc("/lab/snapshots/{name}", s.handleLabSnapshotDelete).Methods("DELETE", "OPTIONS")
+	api.HandleFunc("/lab/snapshots/{name}/restore", s.handleLabRestore).Methods("POST", "OPTIONS")
+	api.HandleFunc("/lab/reset", s.handleLabReset).Methods("POST", "OPTIONS")
+	api.HandleFunc("/results", s.handleResults).Methods("GET", "OPTIONS")
+	api.HandleFunc("/results/{kind}", s.handleResultsByKind).Methods("GET", "OPTIONS")
+	api.HandleFunc("/progress", s.handleProgress).Methods("GET", "OPTIONS")
+	api.HandleFunc("/challenges", s.handleListChallenges).Methods("GET", "OPTIONS")
+	api.HandleFunc("/challenges/{name}", s.handleChallengeInfo).Methods("GET", "OPTIONS")
+	api.HandleFunc("/challenges/status", s.handleChallengeStatus).Methods("GET", "OPTIONS")
+	api.HandleFunc("/challenges/history", s.handleChallengeHistory).Methods("GET", "OPTIONS")
+	api.HandleFunc("/challenges/complete", s.handleChallengeMarkComplete).Methods("POST", "OPTIONS")
+	api.HandleFunc("/learn/paths", s.handleLearnPaths).Methods("GET", "OPTIONS")
+	api.HandleFunc("/learn/paths/{name}", s.handleLearnPath).Methods("GET", "OPTIONS")
+	api.HandleFunc("/learn/paths/{name}/start", s.handleLearnStart).Methods("POST", "OPTIONS")
+	api.HandleFunc("/learn/paths/{name}/progress", s.handleLearnProgress).Methods("GET", "OPTIONS")
+	api.HandleFunc("/learn/paths/{name}/complete", s.handleLearnMarkComplete).Methods("POST", "OPTIONS")
 	api.HandleFunc("/services", s.handleListServices).Methods("GET", "OPTIONS")
 	api.HandleFunc("/services/{name}/up", s.handleServiceUp).Methods("POST", "OPTIONS")
 	api.HandleFunc("/services/{name}/down", s.handleServiceDown).Methods("POST", "OPTIONS")

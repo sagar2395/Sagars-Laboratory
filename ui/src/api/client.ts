@@ -7,6 +7,13 @@ import type {
   Runtime,
   ActionAccepted,
   JobInfo,
+  LearnPathSummary,
+  LearnPath,
+  LearnProgress,
+  ChallengeSummary,
+  ChallengeStatus,
+  ChallengeRunRecord,
+  ResultRecord,
 } from '../types'
 
 const BASE = '/api'
@@ -84,6 +91,21 @@ export const api = {
   listRuntimes:     ()             => req<Runtime[]>('/runtimes'),
   activateRuntime:  (name: string) => post(`/runtimes/${enc(name)}/activate`),
   deactivateRuntime:(name: string) => post(`/runtimes/${enc(name)}/deactivate`),
+
+  // ── Learn ─────────────────────────────────────────────────────────────────
+  listLearnPaths:  ()             => req<LearnPathSummary[]>('/learn/paths'),
+  getLearnPath:    (name: string) => req<LearnPath>(`/learn/paths/${enc(name)}`),
+  getLearnProgress:(name: string) => req<LearnProgress>(`/learn/paths/${enc(name)}/progress`),
+  startLearnPath:  (name: string) => req<LearnProgress>(`/learn/paths/${enc(name)}/start`, { method: 'POST' }, POST_TIMEOUT_MS),
+
+  // ── Challenges ────────────────────────────────────────────────────────────
+  listChallenges:     ()             => req<ChallengeSummary[]>('/challenges'),
+  getChallengeStatus: ()             => req<ChallengeStatus>('/challenges/status'),
+  getChallengeHistory:()             => req<ChallengeRunRecord[]>('/challenges/history'),
+
+  // ── Results ───────────────────────────────────────────────────────────────
+  getResults:      ()             => req<ResultRecord[]>('/results'),
+  getResultsByKind:(kind: string) => req<ResultRecord[]>(`/results/${enc(kind)}`),
 }
 
 function enc(s: string) { return encodeURIComponent(s) }

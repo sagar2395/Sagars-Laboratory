@@ -178,3 +178,91 @@ export interface Notification {
 }
 
 export type NotifyFn = (level: NotifLevel, title: string, detail?: string) => void
+
+// ── Learn ─────────────────────────────────────────────────────────────────────
+
+export interface LearnPathSummary {
+  name: string
+  displayName: string
+  description: string
+  tags: string[]
+  estimatedMinutes: number
+  moduleCount: number
+  completedCount: number
+}
+
+export interface LearnModuleAction {
+  type: string
+  ref: string
+}
+
+export interface LearnModule {
+  name: string
+  displayName: string
+  hasIntro: boolean
+  action: LearnModuleAction
+  completed: boolean
+}
+
+export interface LearnPath {
+  name: string
+  displayName: string
+  description: string
+  tags: string[]
+  modules: LearnModule[]
+}
+
+export interface LearnProgress {
+  path: string
+  started: boolean
+  completed?: number[]
+  total?: number
+  nextIdx?: number
+  startedAt?: string
+  updatedAt?: string
+}
+
+// ── Challenges ────────────────────────────────────────────────────────────────
+
+export interface ChallengeSummary {
+  name: string
+  displayName: string
+  description: string
+  category: string
+  parTime: string
+}
+
+export interface ChallengeStatus {
+  active: boolean
+  challenge?: string
+  startedAt?: string
+  hintsUsed?: number
+  elapsed?: string
+}
+
+export interface ChallengeRunRecord {
+  challenge: string
+  startedAt: string
+  finishedAt: string
+  elapsedSeconds: number
+  hintsUsed: number
+  checksPassed: number
+  checksTotal: number
+  score: number
+  outcome: string
+}
+
+// ── Results ───────────────────────────────────────────────────────────────────
+
+export interface ResultRecord {
+  kind: string
+  name: string
+  user?: string
+  startedAt: string
+  endedAt: string
+  elapsedSeconds: number
+  score: number
+  outcome: string
+  hintsUsed?: number
+  meta?: Record<string, unknown>
+}

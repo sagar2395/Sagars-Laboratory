@@ -203,7 +203,7 @@ components:                          # What to install (in order)
 
   - name: my-setup
     type: script
-    path: scripts/setup.sh
+    script: scripts/setup.sh
 
 explore:
   urls:
@@ -235,13 +235,125 @@ URLs and commands support Go template variables:
 | `helm` | Adds Helm repo, installs chart with values file |
 | `manifest` | Applies Kubernetes YAML via `kubectl apply` |
 | `grafana-dashboard` | Creates ConfigMap from dashboard JSON files (picked up by Grafana sidecar) |
-| `script` | Runs a shell script from the scenario directory |
+| `script` | Runs a shell script (`script:` path relative to the scenario directory) |
+
+---
+
+## Scenario Format v2 — stages, objectives, checks
+
+Format v2 turns a scenario from "install these things" into a **verifiable
+simulation**. Three optional blocks extend the format above (v1 scenarios
+keep working unchanged):
+
+```yaml
+objectives:                          # human-readable goals
+  - "Aggregate application logs in Loki"
+  - "Keep p99 latency under 300ms"
+
+stages:                              # ordered groups of components
+  - name: baseline                   # replaces the flat components: list
+    description: Install the baseline stack
+    components:                      # same component schema as v1
+      - name: loki
+        type: helm
+        chart: grafana/loki
+        ...
+  - name: inject-failure
+    components: [...]
+
+checks:                              # machine-verifiable assertions
+  - name: loki-ready
+    type: kubectl                    # http | kubectl | promql | script
+    resource: statefulset/loki      # kubectl: type/name or a bare type (existence)
+    namespace: "{{.MonitoringNamespace}}"
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="                   # == != < <= > >= contains
+    value: "1"
+
+  - name: grafana-reachable
+    type: http
+    url: "http://grafana.{{.DomainSuffix}}"
+    expectStatus: 200                # default 200; bodyContains: optional
+
+  - name: latency-ok
+    type: promql                     # queries $PROMETHEUS_URL (default
+    query: 'histogram_quantile(...)' # http://prometheus.<DOMAIN_SUFFIX>)
+    operator: "<"
+    value: "0.3"
+
+  - name: custom
+    type: script                     # exit 0 = pass; runs with DOMAIN_SUFFIX,
+    script: checks/custom.sh         # MONITORING_NAMESPACE, PROJECT_ROOT set
+    timeoutSeconds: 60               # any check may override the 30s default
+```
+
+Rules (enforced at load time — an invalid scenario refuses to load and CI
+fails on it):
+
+- Use **either** `components` (v1) **or** `stages` (v2), never both.
+- Stage names, component names, and check names must be unique and non-empty.
+- Each check type accepts only its own fields (an `http` check with a
+  `query` is rejected, not ignored).
+- Checks run in declaration order; a failing check does not stop the rest.
+
+Run the checks with:
+
+```bash
+labctl scenario verify my-scenario            # one shot, exit 1 on failure
+labctl scenario verify my-scenario --watch    # poll until green or timeout
+```
+
+The same checks are the grading primitive for the upcoming incident engine
+and challenge mode (see `docs/SIMULATOR.md`) — write them as "what must be
+true when this scenario is healthy".
+
+## Scenario Packs — share scenarios via git
+
+Scenarios don't have to live in this repo. A **pack** is a git repository
+containing either one scenario (`scenario.yaml` at the root) or a
+collection of scenario directories. Install one with:
+
+```bash
+labctl scenario install https://github.com/org/chaos-pack.git          # default name: chaos-pack
+labctl scenario install https://github.com/org/chaos-pack.git@v1.2.0   # pin a tag/branch
+labctl scenario install <url> --name my-pack --force                   # rename / replace
+labctl scenario packs                                                  # list installed packs
+labctl scenario uninstall chaos-pack
+```
+
+How it behaves:
+
+- Packs are cloned into `.labctl/catalog/<pack>/` (runtime state, never
+  committed) and **validated wholesale before becoming visible** — one
+  invalid scenario rejects the entire pack, and nothing is left behind.
+- Pack scenarios appear in `scenario list` with their pack in the SOURCE
+  column and work with `up`, `down`, `verify`, `info` exactly like in-repo
+  scenarios.
+- Name collisions resolve in favor of in-repo scenarios; installing a pack
+  that collides is refused with the conflict named.
+- Asset paths in pack scenarios must stay inside the scenario directory —
+  absolute paths and `..` traversal are rejected at validation.
+- Packs are content snapshots (no auto-update). Upgrade by reinstalling
+  with `--force`. Uninstalling is refused while a pack scenario is active.
+
+**Security:** a pack's components run scripts and apply manifests on your
+cluster with your credentials. Only install packs from sources you trust,
+and review them first (`ls .labctl/catalog/<pack>` after install, or read
+the repo before installing).
+
+**Publishing a pack** is just publishing a git repo: lay out one directory
+per scenario, each with a `scenario.yaml` (prefer format v2 with checks so
+consumers can `scenario verify`), and tag releases. Test locally with
+`labctl scenario install file:///path/to/your/pack`.
 
 ## Creating a New Scenario
 
 1. Create directory: `scenarios/my-scenario/`
-2. Write `scenario.yaml` following the format above
+2. Write `scenario.yaml` following the format above (prefer v2 with checks)
 3. Add supporting files under `values/`, `manifests/`, `dashboards/` as needed
-4. Test: `labctl scenario up my-scenario`
+4. Test: `labctl scenario up my-scenario`, then `labctl scenario verify my-scenario`
 
-The scenario engine auto-discovers any directory under `scenarios/` that contains a valid `scenario.yaml`.
+The scenario engine auto-discovers any directory under `scenarios/` that
+contains a valid `scenario.yaml`. Schema validation runs in CI for every
+scenario in the repo (`cmd/labctl/internal/scenario/repo_test.go`), so a
+malformed scenario cannot merge to main.

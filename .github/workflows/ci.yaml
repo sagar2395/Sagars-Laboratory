@@ -14,6 +14,9 @@ on:
       - 'services/**'
       - 'bootstrap/**'
       - 'scenarios/**'
+      - 'incidents/**'
+      - 'learn/**'
+      - 'challenges/**'
       - 'foundation/terraform/**'
   pull_request:
     branches: [main]
@@ -27,6 +30,9 @@ on:
       - 'services/**'
       - 'bootstrap/**'
       - 'scenarios/**'
+      - 'incidents/**'
+      - 'learn/**'
+      - 'challenges/**'
       - 'foundation/terraform/**'
 
 env:
@@ -61,6 +67,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: gofmt
+        working-directory: cmd/labctl
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed on:"; echo "$unformatted"; exit 1
+          fi
       - name: Go vet
         working-directory: cmd/labctl
         run: go vet ./...
@@ -78,12 +91,12 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
       - name: shellcheck
         run: |
-          find engine platform runtimes services bootstrap -name '*.sh' \
+          find engine platform runtimes services bootstrap incidents scenarios learn challenges -name '*.sh' \
             -exec shellcheck --severity=warning {} +
       - name: Portability check (no GNU-only constructs)
         run: |
           if grep -rnE 'grep -oP|sed -i |readlink -f|date -d|stat -c' \
-               --include='*.sh' engine platform runtimes services bootstrap; then
+               --include='*.sh' engine platform runtimes services bootstrap incidents scenarios learn challenges; then
             echo "::error::GNU-only shell constructs found — fix before merging"
             exit 1
           fi
@@ -114,7 +127,7 @@ jobs:
       - name: Install yamllint
         run: pip install --quiet yamllint
       - name: Lint scenario and platform YAML
-        run: yamllint -d relaxed scenarios/ platform/
+        run: yamllint -d relaxed scenarios/ platform/ learn/ challenges/
 
   test-apps:
     name: Test apps

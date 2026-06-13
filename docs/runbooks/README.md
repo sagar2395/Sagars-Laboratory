@@ -4,10 +4,10 @@ These are step-by-step manual guides. Each one shows **how to use a feature** an
 **how to confirm it works**, so you can learn the system by doing and so AI
 sessions have an objective acceptance check beyond automated tests.
 
-Each runbook maps to a phase in `docs/ROADMAP.md`.
+Each runbook maps to a phase or milestone in `docs/ROADMAP.md`.
 
-| Runbook | Covers | Phase |
-|---------|--------|-------|
+| Runbook | Covers | Phase/Milestone |
+|---------|--------|-----------------|
 | [00-cross-platform-setup.md](00-cross-platform-setup.md) | Install tools + cluster on macOS / Linux | 0 |
 | [01-local-cluster-and-apps.md](01-local-cluster-and-apps.md) | init → deploy app → reach it → status | 1 |
 | [02-platform-and-status.md](02-platform-and-status.md) | Install/swap platform components, accurate status | 2 |
@@ -15,6 +15,15 @@ Each runbook maps to a phase in `docs/ROADMAP.md`.
 | [04-observability-scenario.md](04-observability-scenario.md) | Logs in Loki, traces in Tempo, dashboards | 4 |
 | [05-ci-cd.md](05-ci-cd.md) | CI checks + CD + ArgoCD sync | 5 |
 | [06-cloud-runtimes.md](06-cloud-runtimes.md) | Provision & tear down AKS/EKS | 6 |
+| [07-scenario-engine-v2.md](07-scenario-engine-v2.md) | Checks + `scenario verify`, traffic generator, lab snapshot/reset, scenario packs | M1 |
+| [08-incident-engine.md](08-incident-engine.md) | Fault library, game days, hints, MTTR history, on-call drill | M2 |
+| [09-learning-and-challenges.md](09-learning-and-challenges.md) | Learning paths, `labctl learn`, progress persistence | M3 |
+| 10-stack-expansion.md *(planned)* | Mesh, data, secrets, autoscaling stacks + scenarios | M4 |
+| 11-multi-env-day2.md *(planned)* | Env promotion, upgrade/drain/backup drills, cost | M5 |
+| 12-team-mode.md *(planned)* | Auth, shared deploy, game days, kind/GKE | M6 |
+
+*(planned)* runbooks are created by the first task of their milestone that
+ships a verifiable feature — golden rule 7 in `CLAUDE.md`.
 
 ## How to read a runbook
 

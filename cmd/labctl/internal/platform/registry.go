@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/sagars-lab/labctl/internal/executor"
@@ -47,6 +48,7 @@ type Registry struct {
 	ProjectRoot  string
 	monitoringNS string
 	providers    map[string][]Provider // category -> providers
+	stateDir     string                // .labctl/platform — install-intent markers
 }
 
 // NewRegistry scans the platform/ directory for available providers.
@@ -65,9 +67,58 @@ func NewRegistryWithNamespace(projectRoot, monitoringNS string) *Registry {
 		ProjectRoot:  projectRoot,
 		monitoringNS: monitoringNS,
 		providers:    make(map[string][]Provider),
+		stateDir:     filepath.Join(projectRoot, ".labctl", "platform"),
 	}
 	r.scan()
 	return r
+}
+
+// --- install-intent tracking -------------------------------------------------
+//
+// Successful installs/uninstalls through the registry leave a marker in
+// .labctl/platform/ so lab snapshot/reset (task 043) can know what labctl
+// put on the cluster without probing it. Installs done outside labctl
+// (raw make targets, manual helm) are not tracked — documented limitation.
+
+func markerFile(category, name string) string {
+	return strings.ReplaceAll(category, "/", "__") + "__" + name + ".installed"
+}
+
+func (r *Registry) markInstalled(category, name string) {
+	if err := os.MkdirAll(r.stateDir, 0755); err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(r.stateDir, markerFile(category, name)),
+		[]byte(category+"/"+name+"\n"), 0644)
+}
+
+func (r *Registry) markUninstalled(category, name string) {
+	_ = os.Remove(filepath.Join(r.stateDir, markerFile(category, name)))
+}
+
+// Installed returns the components installed through the registry, as sorted
+// "category/provider" strings (read from marker file contents, so category
+// nesting survives round-trips).
+func (r *Registry) Installed() []string {
+	entries, err := os.ReadDir(r.stateDir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".installed") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(r.stateDir, e.Name()))
+		if err != nil {
+			continue
+		}
+		if v := strings.TrimSpace(string(data)); v != "" {
+			out = append(out, v)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // GetProviders returns all providers for a given category.
@@ -104,7 +155,11 @@ func (r *Registry) Install(category, name string, exec *executor.Executor) error
 	if err != nil {
 		return err
 	}
-	return exec.RunScript(scriptPath)
+	if err := exec.RunScript(scriptPath); err != nil {
+		return err
+	}
+	r.markInstalled(category, name)
+	return nil
 }
 
 // InstallStreamed runs install.sh for a provider with output streaming.
@@ -117,8 +172,11 @@ func (r *Registry) InstallStreamed(category, name string, exec *executor.Executo
 	if err != nil {
 		return err
 	}
-	_, err = exec.RunScriptStreamed(fmt.Sprintf("Install %s/%s", category, name), scriptPath)
-	return err
+	if _, err = exec.RunScriptStreamed(fmt.Sprintf("Install %s/%s", category, name), scriptPath); err != nil {
+		return err
+	}
+	r.markInstalled(category, name)
+	return nil
 }
 
 // Uninstall runs the uninstall.sh for a provider.
@@ -135,7 +193,11 @@ func (r *Registry) Uninstall(category, name string, exec *executor.Executor) err
 	if err != nil {
 		return err
 	}
-	return exec.RunScript(scriptPath)
+	if err := exec.RunScript(scriptPath); err != nil {
+		return err
+	}
+	r.markUninstalled(category, name)
+	return nil
 }
 
 // UninstallStreamed runs uninstall.sh for a provider with output streaming.
@@ -152,8 +214,11 @@ func (r *Registry) UninstallStreamed(category, name string, exec *executor.Execu
 	if err != nil {
 		return err
 	}
-	_, err = exec.RunScriptStreamed(fmt.Sprintf("Uninstall %s/%s", category, name), scriptPath)
-	return err
+	if _, err = exec.RunScriptStreamed(fmt.Sprintf("Uninstall %s/%s", category, name), scriptPath); err != nil {
+		return err
+	}
+	r.markUninstalled(category, name)
+	return nil
 }
 
 // Status runs the status.sh for a provider.
