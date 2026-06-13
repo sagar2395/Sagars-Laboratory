@@ -89,4 +89,6 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringVar(&projectDir, "project-dir", "", "project root directory (auto-detected if not set)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable debug-level logging (config load, script exec, API calls)")
+
+	rootCmd.AddCommand(learnCmd())
 }

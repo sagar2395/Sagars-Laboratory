@@ -438,6 +438,54 @@ labctl check ingress
 
 ---
 
+### `labctl learn` — Guided learning paths
+
+Work through step-by-step learning paths that combine cluster setup, app
+deployment, scenarios, and incidents into structured modules with
+machine-verifiable completion checks.
+
+Progress is persisted in `.labctl/learn/` and survives CLI restarts.
+
+#### `labctl learn list`
+
+List all available learning paths with your current progress.
+
+```bash
+labctl learn list
+```
+
+#### `labctl learn start <path>`
+
+Start (or restart) a learning path.
+
+```bash
+labctl learn start kubernetes-foundations
+```
+
+#### `labctl learn next [path]`
+
+Show the next incomplete module's intro and objective, then run its
+completion check. Run this again after completing the task to verify
+and advance.
+
+```bash
+labctl learn next kubernetes-foundations           # verify + advance
+labctl learn next kubernetes-foundations --show-only  # show intro without checking
+```
+
+If there is only one path available, the path argument can be omitted.
+
+#### `labctl learn progress [path]`
+
+Show detailed progress for a path (or all paths if no argument given).
+
+```bash
+labctl learn progress
+labctl learn progress kubernetes-foundations
+```
+
+---
+
 ### Web UI
 
 #### `labctl ui`
