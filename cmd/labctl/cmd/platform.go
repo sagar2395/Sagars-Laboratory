@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sagars-lab/labctl/internal/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -34,6 +35,8 @@ func providerForCategory(category string) string {
 		return cfg.SecretsProvider
 	case "mesh":
 		return cfg.MeshProvider
+	case "data":
+		return cfg.DataProvider
 	default:
 		return ""
 	}
@@ -63,19 +66,38 @@ func resolveProvider(category string) (string, error) {
 		category, strings.Join(names, ", "), envVar)
 }
 
+// resolveTarget interprets a platform target argument as either a category
+// (whose provider is selected via env, or is the sole/only one) or an explicit
+// "category/provider" spec (e.g. data/kafka), returning the concrete
+// category + provider to act on.
+func resolveTarget(arg string) (category, provider string, err error) {
+	// 1. The whole arg is a category (possibly nested, e.g. monitoring/metrics).
+	if len(reg.GetProviders(arg)) > 0 {
+		p, e := resolveProvider(arg)
+		return arg, p, e
+	}
+	// 2. The arg is "category/provider" — split at the last slash.
+	if i := strings.LastIndex(arg, "/"); i > 0 {
+		cat, prov := arg[:i], arg[i+1:]
+		if _, e := reg.GetProvider(cat, prov); e == nil {
+			return cat, prov, nil
+		}
+	}
+	return "", "", fmt.Errorf("unknown platform target %q", arg)
+}
+
 func platformUpRun(cmd *cobra.Command, args []string) error {
-	// Per-category install: `labctl platform up <category>`.
+	// Per-target install: `labctl platform up <category|category/provider>`.
 	if len(args) == 1 {
-		category := args[0]
-		provider, err := resolveProvider(category)
+		category, provider, err := resolveTarget(args[0])
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Installing %s (%s)...\n", category, provider)
+		fmt.Printf("Installing %s/%s...\n", category, provider)
 		if err := reg.Install(category, provider, exec); err != nil {
-			return fmt.Errorf("%s install failed: %w", category, err)
+			return fmt.Errorf("%s/%s install failed: %w", category, provider, err)
 		}
-		fmt.Printf("\n%s installed successfully.\n", category)
+		fmt.Printf("\n%s/%s installed successfully.\n", category, provider)
 		return nil
 	}
 
@@ -106,18 +128,17 @@ func platformUpRun(cmd *cobra.Command, args []string) error {
 }
 
 func platformDownRun(cmd *cobra.Command, args []string) error {
-	// Per-category uninstall: `labctl platform down <category>`.
+	// Per-target uninstall: `labctl platform down <category|category/provider>`.
 	if len(args) == 1 {
-		category := args[0]
-		provider, err := resolveProvider(category)
+		category, provider, err := resolveTarget(args[0])
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Uninstalling %s (%s)...\n", category, provider)
+		fmt.Printf("Uninstalling %s/%s...\n", category, provider)
 		if err := reg.Uninstall(category, provider, exec); err != nil {
-			return fmt.Errorf("%s uninstall failed: %w", category, err)
+			return fmt.Errorf("%s/%s uninstall failed: %w", category, provider, err)
 		}
-		fmt.Printf("\n%s uninstalled.\n", category)
+		fmt.Printf("\n%s/%s uninstalled.\n", category, provider)
 		return nil
 	}
 
@@ -140,22 +161,22 @@ func platformDownRun(cmd *cobra.Command, args []string) error {
 }
 
 var platformUpCmd = &cobra.Command{
-	Use:   "up [category]",
-	Short: "Install all platform components, or a single category (e.g. mesh)",
+	Use:   "up [category|category/provider]",
+	Short: "Install all platform components, or one (e.g. mesh, data/kafka)",
 	Args:  cobra.MaximumNArgs(1),
 	RunE:  platformUpRun,
 }
 
 var platformDownCmd = &cobra.Command{
-	Use:   "down [category]",
-	Short: "Uninstall all platform components, or a single category (e.g. mesh)",
+	Use:   "down [category|category/provider]",
+	Short: "Uninstall all platform components, or one (e.g. mesh, data/kafka)",
 	Args:  cobra.MaximumNArgs(1),
 	RunE:  platformDownRun,
 }
 
 var platformStatusCmd = &cobra.Command{
-	Use:   "status [category]",
-	Short: "Show platform component status (all, or a single category)",
+	Use:   "status [category|category/provider]",
+	Short: "Show platform component status (all, or one target)",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		categories := reg.Categories()
@@ -164,12 +185,21 @@ var platformStatusCmd = &cobra.Command{
 			return nil
 		}
 
-		// Per-category status: `labctl platform status <category>`.
+		// Per-target status: `labctl platform status <category|category/provider>`.
 		if len(args) == 1 {
 			cat := args[0]
 			providers := reg.GetProviders(cat)
+			// Allow a single "category/provider" target (e.g. data/kafka).
 			if len(providers) == 0 {
-				return fmt.Errorf("unknown platform category %q", cat)
+				if c, p, err := resolveTarget(cat); err == nil {
+					if pr, e := reg.GetProvider(c, p); e == nil {
+						cat = c
+						providers = []platform.Provider{*pr}
+					}
+				}
+			}
+			if len(providers) == 0 {
+				return fmt.Errorf("unknown platform target %q", cat)
 			}
 			for _, p := range providers {
 				if p.HasScript("status.sh") {

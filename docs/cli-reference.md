@@ -129,37 +129,42 @@ labctl app destroy go-api
 
 Manage platform infrastructure components (ingress, monitoring, etc.).
 
-#### `labctl platform up [category]`
+#### `labctl platform up [category|category/provider]`
 
 Install all platform components based on the configured providers, or a single
-category when one is named.
+target when one is named. A target is either a **category** (its provider is
+chosen via env var or is the only one) or an explicit **`category/provider`**
+spec for additive categories like `data`.
 
 ```bash
-labctl platform up                       # full stack (ingress + monitoring)
-MESH_PROVIDER=istio labctl platform up mesh   # just the service mesh
+labctl platform up                         # full stack (ingress + monitoring)
+MESH_PROVIDER=istio labctl platform up mesh # a category — provider via env var
+labctl platform up data/kafka              # a specific provider (additive)
+labctl platform up data/postgres
 ```
 
 Installs components selected by `INGRESS_PROVIDER`, `METRICS_PROVIDER`,
 `MESH_PROVIDER`, etc. in `.env`. When a category has more than one provider and
 none is selected, the command lists the choices and the env var to set.
 
-#### `labctl platform down [category]`
+#### `labctl platform down [category|category/provider]`
 
-Uninstall all platform components, or a single category when one is named.
+Uninstall all platform components, or a single target when one is named.
 
 ```bash
-labctl platform down                     # full stack
-MESH_PROVIDER=istio labctl platform down mesh # just the service mesh
+labctl platform down                       # full stack
+MESH_PROVIDER=istio labctl platform down mesh
+labctl platform down data/kafka
 ```
 
-#### `labctl platform status [category]`
+#### `labctl platform status [category|category/provider]`
 
-Show the status of all discovered platform components by category, or just one
-category when named.
+Show the status of all discovered platform components, or just one target.
 
 ```bash
 labctl platform status
 labctl platform status mesh
+labctl platform status data/postgres
 ```
 
 ---

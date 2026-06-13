@@ -127,6 +127,34 @@ MESH_PROVIDER=linkerd labctl platform up mesh
 > comfortable with a meshed app running). Linkerd needs `openssl` on the host
 > for portable mTLS identity cert generation — no `step` CLI required.
 
+### Data (`data/`)
+
+Stateful data infrastructure driven by Kubernetes operators. Unlike most
+categories these are **additive sub-components** (like `monitoring/*`): `kafka`
+and `postgres` coexist. Address each as `data/<provider>`.
+
+| Provider | Operator chart | Cluster | Ready signal |
+|----------|----------------|---------|--------------|
+| **kafka** | `strimzi/strimzi-kafka-operator` | Kafka (KRaft) + KafkaNodePool, 1 dual-role node, ephemeral | `kafka/<name>` condition `Ready=True` |
+| **postgres** | `cnpg/cloudnative-pg` | `Cluster`, 2 instances (1 primary + 1 replica) | `readyInstances == spec.instances` |
+
+Each provider owns its own namespace (kafka → `kafka`, postgres → `postgres`;
+CNPG's operator lives in `cnpg-system`) so installing/removing one never
+disturbs the other. Chart/app versions are pinned in `versions.env`
+(`STRIMZI_VERSION`, `KAFKA_VERSION`, `CNPG_CHART_VERSION`) and overridable.
+
+```bash
+labctl platform up   data/kafka       # Strimzi operator + 1-broker Kafka
+labctl platform up   data/postgres    # CNPG operator + 2-instance Postgres
+labctl platform status data/postgres  # CR readiness + per-pod roles
+labctl platform down data/kafka       # remove operator + CR + PVCs + namespace
+# or via make: make platform-data-up   (both)   /  make platform-data-kafka-up
+```
+
+CNPG's built-in failover is a ready-made day-2 drill — delete the primary pod
+and watch a replica promote (see the runbook). Kafka ships a kcat
+produce/consume smoke test in the runbook.
+
 ## Provider Interface Contracts
 
 Each category has an `_interface.yaml` documenting:

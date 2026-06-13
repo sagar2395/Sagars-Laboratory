@@ -88,12 +88,95 @@ MESH_PROVIDER=linkerd bin/labctl platform down mesh   # or istio, whichever is a
 
 ---
 
-## Acceptance check (task 054)
+### Acceptance check (task 054)
 
 - [x] `MESH_PROVIDER=istio labctl platform up mesh` meshes go-api (sidecar visible)
 - [x] Swapping to linkerd on the same cluster works after uninstall
 - [x] `status.sh` reports mesh health accurately for both providers
 - [x] Scripts portable + idempotent; versions pinned in `versions.env`
 
-> Data, secrets, and autoscaling sections (tasks 055–057) and the new scenarios
+---
+
+## Data Infrastructure (task 055)
+
+The `data` category holds **additive sub-components** — `data/kafka` (Strimzi)
+and `data/postgres` (CloudNativePG) coexist on one cluster. Each owns its own
+namespace, so you install/remove them independently. Versions are pinned in
+`versions.env` (`STRIMZI_VERSION`, `KAFKA_VERSION`, `CNPG_CHART_VERSION`).
+
+### Kafka (Strimzi) — install + produce/consume smoke test
+
+```bash
+# 1. Install the operator + a 1-broker KRaft Kafka cluster (ephemeral storage)
+bin/labctl platform up data/kafka
+#   ...or:  make platform-data-kafka-up
+
+# 2. Confirm readiness (operator ready + Kafka CR Ready=True)
+bin/labctl platform status data/kafka
+
+# 3. Produce a couple of messages with kcat, then consume them back
+kubectl -n kafka run kcat-prod --rm -i --image=edenhill/kcat:1.7.1 --restart=Never -- \
+  -b lab-kafka-kafka-bootstrap:9092 -t demo -P <<'MSGS'
+hello
+world
+MSGS
+
+kubectl -n kafka run kcat-cons --rm -i --image=edenhill/kcat:1.7.1 --restart=Never -- \
+  -b lab-kafka-kafka-bootstrap:9092 -t demo -C -e -o beginning
+# => prints: hello / world
+```
+
+**Expected:** `status data/kafka` shows `Ready: True`; the consumer prints the
+two messages the producer sent. Re-running `platform up data/kafka` is a no-op.
+
+### Postgres (CloudNativePG) — install + failover drill
+
+```bash
+# 1. Install the operator + a 2-instance HA Postgres cluster
+bin/labctl platform up data/postgres
+#   ...or:  make platform-data-postgres-up
+
+# 2. Confirm 2/2 ready and note the current primary + per-pod roles
+bin/labctl platform status data/postgres
+
+# 3. Connect with psql (from inside the cluster)
+kubectl -n postgres exec -it lab-postgres-1 -- psql -U postgres -c '\l'
+
+# 4. Failover drill: delete the primary, watch a replica get promoted
+kubectl -n postgres delete pod \
+  "$(kubectl -n postgres get pod -l cnpg.io/instanceRole=primary -o name)"
+kubectl -n postgres get pods -l cnpg.io/cluster=lab-postgres -w   # Ctrl-C when settled
+bin/labctl platform status data/postgres   # currentPrimary now points at the other pod
+```
+
+**Expected:** after step 4 the deleted primary is replaced and a former replica
+is promoted (`currentPrimary` changes); the cluster returns to `2/2` ready.
+
+### Cleanup
+
+```bash
+bin/labctl platform down data/kafka       # removes operator + CR + PVCs + namespace
+bin/labctl platform down data/postgres    # removes operator + Cluster + PVCs + namespaces
+```
+
+### Troubleshooting
+
+- **`platform up data` errors "multiple providers":** that's intentional — name
+  the sub-component (`data/kafka` or `data/postgres`), or set `DATA_PROVIDER`.
+- **Kafka CR stuck not-Ready:** check the operator logs
+  (`kubectl logs -n kafka deploy/strimzi-cluster-operator`) and that
+  `KAFKA_VERSION` is supported by the installed `STRIMZI_VERSION`.
+- **Postgres pods `Pending` (storage/memory):** k3d's `local-path` provisioner
+  must be healthy; lower `POSTGRES_INSTANCES` or raise k3d memory if needed.
+- **PVCs left behind:** uninstall deletes PVCs labelled with the cluster; if you
+  changed `*_CLUSTER`, delete leftovers with the matching label selector.
+
+### Acceptance check (task 055)
+
+- [x] `labctl platform up data/kafka` yields a ready Kafka cluster (kcat smoke test)
+- [x] `labctl platform up data/postgres` yields a ready 2-instance cluster; deleting the primary triggers failover
+- [x] Uninstall removes operators + CRs + PVCs cleanly
+- [x] Versions pinned; scripts portable + idempotent
+
+> Secrets and autoscaling sections (tasks 056–057) and the new scenarios
 > (task 058) are appended here as those tasks ship.

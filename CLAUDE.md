@@ -35,8 +35,9 @@ boundary.
   **M1, M2, and M3 are complete** (scenario engine v2; incident engine incl.
   hints, MTTR, on-call drill; learning paths, challenge mode, unified results
   store, and UI Learn/Challenges/Results views). **M4 is underway:** task 054
-  (service-mesh category — istio + linkerd via `MESH_PROVIDER`, plus per-category
-  `platform up/down/status <category>`) is done. Next: 055 (data platform).
+  (service-mesh category — istio + linkerd) and 055 (data category — kafka/strimzi
+  + postgres/cnpg, addressed as `data/<provider>`) are done; `platform up/down/status`
+  now take a `category` or `category/provider` target. Next: 056 (secrets platform).
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**

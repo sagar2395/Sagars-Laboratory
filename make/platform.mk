@@ -109,9 +109,43 @@ platform-mesh-status:
 	@echo "=== Mesh ($(MESH_PROVIDER)) Status ==="
 	@bash platform/mesh/$(MESH_PROVIDER)/status.sh
 
+# Data infrastructure (additive sub-components: kafka, postgres).
+# Address each independently — they coexist like the monitoring/* components.
+platform-data-kafka-up:
+	@echo "[platform] data: kafka (Strimzi)"
+	bash platform/data/kafka/install.sh
+
+platform-data-kafka-down:
+	@echo "[platform] removing data: kafka"
+	@bash platform/data/kafka/uninstall.sh
+
+platform-data-kafka-status:
+	@echo "=== Data: Kafka Status ==="
+	@bash platform/data/kafka/status.sh
+
+platform-data-postgres-up:
+	@echo "[platform] data: postgres (CloudNativePG)"
+	bash platform/data/postgres/install.sh
+
+platform-data-postgres-down:
+	@echo "[platform] removing data: postgres"
+	@bash platform/data/postgres/uninstall.sh
+
+platform-data-postgres-status:
+	@echo "=== Data: Postgres Status ==="
+	@bash platform/data/postgres/status.sh
+
+# Convenience aggregates for the whole data category.
+platform-data-up: platform-data-kafka-up platform-data-postgres-up
+platform-data-down: platform-data-postgres-down platform-data-kafka-down
+platform-data-status: platform-data-kafka-status platform-data-postgres-status
+
 .PHONY: platform-up platform-down platform-status \
         platform-ingress-up platform-ingress-down platform-ingress-status \
         platform-monitoring-up platform-monitoring-down platform-monitoring-status \
         platform-logging-up platform-logging-down platform-logging-status \
         platform-tracing-up platform-tracing-down platform-tracing-status \
-        platform-mesh-up platform-mesh-down platform-mesh-status
+        platform-mesh-up platform-mesh-down platform-mesh-status \
+        platform-data-up platform-data-down platform-data-status \
+        platform-data-kafka-up platform-data-kafka-down platform-data-kafka-status \
+        platform-data-postgres-up platform-data-postgres-down platform-data-postgres-status
