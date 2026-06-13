@@ -2,7 +2,7 @@
 
 > Read this file first in every session. It is the lean entry point.
 > Anything deeper lives in `docs/` — only open those when the task needs them.
-> Last updated: 2026-06-11
+> Last updated: 2026-06-13
 
 ---
 
@@ -18,7 +18,7 @@ scripts and declarative YAML to:
 - install **swappable** platform components (ingress, monitoring, logging,
   tracing, GitOps, security, chaos; mesh/data/secrets/autoscaling planned),
 - activate declarative **scenarios** with verifiable `checks`,
-- inject **incidents**, run **learning paths** and graded **challenges** (planned),
+- inject **incidents**, run **learning paths** and graded **challenges**,
 - and tear it all down in minutes.
 
 Vision & feature catalog: `docs/SIMULATOR.md`. The core idea: **the CLI
@@ -32,10 +32,10 @@ boundary.
   four original scenarios work on macOS + Linux with k3d.
 - ❌ Cloud runtimes (AKS/EKS) never verified against real accounts (tasks 038/039).
 - 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
-  **M1 and M2 are complete** (scenario engine v2; incident engine incl.
-  hints, MTTR, on-call drill — the drill still needs one live-cluster
-  verification pass, see runbook 08 §9). Next: M3, learning & assessment
-  (050–053).
+  **M1, M2, and M3 are complete** (scenario engine v2; incident engine incl.
+  hints, MTTR, on-call drill; learning paths, challenge mode, unified results
+  store, and UI Learn/Challenges/Results views). Next: M4, stack expansion
+  (054–058).
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**

@@ -1,9 +1,6 @@
 # Runbook 09 — Learning Paths & Challenges
 
-Covers milestone **M3** (tasks 050–053).
-
-> Task 053 (UI views) is still in progress. This runbook covers
-> tasks 050 and 051: learning paths and challenge mode.
+Covers milestone **M3** (tasks 050–053). All tasks complete.
 
 ## Prereqs
 
@@ -177,6 +174,55 @@ bin/labctl incident resolve 2>/dev/null || true
 rm -f .labctl/learn/kubernetes-foundations.json
 rm -f .labctl/challenges/active.json
 ```
+
+---
+
+## Part C — UI Views (task 053)
+
+The web UI (`labctl ui`) now includes three new tabs alongside Dashboard,
+Scenarios, Platform, and Apps.
+
+### 14. Learn tab
+
+Open `http://localhost:8080` → click **Learn**.
+
+**Expected:**
+- A card lists all paths (e.g. `kubernetes-foundations`) with a progress
+  bar showing `0%` (or current completion if already started).
+- Click **Start** on a not-yet-started path — the server creates the
+  progress record and the button disappears, replaced by the progress bar.
+- Click **Details** to open a modal showing all modules with `✓`, `▶`
+  (next), `Pending`, or `Locked` badges.
+
+### 15. Challenges tab
+
+Open the **Challenges** tab.
+
+**Expected:**
+- Challenge cards list each challenge with category, par time, and best
+  score if previously attempted.
+- Click **Start** — a confirmation dialog warns about the scoring
+  penalty for hints. Confirm to start the timer.
+- A live timer banner appears at the top while a challenge is active.
+- **Hint (–10pts)** button is available in the active challenge's row;
+  confirming shows the hint text in a notification and deducts 10 points.
+- **Submit** (in the active banner) grades the challenge and shows the
+  score in a notification.
+- **Abort** (in the active banner) records score 0 / outcome `aborted`.
+- The **Run History** table below shows all past runs with time, score,
+  and outcome.
+
+### 16. Results tab
+
+Open the **Results** tab.
+
+**Expected:**
+- Summary stat cards show total runs, incident count, challenge count,
+  module count, and average challenge score.
+- The run history table lists all records (newest first) with type, name,
+  date, duration, score, and outcome badges.
+- The **All types** dropdown filters the table by kind
+  (`Incident`, `Challenge`, `Learn Module`).
 
 ## Troubleshooting
 

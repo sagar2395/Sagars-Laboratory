@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "053-ui-learn-challenge-views",
+  "next": "054-mesh-platform-category",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -28,7 +28,7 @@
     },
     "M3-learning-assessment": {
       "priority": "P1",
-      "status": "in_progress",
+      "status": "done",
       "tasks": [
         "050",
         "051",
@@ -39,7 +39,7 @@
         "M1-scenario-engine-v2",
         "M2-incident-engine"
       ],
-      "note": "Tasks 050-052 done: learning paths, challenge mode, unified results store + REST API."
+      "note": "Complete: learning paths, challenge mode, unified results store + REST API, UI Learn/Challenges/Results views."
     },
     "M4-stack-expansion": {
       "priority": "P1",
@@ -91,7 +91,6 @@
     }
   },
   "todo": [
-    "053-ui-learn-challenge-views",
     "054-mesh-platform-category",
     "055-data-platform-category",
     "056-secrets-platform-category",
@@ -121,6 +120,7 @@
     "050-learning-paths",
     "051-challenge-mode",
     "052-score-persistence-api",
+    "053-ui-learn-challenge-views",
     "004-improve-runtime-detection-and-status-reporting",
     "005-make-platform-targets-provider-aware",
     "009-add-helm-pre-deploy-lint-and-readiness-wait",
