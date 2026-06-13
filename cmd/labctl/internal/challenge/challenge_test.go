@@ -29,7 +29,7 @@ func makeEngine(t *testing.T) (*Engine, string) {
 	if err := os.MkdirAll(cDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	e := New(cDir, sDir)
+	e := New(cDir, sDir, "")
 	fixed := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	e.now = func() time.Time { return fixed }
 	return e, cDir

@@ -14,7 +14,7 @@ func makeEngine(t *testing.T) (*Engine, string) {
 	if err := os.MkdirAll(learnDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	e := New(learnDir, stateDir)
+	e := New(learnDir, stateDir, "")
 	e.now = func() string { return "2026-01-01T00:00:00Z" }
 	return e, learnDir
 }

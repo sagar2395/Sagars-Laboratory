@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sagars-lab/labctl/internal/results"
 	"gopkg.in/yaml.v3"
 )
 
@@ -116,14 +117,17 @@ type RunRecord struct {
 type Engine struct {
 	challengeDir string
 	stateDir     string
+	resultsDir   string // directory for the unified results store
 	now          func() time.Time
 }
 
-// New creates a Engine.
-func New(challengeDir, stateDir string) *Engine {
+// New creates a Engine.  resultsDir is the directory containing results.jsonl
+// (typically .labctl/history); pass empty string to disable unified store writes.
+func New(challengeDir, stateDir, resultsDir string) *Engine {
 	return &Engine{
 		challengeDir: challengeDir,
 		stateDir:     stateDir,
+		resultsDir:   resultsDir,
 		now:          time.Now,
 	}
 }
@@ -251,6 +255,25 @@ func (e *Engine) Complete(passed, total int, outcome string) (*RunRecord, error)
 	}
 	if err := e.appendHistory(rec); err != nil {
 		return rec, err
+	}
+	// Also write to the unified results store (best effort).
+	if e.resultsDir != "" {
+		r := results.Record{
+			Kind:      results.KindChallenge,
+			Name:      rec.ChallengeName,
+			User:      results.CurrentUser(),
+			StartedAt: rec.StartedAt,
+			EndedAt:   rec.FinishedAt,
+			Elapsed:   int64(elapsed.Seconds()),
+			Score:     rec.Score,
+			Outcome:   rec.Outcome,
+			HintsUsed: rec.HintsUsed,
+			Meta: map[string]interface{}{
+				"checksPassed": rec.ChecksPassed,
+				"checksTotal":  rec.ChecksTotal,
+			},
+		}
+		_ = results.NewStore(e.resultsDir).Append(r)
 	}
 	return rec, os.Remove(e.activeFile())
 }

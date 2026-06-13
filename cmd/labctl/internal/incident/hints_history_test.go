@@ -175,8 +175,9 @@ func TestHistory_SkipsCorruptLines(t *testing.T) {
 	e, root := testEngine(t, "fault-a")
 	dir := filepath.Join(root, ".labctl", "history")
 	os.MkdirAll(dir, 0755)
-	os.WriteFile(filepath.Join(dir, "incidents.jsonl"),
-		[]byte("{\"fault\":\"fault-a\",\"resolvedBy\":\"manual\"}\nnot-json\n"), 0644)
+	// Write one valid unified record and one corrupt line.
+	os.WriteFile(filepath.Join(dir, "results.jsonl"),
+		[]byte(`{"kind":"incident","name":"fault-a","startedAt":"2026-01-01T00:00:00Z","endedAt":"2026-01-01T00:05:00Z","elapsedSeconds":300,"score":-1,"outcome":"resolved"}`+"\nnot-json\n"), 0644)
 
 	recs, err := e.History()
 	if err != nil || len(recs) != 1 {

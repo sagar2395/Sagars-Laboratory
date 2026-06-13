@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sagars-lab/labctl/internal/results"
 	"gopkg.in/yaml.v3"
 )
 
@@ -102,17 +103,20 @@ type Progress struct {
 
 // Engine manages learning paths and per-path progress.
 type Engine struct {
-	learnDir string
-	stateDir string
-	now      func() string // injectable for tests
+	learnDir   string
+	stateDir   string
+	resultsDir string // directory for the unified results store (empty = disabled)
+	now        func() string
 }
 
 // New creates an Engine rooted at learnDir with progress persisted in stateDir.
-func New(learnDir, stateDir string) *Engine {
+// resultsDir is the directory for the unified results store (e.g. .labctl/history).
+func New(learnDir, stateDir, resultsDir string) *Engine {
 	return &Engine{
-		learnDir: learnDir,
-		stateDir: stateDir,
-		now:      func() string { return time.Now().Format(time.RFC3339) },
+		learnDir:   learnDir,
+		stateDir:   stateDir,
+		resultsDir: resultsDir,
+		now:        func() string { return time.Now().Format(time.RFC3339) },
 	}
 }
 
@@ -205,6 +209,20 @@ func (e *Engine) StartPath(name string) (*Progress, error) {
 
 // MarkComplete records module at idx as complete.
 func (e *Engine) MarkComplete(prog *Progress, idx int) error {
+	return e.markComplete(prog, idx, "")
+}
+
+// MarkCompleteModule records module at idx as complete and writes a unified
+// result record naming the module as "<pathName>/<moduleName>".
+func (e *Engine) MarkCompleteModule(p *Path, prog *Progress, idx int) error {
+	moduleName := ""
+	if idx >= 0 && idx < len(p.Modules) {
+		moduleName = p.Modules[idx].Name
+	}
+	return e.markComplete(prog, idx, p.Name+"/"+moduleName)
+}
+
+func (e *Engine) markComplete(prog *Progress, idx int, recordName string) error {
 	for _, c := range prog.CompletedIdxs {
 		if c == idx {
 			return nil
@@ -212,7 +230,24 @@ func (e *Engine) MarkComplete(prog *Progress, idx int) error {
 	}
 	prog.CompletedIdxs = append(prog.CompletedIdxs, idx)
 	prog.LastUpdatedAt = e.now()
-	return e.saveProgress(prog)
+	if err := e.saveProgress(prog); err != nil {
+		return err
+	}
+	// Write to the unified results store (best effort).
+	if e.resultsDir != "" && recordName != "" {
+		now := time.Now()
+		r := results.Record{
+			Kind:      results.KindModule,
+			Name:      recordName,
+			User:      results.CurrentUser(),
+			StartedAt: now,
+			EndedAt:   now,
+			Score:     -1,
+			Outcome:   "completed",
+		}
+		_ = results.NewStore(e.resultsDir).Append(r)
+	}
+	return nil
 }
 
 // NextModuleIdx returns the index of the next incomplete module, or -1 if done.

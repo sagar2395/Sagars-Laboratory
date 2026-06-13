@@ -1,20 +1,18 @@
 package incident
 
-// MTTR tracking (task 048): every completed incident run is appended to an
-// append-only JSONL file in .labctl/history/. Time-to-detect is proxied by
-// the first `incident status` call; time-to-resolve is when the detection
-// check first passes (or the escape hatch runs). Task 052 will fold this
-// into the unified results store.
+// MTTR tracking (task 048): every completed incident run is recorded in the
+// unified results store (.labctl/history/results.jsonl) with kind=incident.
+// task 052 completed the migration from the per-engine incidents.jsonl.
 
 import (
-	"bufio"
-	"encoding/json"
-	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/sagars-lab/labctl/internal/results"
 )
 
-// Record is one completed incident run.
+// Record is a view of a completed incident run, reconstructed from the
+// unified results.Record for the `labctl incident history` display.
 type Record struct {
 	Fault          string    `json:"fault"`
 	Category       string    `json:"category"`
@@ -23,79 +21,99 @@ type Record struct {
 	InjectedAt     time.Time `json:"injectedAt"`
 	FirstCheckedAt time.Time `json:"firstCheckedAt,omitempty"`
 	ResolvedAt     time.Time `json:"resolvedAt"`
-	// DetectSeconds: injection → first status check (how long until someone looked).
-	DetectSeconds int64 `json:"detectSeconds,omitempty"`
-	// ResolveSeconds: injection → resolution (the MTTR).
-	ResolveSeconds int64 `json:"resolveSeconds"`
-	HintsUsed      int   `json:"hintsUsed"`
-	// ResolvedBy: "manual" (detection check passed) or "auto" (resolve.sh
-	// escape hatch — scores as a non-completion in challenge mode).
-	ResolvedBy string `json:"resolvedBy"`
+	DetectSeconds  int64     `json:"detectSeconds,omitempty"`
+	ResolveSeconds int64     `json:"resolveSeconds"`
+	HintsUsed      int       `json:"hintsUsed"`
+	ResolvedBy     string    `json:"resolvedBy"`
 }
 
-func (e *Engine) historyFile() string {
-	return filepath.Join(e.ProjectRoot, ".labctl", "history", "incidents.jsonl")
+func (e *Engine) resultsStore() *results.Store {
+	return results.NewStore(filepath.Join(e.ProjectRoot, ".labctl", "history"))
 }
 
-func (e *Engine) appendHistory(rec Record) error {
-	if err := os.MkdirAll(filepath.Dir(e.historyFile()), 0755); err != nil {
-		return err
-	}
-	f, err := os.OpenFile(e.historyFile(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	data, err := json.Marshal(rec)
-	if err != nil {
-		return err
-	}
-	_, err = f.Write(append(data, '\n'))
-	return err
-}
-
-// History returns all recorded runs, oldest first. Corrupt lines are
-// skipped — history must never block operations.
+// History returns all recorded incident runs, oldest first.
 func (e *Engine) History() ([]Record, error) {
-	f, err := os.Open(e.historyFile())
+	recs, err := e.resultsStore().ByKind(results.KindIncident)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
 		return nil, err
 	}
-	defer f.Close()
-
 	var out []Record
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		var rec Record
-		if err := json.Unmarshal(scanner.Bytes(), &rec); err != nil {
-			continue
-		}
+	for _, r := range recs {
+		rec := incidentRecordFromResult(r)
 		out = append(out, rec)
 	}
-	return out, scanner.Err()
+	return out, nil
 }
 
 // finishRun builds and appends the run record when an incident ends.
 func (e *Engine) finishRun(active *Active, f *Fault, resolvedBy string) {
 	now := time.Now().UTC()
-	rec := Record{
-		Fault:          f.Name,
-		Category:       f.Category,
-		Severity:       f.Severity,
-		Silent:         active.Silent,
-		InjectedAt:     active.InjectedAt,
-		FirstCheckedAt: active.FirstCheckedAt,
-		ResolvedAt:     now,
-		ResolveSeconds: int64(now.Sub(active.InjectedAt).Seconds()),
-		HintsUsed:      active.HintsRevealed,
-		ResolvedBy:     resolvedBy,
-	}
+	resolveSeconds := int64(now.Sub(active.InjectedAt).Seconds())
+	var detectSeconds int64
 	if !active.FirstCheckedAt.IsZero() {
-		rec.DetectSeconds = int64(active.FirstCheckedAt.Sub(active.InjectedAt).Seconds())
+		detectSeconds = int64(active.FirstCheckedAt.Sub(active.InjectedAt).Seconds())
+	}
+
+	outcome := "resolved"
+	if resolvedBy == "auto" {
+		outcome = "auto-resolved"
+	}
+
+	r := results.Record{
+		Kind:      results.KindIncident,
+		Name:      f.Name,
+		User:      results.CurrentUser(),
+		StartedAt: active.InjectedAt,
+		EndedAt:   now,
+		Elapsed:   resolveSeconds,
+		Score:     -1, // incidents are not scored unless run as a challenge
+		Outcome:   outcome,
+		HintsUsed: active.HintsRevealed,
+		Meta: map[string]interface{}{
+			"category":       f.Category,
+			"severity":       f.Severity,
+			"silent":         active.Silent,
+			"resolvedBy":     resolvedBy,
+			"detectSeconds":  detectSeconds,
+			"firstCheckedAt": active.FirstCheckedAt,
+		},
 	}
 	// Best effort: history failures must not fail the resolution itself.
-	_ = e.appendHistory(rec)
+	_ = e.resultsStore().Append(r)
+}
+
+func incidentRecordFromResult(r results.Record) Record {
+	rec := Record{
+		Fault:          r.Name,
+		InjectedAt:     r.StartedAt,
+		ResolvedAt:     r.EndedAt,
+		ResolveSeconds: r.Elapsed,
+		HintsUsed:      r.HintsUsed,
+	}
+	if r.Outcome == "auto-resolved" {
+		rec.ResolvedBy = "auto"
+	} else {
+		rec.ResolvedBy = "manual"
+	}
+	if r.Meta != nil {
+		if v, ok := r.Meta["category"].(string); ok {
+			rec.Category = v
+		}
+		if v, ok := r.Meta["severity"].(string); ok {
+			rec.Severity = v
+		}
+		if v, ok := r.Meta["silent"].(bool); ok {
+			rec.Silent = v
+		}
+		if v, ok := r.Meta["detectSeconds"].(float64); ok {
+			rec.DetectSeconds = int64(v)
+		}
+		// firstCheckedAt is stored as an RFC3339 string via JSON marshaling of time.Time.
+		if v, ok := r.Meta["firstCheckedAt"].(string); ok && v != "" {
+			if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
+				rec.FirstCheckedAt = t
+			}
+		}
+	}
+	return rec
 }

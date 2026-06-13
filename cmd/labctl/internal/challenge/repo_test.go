@@ -20,7 +20,7 @@ func TestRepo_AllChallengesValid(t *testing.T) {
 		t.Fatalf("readdir challenges/: %v", err)
 	}
 
-	e := New(cDir, t.TempDir())
+	e := New(cDir, t.TempDir(), "")
 	validated := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {

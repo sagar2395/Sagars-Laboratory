@@ -38,6 +38,7 @@ func challengeEngine() *challenge.Engine {
 	return challenge.New(
 		filepath.Join(root, "challenges"),
 		filepath.Join(root, ".labctl", "challenges"),
+		filepath.Join(root, ".labctl", "history"),
 	)
 }
 

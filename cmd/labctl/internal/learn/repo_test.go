@@ -20,7 +20,7 @@ func TestRepo_AllPathsValid(t *testing.T) {
 		t.Fatalf("readdir learn/: %v", err)
 	}
 
-	e := New(learnDir, t.TempDir())
+	e := New(learnDir, t.TempDir(), "")
 	validated := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
