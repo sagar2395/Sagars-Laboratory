@@ -34,8 +34,9 @@ boundary.
 - 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
   **M1, M2, and M3 are complete** (scenario engine v2; incident engine incl.
   hints, MTTR, on-call drill; learning paths, challenge mode, unified results
-  store, and UI Learn/Challenges/Results views). Next: M4, stack expansion
-  (054–058).
+  store, and UI Learn/Challenges/Results views). **M4 is underway:** task 054
+  (service-mesh category — istio + linkerd via `MESH_PROVIDER`, plus per-category
+  `platform up/down/status <category>`) is done. Next: 055 (data platform).
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**

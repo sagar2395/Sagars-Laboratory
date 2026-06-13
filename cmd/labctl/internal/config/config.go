@@ -36,6 +36,7 @@ type Config struct {
 	ChaosProvider   string
 	PolicyProvider  string
 	SecretsProvider string
+	MeshProvider    string
 
 	// App defaults
 	AppName         string
@@ -103,6 +104,7 @@ func Load(projectRoot string) (*Config, error) {
 	cfg.ChaosProvider = getEnvOrDefault("CHAOS_PROVIDER", "")
 	cfg.PolicyProvider = getEnvOrDefault("POLICY_PROVIDER", "")
 	cfg.SecretsProvider = getEnvOrDefault("SECRETS_PROVIDER", "")
+	cfg.MeshProvider = getEnvOrDefault("MESH_PROVIDER", "")
 
 	cfg.AppName = getEnvOrDefault("APP_NAME", "go-api")
 	cfg.HelmReleaseName = getEnvOrDefault("HELM_RELEASE_NAME", "go-api")

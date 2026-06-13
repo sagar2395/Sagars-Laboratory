@@ -129,30 +129,37 @@ labctl app destroy go-api
 
 Manage platform infrastructure components (ingress, monitoring, etc.).
 
-#### `labctl platform up`
+#### `labctl platform up [category]`
 
-Install all platform components based on the configured providers.
-
-```bash
-labctl platform up
-```
-
-Installs components selected by `INGRESS_PROVIDER`, `METRICS_PROVIDER`, etc. in `.env`.
-
-#### `labctl platform down`
-
-Uninstall all platform components.
+Install all platform components based on the configured providers, or a single
+category when one is named.
 
 ```bash
-labctl platform down
+labctl platform up                       # full stack (ingress + monitoring)
+MESH_PROVIDER=istio labctl platform up mesh   # just the service mesh
 ```
 
-#### `labctl platform status`
+Installs components selected by `INGRESS_PROVIDER`, `METRICS_PROVIDER`,
+`MESH_PROVIDER`, etc. in `.env`. When a category has more than one provider and
+none is selected, the command lists the choices and the env var to set.
 
-Show the status of all discovered platform components by category.
+#### `labctl platform down [category]`
+
+Uninstall all platform components, or a single category when one is named.
+
+```bash
+labctl platform down                     # full stack
+MESH_PROVIDER=istio labctl platform down mesh # just the service mesh
+```
+
+#### `labctl platform status [category]`
+
+Show the status of all discovered platform components by category, or just one
+category when named.
 
 ```bash
 labctl platform status
+labctl platform status mesh
 ```
 
 ---

@@ -100,6 +100,33 @@ These are typically activated via the `security-compliance` scenario.
 
 Activated via the `chaos-engineering` scenario. Includes a web dashboard (port-forward to 2333).
 
+### Mesh (`mesh/`)
+
+Service mesh providing mTLS, traffic management, and L7 telemetry between meshed
+workloads. Swappable via `MESH_PROVIDER`.
+
+| Provider | Charts | Inject marker | Sidecar |
+|----------|--------|---------------|---------|
+| **istio** | `istio/base`, `istio/istiod` | namespace label `istio-injection=enabled` | `istio-proxy` |
+| **linkerd** | `linkerd/linkerd-crds`, `linkerd/linkerd-control-plane` | namespace annotation `linkerd.io/inject=enabled` | `linkerd-proxy` |
+
+`install.sh` enrols the workload namespace (`MESH_NAMESPACE`, default `go-api`)
+into the mesh and restarts its deployments so sidecars are injected;
+`uninstall.sh` reverses both. Chart versions are pinned in `versions.env`
+(`ISTIO_VERSION`, `LINKERD_CRDS_CHART_VERSION`,
+`LINKERD_CONTROL_PLANE_CHART_VERSION`) and overridable per-install.
+
+```bash
+# Install / swap / remove on the same cluster:
+MESH_PROVIDER=istio   labctl platform up mesh
+MESH_PROVIDER=istio   labctl platform down mesh
+MESH_PROVIDER=linkerd labctl platform up mesh
+```
+
+> **k3d resource reality:** give the cluster at least 4Gi memory (6Gi is
+> comfortable with a meshed app running). Linkerd needs `openssl` on the host
+> for portable mTLS identity cert generation — no `step` CLI required.
+
 ## Provider Interface Contracts
 
 Each category has an `_interface.yaml` documenting:
