@@ -486,6 +486,32 @@ labctl learn progress kubernetes-foundations
 
 ---
 
+### `labctl challenge` — Timed skills assessments
+
+Inject real faults (or activate scenarios), race against the par time,
+and get an auto-graded score on submit. Each hint you take costs score
+points.
+
+```bash
+labctl challenge list
+labctl challenge info restore-broken-deploy
+labctl challenge start restore-broken-deploy     # injects fault + starts timer
+labctl challenge status                          # elapsed time + hints used
+labctl challenge hint                            # next hint (-5% score per hint)
+labctl challenge submit                          # run checks, compute score, record result
+labctl challenge abort                           # undo setup, score as aborted
+labctl challenge history                         # past runs with MTTR, score, hints
+```
+
+**Score formula:** `100 − (hints × penalty) − time_over_par_penalty`, scaled
+by the fraction of checks that pass. See `challenges/README.md` for details.
+
+REST: `GET /api/challenges`, `GET /api/challenges/{name}`,
+`GET /api/challenges/status`, `GET /api/challenges/history`,
+`POST /api/challenges/complete`.
+
+---
+
 ### Web UI
 
 #### `labctl ui`

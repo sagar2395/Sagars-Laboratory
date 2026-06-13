@@ -16,6 +16,7 @@ on:
       - 'scenarios/**'
       - 'incidents/**'
       - 'learn/**'
+      - 'challenges/**'
       - 'foundation/terraform/**'
   pull_request:
     branches: [main]
@@ -31,6 +32,7 @@ on:
       - 'scenarios/**'
       - 'incidents/**'
       - 'learn/**'
+      - 'challenges/**'
       - 'foundation/terraform/**'
 
 env:
@@ -89,12 +91,12 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
       - name: shellcheck
         run: |
-          find engine platform runtimes services bootstrap incidents scenarios learn -name '*.sh' \
+          find engine platform runtimes services bootstrap incidents scenarios learn challenges -name '*.sh' \
             -exec shellcheck --severity=warning {} +
       - name: Portability check (no GNU-only constructs)
         run: |
           if grep -rnE 'grep -oP|sed -i |readlink -f|date -d|stat -c' \
-               --include='*.sh' engine platform runtimes services bootstrap incidents scenarios learn; then
+               --include='*.sh' engine platform runtimes services bootstrap incidents scenarios learn challenges; then
             echo "::error::GNU-only shell constructs found — fix before merging"
             exit 1
           fi
@@ -125,7 +127,7 @@ jobs:
       - name: Install yamllint
         run: pip install --quiet yamllint
       - name: Lint scenario and platform YAML
-        run: yamllint -d relaxed scenarios/ platform/ learn/
+        run: yamllint -d relaxed scenarios/ platform/ learn/ challenges/
 
   test-apps:
     name: Test apps

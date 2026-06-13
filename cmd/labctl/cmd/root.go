@@ -91,4 +91,5 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable debug-level logging (config load, script exec, API calls)")
 
 	rootCmd.AddCommand(learnCmd())
+	rootCmd.AddCommand(challengeCmd())
 }

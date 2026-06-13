@@ -2,9 +2,8 @@
 
 Covers milestone **M3** (tasks 050–053).
 
-> Tasks 051–053 (challenge mode, score persistence, UI views) are
-> still in progress. This runbook covers task 050: the learning path
-> engine and `labctl learn` commands.
+> Task 053 (UI views) is still in progress. This runbook covers
+> tasks 050 and 051: learning paths and challenge mode.
 
 ## Prereqs
 
@@ -110,10 +109,73 @@ fails naming the field. Revert afterwards.
 | `/api/learn/paths/{name}/progress` | GET | Current progress |
 | `/api/learn/paths/{name}/complete` | POST | Mark module complete (body: `{"moduleIdx":N}`) |
 
+---
+
+## Part B — Challenge Mode (task 051)
+
+### 9. List challenges
+
+```bash
+bin/labctl challenge list
+```
+
+**Expected:** three challenges: `restore-broken-deploy`, `find-the-memory-leak`,
+`make-the-slo-green`.
+
+### 10. Full challenge loop
+
+```bash
+bin/labctl challenge start restore-broken-deploy
+```
+
+**Expected:** `bad-deploy-rollout` injected, timer started, problem description
+printed. Pods go into ImagePullBackOff.
+
+Diagnose and fix:
+```bash
+kubectl get pods -n go-api   # ImagePullBackOff
+bin/labctl incident hint     # use a hint if stuck (deducts score)
+# Fix: update the deployment's image tag to a valid one
+kubectl -n go-api set image deployment/go-api go-api=go-api:latest
+bin/labctl challenge submit  # runs detection check + prints score
+```
+
+**Expected:** "✓ rollout-healthy … Checks: 1/1 passed … Score: N/100"
+
+### 11. Abort escape hatch
+
+```bash
+bin/labctl challenge start find-the-memory-leak
+bin/labctl challenge status    # shows elapsed time
+bin/labctl challenge abort     # undo: resolves oom-kill, records "aborted"
+```
+
+**Expected:** `incident resolve` runs, score is 0, outcome is `aborted`.
+
+### 12. History
+
+```bash
+bin/labctl challenge history
+```
+
+**Expected:** rows for completed and aborted runs with time, score, hints, outcome.
+
+### 13. Validation gate
+
+```bash
+cd cmd/labctl && go test ./internal/challenge/... && cd ../..
+```
+
+**Expected:** all green. Break a `challenge.yaml` (e.g. remove `grading`)
+and re-run: CI fails naming the field.
+
 ## Cleanup
 
 ```bash
+bin/labctl challenge abort 2>/dev/null || true
+bin/labctl incident resolve 2>/dev/null || true
 rm -f .labctl/learn/kubernetes-foundations.json
+rm -f .labctl/challenges/active.json
 ```
 
 ## Troubleshooting

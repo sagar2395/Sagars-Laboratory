@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "051-challenge-mode",
+  "next": "052-score-persistence-api",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -39,7 +39,7 @@
         "M1-scenario-engine-v2",
         "M2-incident-engine"
       ],
-      "note": "Task 050 done: learning path engine, labctl learn command, kubernetes-foundations path."
+      "note": "Tasks 050-051 done: learning paths + challenge mode engine, CLI, and API."
     },
     "M4-stack-expansion": {
       "priority": "P1",
@@ -91,7 +91,6 @@
     }
   },
   "todo": [
-    "051-challenge-mode",
     "052-score-persistence-api",
     "053-ui-learn-challenge-views",
     "054-mesh-platform-category",
@@ -121,6 +120,7 @@
     "048-mttr-tracking",
     "049-oncall-drill",
     "050-learning-paths",
+    "051-challenge-mode",
     "004-improve-runtime-detection-and-status-reporting",
     "005-make-platform-targets-provider-aware",
     "009-add-helm-pre-deploy-lint-and-readiness-wait",
