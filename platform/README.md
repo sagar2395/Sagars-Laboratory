@@ -19,6 +19,7 @@ The active provider for each category is selected via environment variables in `
 ```bash
 INGRESS_PROVIDER=traefik       # or nginx
 METRICS_PROVIDER=prometheus
+# MESH_PROVIDER=istio          # or linkerd (optional)
 ```
 
 Each category also has an `_interface.yaml` file documenting the contract that all providers in that category must satisfy.
@@ -99,6 +100,62 @@ These are typically activated via the `security-compliance` scenario.
 | **chaos-mesh** | `chaos-mesh/chaos-mesh` | Failure injection (pod kill, network delay, stress) |
 
 Activated via the `chaos-engineering` scenario. Includes a web dashboard (port-forward to 2333).
+
+### Autoscaling (`autoscaling/`)
+
+| Provider | Chart | Description |
+|----------|-------|-------------|
+| **keda** | `kedacore/keda` | KEDA operator; drives ScaledObjects using Prometheus, Kafka, and 60+ other event sources |
+
+Enable: `AUTOSCALING_PROVIDER=keda make platform-autoscaling-up`
+
+Pair with the `autoscaling-under-load` scenario for a live demo:
+```bash
+AUTOSCALING_PROVIDER=keda labctl platform up
+labctl scenario up autoscaling-under-load
+labctl traffic spike --duration=30s --rps=50
+```
+
+### Data (`data/`)
+
+Data infrastructure sub-components. Both can be active simultaneously.
+Enable each independently: `DATA_KAFKA=1 make platform-data-kafka-up` or
+`DATA_POSTGRES=1 make platform-data-postgres-up`.
+
+| Sub-component | Chart | Description |
+|--------------|-------|-------------|
+| **kafka** | `bitnami/kafka` | Single-node KRaft Kafka cluster, ephemeral storage |
+| **postgres** | `cnpg/cloudnative-pg` + Cluster CR | 2-instance PostgreSQL (CloudNativePG), built-in failover drill |
+
+### Secrets (`secrets/`)
+
+Secrets management sub-components. Install Vault first, then ESO.
+
+| Sub-component | Chart | Description |
+|--------------|-------|-------------|
+| **vault** | `hashicorp/vault` | HashiCorp Vault in dev mode; seeds `secret/go-api` demo KV; ingress at `vault.<DOMAIN_SUFFIX>` |
+| **external-secrets** | `external-secrets/external-secrets` | External Secrets Operator; creates SecretStore + ExternalSecret → syncs Vault KV to k8s Secret |
+
+```bash
+SECRETS_VAULT=1 make platform-secrets-vault-up    # install Vault
+SECRETS_ESO=1   make platform-secrets-eso-up      # install ESO (Vault must be running)
+```
+
+Rotation exercise: `vault kv put secret/go-api db_password=new-val` → wait 30 s → ESO syncs.
+
+### Mesh (`mesh/`)
+
+Service mesh providers for mTLS, traffic management, and observability between services.
+Enable via `MESH_PROVIDER` in `.env`, then `make platform-mesh-up` or `labctl platform up`.
+
+| Provider | Chart | Description |
+|----------|-------|-------------|
+| **istio** | `istio/base` + `istio/istiod` | Sidecar mode, mTLS, traffic management, Kiali-compatible |
+| **linkerd** | `linkerd/linkerd-crds` + `linkerd/linkerd-control-plane` | Lightweight proxy, automatic mTLS, no cert CLI required |
+
+The app namespace (`MESH_APP_NAMESPACE`, default `go-api`) is automatically labelled for sidecar/proxy injection on install and un-labelled on uninstall.
+
+Swap providers: `make platform-mesh-down` first, then set `MESH_PROVIDER=linkerd` and `make platform-mesh-up`.
 
 ## Provider Interface Contracts
 
@@ -189,4 +246,15 @@ platform/
   chaos/
     _interface.yaml
     chaos-mesh/           install.sh, uninstall.sh, status.sh, values.yaml
+  mesh/
+    istio/                install.sh, uninstall.sh, status.sh, values.yaml
+    linkerd/              install.sh, uninstall.sh, status.sh, values.yaml
+  data/
+    kafka/                install.sh, uninstall.sh, status.sh, values.yaml
+    postgres/             install.sh, uninstall.sh, status.sh, values.yaml
+  secrets/
+    vault/                install.sh, uninstall.sh, status.sh, values.yaml, values-prod-like.yaml
+    external-secrets/     install.sh, uninstall.sh, status.sh, values.yaml
+  autoscaling/
+    keda/                 install.sh, uninstall.sh, status.sh, values.yaml
 ```

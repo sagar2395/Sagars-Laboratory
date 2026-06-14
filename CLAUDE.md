@@ -32,10 +32,10 @@ boundary.
   four original scenarios work on macOS + Linux with k3d.
 - ❌ Cloud runtimes (AKS/EKS) never verified against real accounts (tasks 038/039).
 - 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
-  **M1, M2, and M3 are complete** (scenario engine v2; incident engine incl.
-  hints, MTTR, on-call drill; learning paths, challenge mode, unified results
-  store, and UI Learn/Challenges/Results views). Next: M4, stack expansion
-  (054–058).
+  **M1, M2, M3, and M4 are complete** (scenario engine v2; incident engine;
+  learning paths, challenge mode, unified results store, UI views; mesh/
+  data/secrets/autoscaling platform categories + 4 new scenarios). Next: M5,
+  multi-env day-2 ops (059–061).
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**

@@ -1,0 +1,85 @@
+name: event-driven-arch
+displayName: "Event-Driven Architecture"
+description: "Demonstrate an event-driven system using Kafka: a producer generates events, a consumer processes them, and you observe consumer lag building up and resolving via KEDA autoscaling (if installed)."
+category: data
+prerequisites:
+  platform:
+    - ingress
+    - data/kafka
+  apps:
+    - go-api
+runtimes:
+  - k3d
+
+objectives:
+  - "Create a Kafka topic and deploy a producer that generates events"
+  - "Deploy a consumer and observe lag accumulate when the producer outpaces it"
+  - "Scale the consumer (manually or via KEDA) to drain the lag"
+
+stages:
+  - name: kafka-setup
+    description: Create the lab-events topic and deploy the producer
+    components:
+      - name: topic-creator
+        type: manifest
+        path: manifests/topic-creator-job.yaml
+        namespace: kafka
+      - name: producer
+        type: manifest
+        path: manifests/producer-deploy.yaml
+        namespace: kafka
+
+  - name: consumer-deploy
+    description: Deploy the consumer (starts at 1 replica to allow lag to build)
+    components:
+      - name: consumer
+        type: manifest
+        path: manifests/consumer-deploy.yaml
+        namespace: kafka
+
+checks:
+  - name: kafka-ready
+    type: kubectl
+    resource: statefulset/kafka-controller
+    namespace: kafka
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="
+    value: "1"
+
+  - name: topic-created
+    type: script
+    script: checks/topic-exists.sh
+
+  - name: producer-running
+    type: kubectl
+    resource: deployment/kafka-producer
+    namespace: kafka
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="
+    value: "1"
+
+  - name: consumer-running
+    type: kubectl
+    resource: deployment/kafka-consumer
+    namespace: kafka
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="
+    value: "1"
+
+explore:
+  commands:
+    - label: "Watch consumer group lag"
+      command: "kubectl exec -n kafka deploy/kafka-consumer -- kafka-consumer-groups.sh --bootstrap-server kafka.kafka.svc.cluster.local:9092 --group lab-consumer-group --describe"
+    - label: "Count messages produced"
+      command: "kubectl exec -n kafka deploy/kafka-producer -- kafka-run-class.sh kafka.tools.GetOffsetShell --bootstrap-server kafka.kafka.svc.cluster.local:9092 --topic lab-events"
+    - label: "Scale consumer up (drain lag)"
+      command: "kubectl scale deployment kafka-consumer -n kafka --replicas=3"
+    - label: "Scale consumer down (let lag build)"
+      command: "kubectl scale deployment kafka-consumer -n kafka --replicas=0"
+    - label: "Watch live consumer group"
+      command: "watch kubectl exec -n kafka deploy/kafka-consumer -- kafka-consumer-groups.sh --bootstrap-server kafka.kafka.svc.cluster.local:9092 --group lab-consumer-group --describe"
+  tips:
+    - "Scale the consumer to 0 for 30 s to let lag accumulate, then scale to 3 to watch it drain"
+    - "With KEDA installed, deploy the ScaledObject from platform/autoscaling to automate this"
+    - "Consumer lag = messages in partition - consumer offset; high lag means the consumer is falling behind"
+    - "The producer sends 1 message/s; at 1 replica the consumer keeps up; scale to 0 to force lag"

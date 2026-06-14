@@ -1,0 +1,28 @@
+# ConfigMap documenting the rotation exercise steps.
+# Applied by the scenario engine; removed on scenario down.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: secrets-rotation-guide
+  namespace: go-api
+  labels:
+    scenario: secrets-management
+data:
+  rotation-steps.md: |
+    # Secret Rotation Exercise
+
+    ## Step 1 — Check current value
+    kubectl get secret go-api-external-secret -n go-api \
+      -o jsonpath='{.data.db_password}' | base64 -d
+
+    ## Step 2 — Rotate in Vault (root token = "root" in dev mode)
+    kubectl exec -n vault deploy/vault -- \
+      vault kv put secret/go-api db_password=NEW-VALUE api_key=NEW-API-KEY
+
+    ## Step 3 — Wait for ESO to sync (up to 30 s)
+    watch kubectl get externalsecret go-api-secrets -n go-api
+
+    ## Step 4 — Verify propagation
+    kubectl get secret go-api-external-secret -n go-api \
+      -o jsonpath='{.data.db_password}' | base64 -d
+    # Expected: NEW-VALUE (no pod restart required)

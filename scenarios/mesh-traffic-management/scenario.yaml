@@ -1,0 +1,100 @@
+name: mesh-traffic-management
+displayName: "Mesh Traffic Management"
+description: "Istio-powered traffic management: deploy a canary version of go-api, progressively shift 10% of traffic to it, then inject a latency fault to simulate a bad deployment."
+category: mesh
+prerequisites:
+  platform:
+    - ingress
+    - mesh/istio
+  apps:
+    - go-api
+runtimes:
+  - k3d
+
+objectives:
+  - "Deploy a canary version of go-api and verify it receives 10% of traffic"
+  - "Inject a 500 ms latency fault on the canary to simulate a regression"
+  - "Observe mTLS between services via Istio telemetry"
+
+stages:
+  - name: canary-deployment
+    description: Deploy go-api-canary (v2 label) and DestinationRule for subset routing
+    components:
+      - name: destination-rule
+        type: manifest
+        path: manifests/destination-rule.yaml
+        namespace: go-api
+      - name: canary-deploy
+        type: manifest
+        path: manifests/canary-deploy.yaml
+        namespace: go-api
+
+  - name: traffic-split
+    description: VirtualService routing 90% stable / 10% canary
+    components:
+      - name: virtual-service
+        type: manifest
+        path: manifests/virtual-service.yaml
+        namespace: go-api
+
+  - name: fault-injection
+    description: 500 ms latency fault on requests routed to canary
+    components:
+      - name: fault-inject
+        type: manifest
+        path: manifests/fault-inject.yaml
+        namespace: go-api
+
+checks:
+  - name: istio-control-plane-ready
+    type: kubectl
+    resource: deployment/istiod
+    namespace: istio-system
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="
+    value: "1"
+
+  - name: canary-deployment-ready
+    type: kubectl
+    resource: deployment/go-api-canary
+    namespace: go-api
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="
+    value: "1"
+
+  - name: virtual-service-exists
+    type: kubectl
+    resource: virtualservice/go-api-canary
+    namespace: go-api
+
+  - name: destination-rule-exists
+    type: kubectl
+    resource: destinationrule/go-api
+    namespace: go-api
+
+  - name: go-api-reachable
+    type: http
+    url: "http://go-api.{{.DomainSuffix}}/health"
+    expectStatus: 200
+
+explore:
+  urls:
+    - label: "Kiali — Traffic Graph"
+      url: "http://kiali.{{.DomainSuffix}}"
+    - label: "Grafana — Service Mesh"
+      url: "http://grafana.{{.DomainSuffix}}"
+  commands:
+    - label: "Generate 200 requests and see version distribution"
+      command: "for i in $(seq 1 200); do curl -s http://go-api.{{.DomainSuffix}}/health; done | sort | uniq -c"
+    - label: "Check VirtualService routing weights"
+      command: "kubectl get virtualservice go-api-canary -n go-api -o jsonpath='{.spec.http[0].route[*].weight}'"
+    - label: "Verify mTLS between pods"
+      command: "kubectl exec -n go-api deploy/go-api -c istio-proxy -- pilot-agent request GET stats | grep ssl"
+    - label: "View Istio telemetry"
+      command: "kubectl -n go-api get pod -l app=go-api -o jsonpath='{.items[0].metadata.name}' | xargs -I{} kubectl exec -n go-api {} -c istio-proxy -- pilot-agent request GET stats | grep upstream"
+  tips:
+    - "With Istio, 10 requests out of every 100 should hit the canary — test with 200+ requests for a stable sample"
+    - "The fault injection stage adds 500 ms to canary responses — watch p99 latency jump in Grafana"
+    - "mTLS is automatic in sidecar mode — use 'kubectl exec ... pilot-agent request GET stats | grep ssl' to confirm"
+    - "To progressively roll out: edit the VirtualService weights (90/10 → 50/50 → 0/100)"
+    - "Roll back: set canary weight to 0 or remove the VirtualService to restore 100% stable traffic"

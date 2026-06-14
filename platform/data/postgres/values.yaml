@@ -1,0 +1,19 @@
+# CloudNativePG operator values — minimal for k3d.
+# Full reference: https://artifacthub.io/packages/helm/cloudnative-pg/cloudnative-pg
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Disable CertManager integration (not required for local dev)
+webhook:
+  port: 9443
+
+# Reduce log verbosity
+config:
+  logLevel: warning

@@ -1,0 +1,91 @@
+name: secrets-management
+displayName: "Secrets Management"
+description: "Demonstrate zero-touch secret delivery: go-api consumes a Vault-backed secret via External Secrets Operator. Stage 2 rotates the secret value in Vault and verifies automatic propagation to the k8s Secret — no redeploy needed."
+category: secrets
+prerequisites:
+  platform:
+    - ingress
+    - secrets/vault
+    - secrets/external-secrets
+  apps:
+    - go-api
+runtimes:
+  - k3d
+
+objectives:
+  - "Verify ESO has synced the Vault secret into the go-api namespace"
+  - "Rotate the secret value in Vault and observe automatic propagation within 30 s"
+  - "Confirm go-api can read the updated secret without a redeploy"
+
+stages:
+  - name: verify-sync
+    description: Confirm the SecretStore and ExternalSecret are healthy
+    components:
+      - name: rotation-job
+        type: manifest
+        path: manifests/rotation-verifier-cm.yaml
+        namespace: go-api
+
+  - name: secret-rotation
+    description: Rotate the secret and deploy a verification job
+    components:
+      - name: rotation-trigger
+        type: manifest
+        path: manifests/rotation-trigger-job.yaml
+        namespace: go-api
+
+checks:
+  - name: vault-running
+    type: kubectl
+    resource: deployment/vault
+    namespace: vault
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="
+    value: "1"
+
+  - name: eso-running
+    type: kubectl
+    resource: deployment/external-secrets
+    namespace: external-secrets
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="
+    value: "1"
+
+  - name: secret-store-ready
+    type: kubectl
+    resource: secretstore/vault-backend
+    namespace: go-api
+    jsonpath: "{.status.conditions[?(@.type=='Ready')].status}"
+    operator: "=="
+    value: "True"
+
+  - name: external-secret-synced
+    type: kubectl
+    resource: externalsecret/go-api-secrets
+    namespace: go-api
+    jsonpath: "{.status.conditions[?(@.type=='Ready')].status}"
+    operator: "=="
+    value: "True"
+
+  - name: k8s-secret-exists
+    type: script
+    script: checks/secret-exists.sh
+
+explore:
+  commands:
+    - label: "Show current secret value"
+      command: "kubectl get secret go-api-external-secret -n go-api -o jsonpath='{.data.db_password}' | base64 -d"
+    - label: "Rotate in Vault"
+      command: "kubectl exec -n vault deploy/vault -- vault kv put secret/go-api db_password=rotated-$(date +%s) api_key=new-key"
+    - label: "Watch ESO sync status"
+      command: "watch kubectl get externalsecret go-api-secrets -n go-api"
+    - label: "Verify propagation (after 30 s)"
+      command: "kubectl get secret go-api-external-secret -n go-api -o jsonpath='{.data.db_password}' | base64 -d"
+    - label: "View ESO sync events"
+      command: "kubectl describe externalsecret go-api-secrets -n go-api | tail -20"
+  tips:
+    - "ESO refreshInterval is 30 s — wait at least 30 s after rotating in Vault"
+    - "The k8s Secret 'go-api-external-secret' is owned by the ExternalSecret — do not edit it manually"
+    - "To test without ESO, inject the secret manually: kubectl create secret generic go-api-manual --from-literal=db_password=test -n go-api"
+    - "Vault UI: http://vault.{{.DomainSuffix}} (token: root) → kv/go-api to see secret history"
+    - "For production, replace the root token with a dedicated AppRole with least-privilege policy"
