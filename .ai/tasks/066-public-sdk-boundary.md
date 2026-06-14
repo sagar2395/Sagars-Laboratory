@@ -39,5 +39,16 @@ content and engine evolve on independent clocks (the core sustainability lever).
 `go test ./...`; load every repo scenario and assert apiVersion validation;
 validate a scenario.yaml against the published JSON Schema.
 
+## Progress
+- Phase 1 (landed): explicit `apiVersion: scenario.flightdeck.dev/v2` accepted +
+  validated with a back-compat default; published JSON Schema
+  (`sdk/schemas/scenario.schema.json`); stability policy
+  (`docs/authoring/sdk-stability-policy.md`); RFC 0001 accepted
+  (`docs/rfcs/0001-public-sdk-boundary.md`).
+- Phase 2 (next): move schema types `internal/scenario`,`internal/checks` →
+  `pkg/scenario`,`pkg/checks` (pure refactor, no behavior change).
+- Phase 3: add `pkg/pack` (with 067), `pkg/results`, wire `pkg/entitlement` +
+  `pkg/extension` (with 070).
+
 ## Dependencies
 None (enables 067, 070)

@@ -1,3 +1,4 @@
+apiVersion: scenario.flightdeck.dev/v2
 name: mesh-traffic-management
 displayName: "Mesh Traffic Management"
 description: "Istio canary release for go-api: a 90/10 weighted split between v1 and v2, mesh-level latency fault injection, and STRICT mTLS on the canary workload. Watch the split and faults in mesh telemetry."

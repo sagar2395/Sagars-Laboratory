@@ -30,6 +30,12 @@ var ErrNoChecks = errors.New("scenario defines no checks")
 // machine-verifiable `checks` (run by `labctl scenario verify`). A scenario
 // must use either `components` or `stages`, never both.
 type Scenario struct {
+	// APIVersion declares the scenario schema version. Optional for backward
+	// compatibility: an empty value is treated as the current default
+	// (DefaultScenarioAPIVersion). The engine accepts the current and previous
+	// schema versions; see SupportedScenarioAPIVersions.
+	APIVersion string `yaml:"apiVersion,omitempty" json:"apiVersion,omitempty"`
+
 	Name          string        `yaml:"name" json:"name"`
 	DisplayName   string        `yaml:"displayName" json:"displayName"`
 	Description   string        `yaml:"description" json:"description"`
@@ -85,6 +91,29 @@ var validComponentTypes = map[string]bool{
 	"helm": true, "manifest": true, "grafana-dashboard": true, "script": true,
 }
 
+// Scenario schema versioning. The engine supports the current and previous
+// schema versions; unknown versions are rejected with an actionable error so a
+// pack built for a newer engine fails clearly instead of misbehaving.
+const DefaultScenarioAPIVersion = "scenario.flightdeck.dev/v2"
+
+// SupportedScenarioAPIVersions lists the schema versions this engine understands
+// (newest first). An empty apiVersion in a scenario is treated as the default.
+var SupportedScenarioAPIVersions = []string{
+	"scenario.flightdeck.dev/v2",
+}
+
+func scenarioAPIVersionSupported(v string) bool {
+	if v == "" {
+		return true // back-compat: defaults to DefaultScenarioAPIVersion
+	}
+	for _, s := range SupportedScenarioAPIVersions {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 // unsafePath reports whether a scenario asset path could escape the
 // scenario directory (absolute, or containing a ".." segment).
 func unsafePath(p string) bool {
@@ -112,6 +141,10 @@ func (s *Scenario) Validate() error {
 
 	if strings.TrimSpace(s.Name) == "" {
 		add("name is required")
+	}
+	if !scenarioAPIVersionSupported(s.APIVersion) {
+		add("unsupported apiVersion %q (supported: %s)",
+			s.APIVersion, strings.Join(SupportedScenarioAPIVersions, ", "))
 	}
 	if len(s.Components) > 0 && len(s.Stages) > 0 {
 		add("declare either components (v1) or stages (v2), not both")

@@ -1,3 +1,4 @@
+apiVersion: scenario.flightdeck.dev/v2
 name: autoscaling-under-load
 displayName: "Autoscaling Under Load"
 description: "Watch KEDA scale go-api on Prometheus RPS: a spike drives it from 1 to several replicas, then cooldown brings it back. The flagship 'autoscaling actually works' demo, verified under traffic from the load generator."

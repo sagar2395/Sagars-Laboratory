@@ -259,6 +259,7 @@ consumer running.
 ## Scenario YAML Format
 
 ```yaml
+apiVersion: scenario.flightdeck.dev/v2  # schema version (optional; defaults to v2)
 name: my-scenario                    # Must match directory name
 displayName: "My Scenario"           # Shown in UI and CLI
 description: "What this scenario teaches"

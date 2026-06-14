@@ -132,7 +132,6 @@
     }
   },
   "todo": [
-    "066-public-sdk-boundary",
     "067-scenario-pack-format",
     "068-oci-pack-distribution",
     "069-registry-index-discovery",
@@ -154,7 +153,9 @@
     "077-saas-control-plane-spike",
     "078-certification-training-framework"
   ],
-  "in_progress": [],
+  "in_progress": [
+    "066-public-sdk-boundary"
+  ],
   "done": [
     "065-oss-governance-baseline",
     "058-new-stack-scenarios",

@@ -1,3 +1,4 @@
+apiVersion: scenario.flightdeck.dev/v2
 name: event-driven-arch
 displayName: "Event-Driven Architecture"
 description: "A producer/consumer flow through Kafka (Strimzi): an 'orders' topic with a continuous producer and a consumer group. Stage 2 ramps producers to build consumer lag — observe it, then scale consumers (manually or with KEDA's Kafka scaler) to drain it."
