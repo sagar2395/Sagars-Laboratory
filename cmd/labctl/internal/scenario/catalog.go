@@ -10,6 +10,7 @@ package scenario
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -131,17 +132,8 @@ func (e *Engine) InstallPack(src, name string, force bool, git GitFunc) (*Pack, 
 		return nil, fmt.Errorf("invalid pack name %q: must match ^[a-zA-Z0-9_-]{1,64}$ (use --name)", name)
 	}
 
-	dest := filepath.Join(e.CatalogDir(), name)
-	if _, err := os.Stat(dest); err == nil {
-		if !force {
-			return nil, fmt.Errorf("pack %q is already installed (use --force to replace it)", name)
-		}
-		if err := os.RemoveAll(dest); err != nil {
-			return nil, err
-		}
-		e.rescan() // drop the old pack's scenarios before collision checks
-	}
-	if err := os.MkdirAll(e.CatalogDir(), 0755); err != nil {
+	dest, err := e.prepareDest(name, force)
+	if err != nil {
 		return nil, err
 	}
 
@@ -159,6 +151,96 @@ func (e *Engine) InstallPack(src, name string, force bool, git GitFunc) (*Pack, 
 	}
 	os.RemoveAll(filepath.Join(tmp, ".git")) // packs are content snapshots
 
+	return e.installFetched(name, dest, tmp)
+}
+
+// InstallPackFromDir installs a pack whose contents have already been fetched
+// into srcDir (e.g. by an OCI pull). It shares the same validation, manifest,
+// and collision rules as the git path — nothing invalid ever lands in the
+// catalog because everything is checked in a staging copy before the rename.
+func (e *Engine) InstallPackFromDir(srcDir, name string, force bool) (*Pack, error) {
+	if name == "" {
+		return nil, fmt.Errorf("a pack name is required (use --name)")
+	}
+	if !validPackName.MatchString(name) {
+		return nil, fmt.Errorf("invalid pack name %q: must match ^[a-zA-Z0-9_-]{1,64}$ (use --name)", name)
+	}
+
+	dest, err := e.prepareDest(name, force)
+	if err != nil {
+		return nil, err
+	}
+
+	tmp := dest + ".installing"
+	os.RemoveAll(tmp)
+	defer os.RemoveAll(tmp)
+	if err := copyTree(srcDir, tmp); err != nil {
+		return nil, fmt.Errorf("staging pack: %w", err)
+	}
+	os.RemoveAll(filepath.Join(tmp, ".git"))
+
+	return e.installFetched(name, dest, tmp)
+}
+
+// prepareDest resolves the catalog destination for a pack, enforcing the
+// already-installed/--force rule and ensuring the catalog dir exists.
+func (e *Engine) prepareDest(name string, force bool) (string, error) {
+	dest := filepath.Join(e.CatalogDir(), name)
+	if _, err := os.Stat(dest); err == nil {
+		if !force {
+			return "", fmt.Errorf("pack %q is already installed (use --force to replace it)", name)
+		}
+		if err := os.RemoveAll(dest); err != nil {
+			return "", err
+		}
+		e.rescan() // drop the old pack's scenarios before collision checks
+	}
+	if err := os.MkdirAll(e.CatalogDir(), 0755); err != nil {
+		return "", err
+	}
+	return dest, nil
+}
+
+// copyTree recursively copies src into dst, preserving file permissions. Used to
+// stage an already-fetched pack (OCI pull) into the catalog's .installing dir so
+// it goes through the same validate-then-rename path as a git clone.
+func copyTree(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return err
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode().Perm())
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(out, in); err != nil {
+			out.Close()
+			return err
+		}
+		return out.Close()
+	})
+}
+
+// installFetched validates a staged pack in tmp and, if it is sound, atomically
+// renames it into dest. It is the shared tail of every install path (git, OCI,
+// local dir).
+func (e *Engine) installFetched(name, dest, tmp string) (*Pack, error) {
 	names, err := ValidatePackDir(tmp)
 	if err != nil {
 		return nil, err

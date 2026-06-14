@@ -264,15 +264,23 @@ refuses incompatible packs. `labctl scenario install|packs|uninstall` remain as
 aliases. Authoring guide: `docs/authoring/packs.md`.
 
 ```bash
-labctl pack add <git-url>[@ref]   # install (flags: --name, --force)
+labctl pack add <git-url>[@ref]            # install from git (flags: --name, --force)
+labctl pack add oci://<reg>/<repo>[:tag]   # install from an OCI registry
+    # OCI verification flags: --require-signature, --cosign-key,
+    #                         --certificate-identity, --certificate-oidc-issuer
+labctl pack publish <dir> oci://<reg>/<repo>[:tag]   # publish (flags: --sign, --cosign-key)
 labctl pack list                  # PACK / VERSION / TIER / SCENARIOS
 labctl pack info <pack-name>      # manifest metadata + provided scenarios
 labctl pack remove <pack-name>    # uninstall (must deactivate its scenarios first)
 ```
 
+OCI publish/install shells out to `oras` (and `cosign` when signing/verifying) —
+install those binaries to use OCI packs. Signature verification is fail-closed
+and runs before any content is extracted. Full guide: `docs/authoring/publishing.md`.
+
 > Packs run scripts and apply manifests on your cluster — install only trusted
-> sources. OCI distribution + signing (068) and a searchable registry index (069)
-> build on this.
+> sources; prefer signed OCI packs pinned by digest. A searchable registry index
+> (069) builds on this.
 
 ---
 

@@ -2,9 +2,13 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/sagars-lab/labctl/internal/scenario"
+	"github.com/sagars-lab/labctl/pkg/pack"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +20,14 @@ import (
 var (
 	packAddName  string
 	packAddForce bool
+
+	packAddRequireSig bool
+	packAddCosignKey  string
+	packAddCertID     string
+	packAddCertIssuer string
+
+	packPublishSign      bool
+	packPublishCosignKey string
 )
 
 var packCmd = &cobra.Command{
@@ -30,16 +42,31 @@ scripts and apply manifests on your cluster — only install sources you trust.`
 }
 
 var packAddCmd = &cobra.Command{
-	Use:   "add <git-url>[@ref]",
-	Short: "Install a scenario pack from a git source",
-	Args:  cobra.ExactArgs(1),
+	Use:   "add <git-url>[@ref] | oci://<registry>/<repo>[:tag]",
+	Short: "Install a scenario pack from a git source or OCI registry",
+	Long: `Install a scenario pack from a git source or an OCI registry.
+
+Git:  labctl pack add https://github.com/snowops/kafka-drills@v1
+OCI:  labctl pack add oci://ghcr.io/snowops/kafka-drills:1.4.2
+
+OCI packs are content-addressed; oras verifies layer digests against the
+manifest on pull. Add --require-signature to additionally verify a cosign
+signature before any content is extracted (premium/verified packs).`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		p, err := scenes.InstallPack(args[0], packAddName, packAddForce, nil)
+		src := args[0]
+		var p *scenario.Pack
+		var err error
+		if pack.IsOCIRef(src) {
+			p, err = addOCIPack(cmd.Context(), src)
+		} else {
+			p, err = scenes.InstallPack(src, packAddName, packAddForce, nil)
+		}
 		if err != nil {
 			return err
 		}
 		if p.Manifest == nil {
-			fmt.Printf("Installed pack %q (no pack.yaml manifest — legacy/community git pack).\n", p.Name)
+			fmt.Printf("Installed pack %q (no pack.yaml manifest — legacy/community pack).\n", p.Name)
 		} else {
 			m := p.Manifest.Metadata
 			fmt.Printf("Installed pack %q — %s v%s (tier: %s, license: %s).\n",
@@ -47,6 +74,61 @@ var packAddCmd = &cobra.Command{
 		}
 		fmt.Printf("Scenarios: %s\n", strings.Join(p.Scenarios, ", "))
 		fmt.Printf("\nActivate with: labctl scenario up <name>\nRemove with:   labctl pack remove %s\n", p.Name)
+		return nil
+	},
+}
+
+// addOCIPack pulls an OCI pack into a temp dir (verifying signature first when
+// required), then installs it through the same validate-then-rename path as git.
+func addOCIPack(ctx context.Context, ref string) (*scenario.Pack, error) {
+	name := packAddName
+	if name == "" {
+		name = pack.PackNameFromOCIRef(ref)
+	}
+	tmp, err := os.MkdirTemp("", "labctl-pack-oci-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmp)
+
+	if _, err := pack.Pull(ctx, ref, tmp, pack.PullOptions{
+		RequireSignature: packAddRequireSig,
+		CosignKey:        packAddCosignKey,
+		CertIdentity:     packAddCertID,
+		CertOIDCIssuer:   packAddCertIssuer,
+	}); err != nil {
+		return nil, err
+	}
+	return scenes.InstallPackFromDir(tmp, name, packAddForce)
+}
+
+var packPublishCmd = &cobra.Command{
+	Use:   "publish <dir> oci://<registry>/<repo>[:tag]",
+	Short: "Publish a scenario pack to an OCI registry",
+	Long: `Package a pack directory into a single content-addressed OCI artifact and
+push it to a registry with oras. The directory must contain a valid pack.yaml.
+
+  labctl pack publish ./packs/examples/hello-pack oci://ghcr.io/snowops/hello:0.1.0
+
+Add --sign to sign the pushed artifact with cosign (keyless by default, or
+--cosign-key for a key pair).`,
+	Args: cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dir, ref := args[0], args[1]
+		if !pack.IsOCIRef(ref) {
+			return fmt.Errorf("destination %q must be an oci:// reference", ref)
+		}
+		digest, err := pack.Publish(cmd.Context(), dir, ref, pack.PublishOptions{
+			Sign:      packPublishSign,
+			CosignKey: packPublishCosignKey,
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Published %s\n  layer digest: %s\n", ref, digest)
+		if packPublishSign {
+			fmt.Println("  signed: yes (cosign)")
+		}
 		return nil
 	},
 }
@@ -131,8 +213,16 @@ func displayOr(a, b string) string {
 }
 
 func init() {
-	packAddCmd.Flags().StringVar(&packAddName, "name", "", "override the pack name (default: derived from the URL)")
+	packAddCmd.Flags().StringVar(&packAddName, "name", "", "override the pack name (default: derived from the URL/ref)")
 	packAddCmd.Flags().BoolVar(&packAddForce, "force", false, "replace the pack if it is already installed")
-	packCmd.AddCommand(packAddCmd, packListCmd, packInfoCmd, packRemoveCmd)
+	packAddCmd.Flags().BoolVar(&packAddRequireSig, "require-signature", false, "verify a cosign signature before extracting (OCI only)")
+	packAddCmd.Flags().StringVar(&packAddCosignKey, "cosign-key", "", "cosign public key for signature verification (default: keyless)")
+	packAddCmd.Flags().StringVar(&packAddCertID, "certificate-identity", "", "expected keyless signer identity (with --require-signature)")
+	packAddCmd.Flags().StringVar(&packAddCertIssuer, "certificate-oidc-issuer", "", "expected keyless OIDC issuer (with --require-signature)")
+
+	packPublishCmd.Flags().BoolVar(&packPublishSign, "sign", false, "sign the pushed artifact with cosign")
+	packPublishCmd.Flags().StringVar(&packPublishCosignKey, "cosign-key", "", "cosign private key (default: keyless OIDC signing)")
+
+	packCmd.AddCommand(packAddCmd, packListCmd, packInfoCmd, packRemoveCmd, packPublishCmd)
 	rootCmd.AddCommand(packCmd)
 }

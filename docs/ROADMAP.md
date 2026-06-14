@@ -415,3 +415,43 @@ runtime up --profile kind` works headless in CI.
 **Picking the next task:** take the lowest-numbered unblocked task of the
 highest-priority milestone in `.ai/state.json` (`milestones` block tracks
 per-milestone status; `next` points at the recommended pick).
+
+---
+
+# Part III — OSS & Commercial Evolution (milestones M7–M9)
+
+> Full plan of record: [`docs/strategy/OSS-COMMERCIAL-STRATEGY.md`](strategy/OSS-COMMERCIAL-STRATEGY.md).
+> Part III turns the simulator into a community OSS project (Apache-2.0, CLA,
+> "Flightdeck", org `snowops`) with a clean public SDK and a pack ecosystem, then
+> layers entitled premium content/services on the **same engine** — never a fork.
+
+## M7 — OSS & Ecosystem Foundation `[P0]`
+
+| Task | Title | Status |
+|------|-------|--------|
+| 065 | OSS governance & licensing baseline (Apache-2.0, CLA) | ✅ done |
+| 066 | Public SDK boundary — `pkg/checks`, `pkg/scenario`, schemas, RFC 0001 | ✅ done |
+| 067 | Scenario-pack format (`pack.yaml`) + `labctl pack` | ✅ done |
+| 068 | OCI pack distribution + cosign signing | ✅ done |
+| 069 | Registry index & discovery (`labctl pack search`) | todo |
+| 070 | Entitlement / extension interface | todo |
+| 071 | Module path & brand alignment | todo |
+| 072 | Contributor experience (scaffolds, walkthrough) | todo |
+
+## M8 — Marketplace `[P2 — deferred, depends on M7]`
+
+Tasks 073–075: hosted catalog API, premium pack repo + entitlement, marketplace
+UI. Premium content lives outside the OSS tree.
+
+## M9 — Commercial / Hosted `[P2 — deferred, depends on M7]`
+
+Tasks 076–078: edition packaging, SaaS control-plane spike, certification &
+training framework. Same engine + entitled content/services.
+
+## Task ↔ milestone index (Part III)
+
+| Milestone | Priority | Task ids |
+|-----------|----------|----------|
+| M7 | P0 | 065, 066, 067, 068, 069, 070, 071, 072 |
+| M8 | P2 | 073, 074, 075 |
+| M9 | P2 | 076, 077, 078 |

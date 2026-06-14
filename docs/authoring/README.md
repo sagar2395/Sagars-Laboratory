@@ -11,6 +11,8 @@ the stability guarantees you can rely on.
 
 - [Authoring Scenario Packs](packs.md) — `pack.yaml`, the `labctl pack` commands,
   and how content is bundled and distributed.
+- [Publishing Packs (OCI)](publishing.md) — `labctl pack publish`, OCI artifact
+  format, cosign signing, and fail-closed verification on install.
 - [SDK & Schema Stability Policy](sdk-stability-policy.md) — what we keep stable
   and how the schema versions.
 - JSON Schemas (for editor validation):
