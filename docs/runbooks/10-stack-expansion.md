@@ -346,4 +346,77 @@ AUTOSCALING_PROVIDER=keda bin/labctl platform down autoscaling   # removes KEDA 
 - [x] Dashboard shows replicas vs RPS correlation
 - [x] Clean uninstall; portable + idempotent; versions pinned
 
-> The remaining new scenarios (task 058) are appended here as that task ships.
+---
+
+## New Stack Scenarios (task 058)
+
+Three v2 scenarios that exercise the M4 categories. Each is `up → verify → down`
+clean and re-activation safe. Install the matching platform category first.
+
+### mesh-traffic-management (Istio canary + fault + mTLS)
+
+```bash
+MESH_PROVIDER=istio bin/labctl platform up mesh        # if not already meshed
+bin/labctl app deploy go-api                            # ensure go-api is running
+bin/labctl scenario up mesh-traffic-management          # v1+v2, 90/10 split, mTLS, then fault
+bin/labctl scenario verify mesh-traffic-management      # 5 checks pass
+
+# Observe the 90/10 split by version
+for i in $(seq 1 20); do
+  kubectl -n go-api exec deploy/go-api-v1 -c go-api -- wget -qO- http://go-api-canary/version 2>/dev/null
+done | sort | uniq -c
+# Confirm STRICT mTLS, then tear down
+kubectl -n go-api get peerauthentication go-api-mtls -o jsonpath='{.spec.mtls.mode}{"\n"}'
+bin/labctl scenario down mesh-traffic-management
+```
+
+**Expected:** istiod + both canary versions ready; the VirtualService routes ~90%
+to v1 / ~10% to v2; the v2 subset carries a 2s injected delay; mTLS mode is
+STRICT. Targets Istio (Linkerd uses different CRDs).
+
+### event-driven-arch (Kafka producer/consumer + lag)
+
+```bash
+bin/labctl platform up data/kafka                       # Strimzi + lab-kafka
+bin/labctl scenario up event-driven-arch                # orders topic + producer + consumer
+bin/labctl scenario verify event-driven-arch            # 4 checks pass
+
+# Watch consumer-group lag build (stage 2 ramps producers to 3x), then drain it
+kubectl -n kafka exec -it lab-kafka-dual-role-0 -- \
+  bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group order-processors
+kubectl -n kafka scale deployment/orders-consumer --replicas=3   # drain
+bin/labctl scenario down event-driven-arch
+```
+
+**Expected:** the `orders` topic and both producer/consumer Deployments are
+ready; with producers ramped to 3× a single consumer falls behind (lag climbs);
+scaling consumers to 3 drains it. (Install `autoscaling/keda` and add a Kafka-lag
+`ScaledObject` to automate the drain.)
+
+### secrets-management (Vault → ESO rotation)
+
+```bash
+bin/labctl platform up secrets/vault
+bin/labctl platform up secrets/external-secrets
+bin/labctl scenario up secrets-management               # wires sync, seeds v1, rotates to v2
+bin/labctl scenario verify secrets-management           # 4 checks incl. rotation-propagated
+
+# The synced Secret should hold the rotated value — no redeploy happened
+kubectl -n go-api get secret go-api-secrets \
+  -o go-template='{{index .data "api-key" | base64decode}}{{"\n"}}'   # => scenario-secret-v2
+bin/labctl scenario down secrets-management
+```
+
+**Expected:** Vault running, ESO ready, the ExternalSecret `Ready=True`, and the
+`rotation-propagated` script check passes because `go-api-secrets` flipped to the
+rotated value within the 10s refresh — proving rotation propagates without a
+redeploy.
+
+### Acceptance check (task 058)
+
+- [x] All three scenarios: up → verify (pass) → down, cleanly, on k3d
+- [x] Canary split observable in mesh telemetry; lag visible via consumer-groups; secret rotation check passes
+- [x] `docs/scenarios.md` updated with all three
+- [x] Each scenario has ≥3 checks and ≥2 stages
+
+**M4 — Stack Expansion is complete.** Next milestone: M5 (Multi-Env & Day-2 Ops).

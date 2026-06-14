@@ -34,11 +34,12 @@ boundary.
 - 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
   **M1, M2, and M3 are complete** (scenario engine v2; incident engine incl.
   hints, MTTR, on-call drill; learning paths, challenge mode, unified results
-  store, and UI Learn/Challenges/Results views). **M4 is underway:** tasks 054
-  (service-mesh — istio + linkerd), 055 (data — kafka/strimzi + postgres/cnpg),
-  056 (secrets — vault + external-secrets), and 057 (autoscaling — keda + the
-  `autoscaling-under-load` scenario) are done; `platform up/down/status` take a
-  `category` or `category/provider` target. Next: 058 (more new stack scenarios).
+  store, and UI Learn/Challenges/Results views). **M4 is complete:** service-mesh
+  (istio + linkerd), data (kafka/strimzi + postgres/cnpg), secrets (vault +
+  external-secrets), and autoscaling (keda) categories, with four new v2
+  scenarios (autoscaling-under-load, mesh-traffic-management, event-driven-arch,
+  secrets-management); `platform up/down/status` take a `category` or
+  `category/provider` target. Next: M5 (Multi-Env & Day-2 Ops), task 059.
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**
