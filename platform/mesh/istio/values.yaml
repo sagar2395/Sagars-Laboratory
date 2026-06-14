@@ -1,0 +1,32 @@
+# Minimal Istio istiod values for k3d local development.
+# Full reference: https://artifacthub.io/packages/helm/istio-official/istiod
+pilot:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  # Single replica sufficient for local dev
+  replicaCount: 1
+  autoscaleEnabled: false
+
+# Disable telemetry addons (install separately if needed)
+telemetry:
+  enabled: true
+  v2:
+    enabled: false
+
+global:
+  proxy:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 40Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  # Reduce log verbosity for local dev
+  logging:
+    level: "default:warning"

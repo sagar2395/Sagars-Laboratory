@@ -19,6 +19,7 @@ The active provider for each category is selected via environment variables in `
 ```bash
 INGRESS_PROVIDER=traefik       # or nginx
 METRICS_PROVIDER=prometheus
+# MESH_PROVIDER=istio          # or linkerd (optional)
 ```
 
 Each category also has an `_interface.yaml` file documenting the contract that all providers in that category must satisfy.
@@ -99,6 +100,20 @@ These are typically activated via the `security-compliance` scenario.
 | **chaos-mesh** | `chaos-mesh/chaos-mesh` | Failure injection (pod kill, network delay, stress) |
 
 Activated via the `chaos-engineering` scenario. Includes a web dashboard (port-forward to 2333).
+
+### Mesh (`mesh/`)
+
+Service mesh providers for mTLS, traffic management, and observability between services.
+Enable via `MESH_PROVIDER` in `.env`, then `make platform-mesh-up` or `labctl platform up`.
+
+| Provider | Chart | Description |
+|----------|-------|-------------|
+| **istio** | `istio/base` + `istio/istiod` | Sidecar mode, mTLS, traffic management, Kiali-compatible |
+| **linkerd** | `linkerd/linkerd-crds` + `linkerd/linkerd-control-plane` | Lightweight proxy, automatic mTLS, no cert CLI required |
+
+The app namespace (`MESH_APP_NAMESPACE`, default `go-api`) is automatically labelled for sidecar/proxy injection on install and un-labelled on uninstall.
+
+Swap providers: `make platform-mesh-down` first, then set `MESH_PROVIDER=linkerd` and `make platform-mesh-up`.
 
 ## Provider Interface Contracts
 
@@ -189,4 +204,7 @@ platform/
   chaos/
     _interface.yaml
     chaos-mesh/           install.sh, uninstall.sh, status.sh, values.yaml
+  mesh/
+    istio/                install.sh, uninstall.sh, status.sh, values.yaml
+    linkerd/              install.sh, uninstall.sh, status.sh, values.yaml
 ```

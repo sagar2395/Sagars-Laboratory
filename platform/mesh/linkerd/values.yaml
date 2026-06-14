@@ -1,0 +1,26 @@
+# Minimal Linkerd control-plane values for k3d local development.
+# Full reference: https://artifacthub.io/packages/helm/linkerd2/linkerd-control-plane
+controllerReplicas: 1
+
+# Reduce resource footprint for local k3d clusters
+proxy:
+  resources:
+    cpu:
+      request: 10m
+      limit: 100m
+    memory:
+      request: 20Mi
+      limit: 128Mi
+
+# Identity issuer — certs are passed via --set-string at install time
+identity:
+  issuer:
+    scheme: kubernetes.io/tls
+
+# Disable high-availability (single-replica fine for local dev)
+enablePodAntiAffinity: false
+nodeAffinity: {}
+tolerations: []
+
+# Reduce log verbosity
+controllerLogLevel: warn
