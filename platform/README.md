@@ -101,6 +101,17 @@ These are typically activated via the `security-compliance` scenario.
 
 Activated via the `chaos-engineering` scenario. Includes a web dashboard (port-forward to 2333).
 
+### Data (`data/`)
+
+Data infrastructure sub-components. Both can be active simultaneously.
+Enable each independently: `DATA_KAFKA=1 make platform-data-kafka-up` or
+`DATA_POSTGRES=1 make platform-data-postgres-up`.
+
+| Sub-component | Chart | Description |
+|--------------|-------|-------------|
+| **kafka** | `bitnami/kafka` | Single-node KRaft Kafka cluster, ephemeral storage |
+| **postgres** | `cnpg/cloudnative-pg` + Cluster CR | 2-instance PostgreSQL (CloudNativePG), built-in failover drill |
+
 ### Mesh (`mesh/`)
 
 Service mesh providers for mTLS, traffic management, and observability between services.
@@ -207,4 +218,7 @@ platform/
   mesh/
     istio/                install.sh, uninstall.sh, status.sh, values.yaml
     linkerd/              install.sh, uninstall.sh, status.sh, values.yaml
+  data/
+    kafka/                install.sh, uninstall.sh, status.sh, values.yaml
+    postgres/             install.sh, uninstall.sh, status.sh, values.yaml
 ```

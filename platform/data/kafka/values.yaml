@@ -1,0 +1,37 @@
+# Bitnami Kafka values — minimal single-node KRaft setup for k3d.
+# Full reference: https://artifacthub.io/packages/helm/bitnami/kafka
+
+# KRaft mode: single pod acts as both controller and broker
+controller:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# No separate brokers needed in single-node mode
+broker:
+  replicaCount: 0
+
+# Disable persistence — ephemeral storage is fine for local demos
+persistence:
+  enabled: false
+
+# Simple PLAINTEXT listener (no auth/TLS for demo ease)
+listeners:
+  client:
+    protocol: PLAINTEXT
+  controller:
+    protocol: PLAINTEXT
+
+# Minimal log retention for laptop disks
+config:
+  logRetentionHours: 2
+  logRetentionBytes: 536870912  # 512 MiB
+
+# Disable ZooKeeper (not needed in KRaft mode)
+zookeeper:
+  enabled: false
