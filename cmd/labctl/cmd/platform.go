@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sagars-lab/labctl/internal/platform"
 	"github.com/spf13/cobra"
+	"go.flightdeck.dev/labctl/internal/platform"
 )
 
 var platformCmd = &cobra.Command{

@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sagars-lab/labctl/pkg/checks"
+	"go.flightdeck.dev/labctl/pkg/checks"
 )
 
 // Scenario schema versioning. The engine supports the current and previous

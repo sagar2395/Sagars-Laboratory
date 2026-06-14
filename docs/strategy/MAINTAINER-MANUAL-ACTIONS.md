@@ -26,6 +26,12 @@ The 4 pivotal choices from `OSS-COMMERCIAL-STRATEGY.md §0`:
   classes/jurisdictions (consider counsel). If it doesn't clear, the only rework
   is re-running task 071 with a different name; nothing else depends on it.
 - [ ] **Register `flightdeck.dev` + `go.flightdeck.dev`** (and `.io` if desired).
+- [ ] **Host the vanity import page.** Task 071 applied the module path
+  `go.flightdeck.dev/labctl`; deploy [`docs/vanity/labctl/index.html`](../vanity/labctl/index.html)
+  at `https://go.flightdeck.dev/labctl` (GitHub Pages custom domain or any static
+  host) and update its repo URL to the canonical git home. Full `go get`
+  resolution also needs the org transfer (C1); internal builds are unaffected
+  (built from source).
 
 ---
 

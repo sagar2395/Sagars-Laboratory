@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gorilla/mux"
-	"github.com/sagars-lab/labctl/internal/challenge"
+	"go.flightdeck.dev/labctl/internal/challenge"
 )
 
 func challengeEngine(s *Server) *challenge.Engine {

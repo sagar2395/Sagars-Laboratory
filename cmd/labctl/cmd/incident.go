@@ -11,8 +11,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/incident"
 	"github.com/spf13/cobra"
+	"go.flightdeck.dev/labctl/internal/incident"
 )
 
 var (

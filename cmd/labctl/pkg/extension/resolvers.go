@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sagars-lab/labctl/pkg/pack"
+	"go.flightdeck.dev/labctl/pkg/pack"
 )
 
 // Built-in, open resolvers. These wrap the same mechanisms the CLI already uses

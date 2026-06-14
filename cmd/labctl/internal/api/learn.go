@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gorilla/mux"
-	"github.com/sagars-lab/labctl/internal/learn"
+	"go.flightdeck.dev/labctl/internal/learn"
 )
 
 func learnEngine(s *Server) *learn.Engine {

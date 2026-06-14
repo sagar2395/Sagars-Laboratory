@@ -19,10 +19,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sagars-lab/labctl/pkg/entitlement"
-	"github.com/sagars-lab/labctl/pkg/extension"
-	"github.com/sagars-lab/labctl/pkg/pack"
-	schema "github.com/sagars-lab/labctl/pkg/scenario"
+	"go.flightdeck.dev/labctl/pkg/entitlement"
+	"go.flightdeck.dev/labctl/pkg/extension"
+	"go.flightdeck.dev/labctl/pkg/pack"
+	schema "go.flightdeck.dev/labctl/pkg/scenario"
 )
 
 // entitlement returns the engine's entitlement, defaulting to the open OSS

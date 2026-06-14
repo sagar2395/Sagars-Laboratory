@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sagars-lab/labctl/pkg/checks"
-	"github.com/sagars-lab/labctl/pkg/entitlement"
-	"github.com/sagars-lab/labctl/pkg/extension"
+	"go.flightdeck.dev/labctl/pkg/checks"
+	"go.flightdeck.dev/labctl/pkg/entitlement"
+	"go.flightdeck.dev/labctl/pkg/extension"
 )
 
 // denyAll is an injected entitlement test-double: it refuses every pack, the way

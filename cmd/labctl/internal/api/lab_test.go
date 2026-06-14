@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/config"
-	"github.com/sagars-lab/labctl/internal/lab"
-	"github.com/sagars-lab/labctl/internal/platform"
-	"github.com/sagars-lab/labctl/internal/scenario"
+	"go.flightdeck.dev/labctl/internal/config"
+	"go.flightdeck.dev/labctl/internal/lab"
+	"go.flightdeck.dev/labctl/internal/platform"
+	"go.flightdeck.dev/labctl/internal/scenario"
 )
 
 func newLabServer(t *testing.T) *Server {

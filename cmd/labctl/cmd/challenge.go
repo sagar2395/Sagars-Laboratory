@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/challenge"
-	"github.com/sagars-lab/labctl/pkg/checks"
-	"github.com/sagars-lab/labctl/internal/executor"
 	"github.com/spf13/cobra"
+	"go.flightdeck.dev/labctl/internal/challenge"
+	"go.flightdeck.dev/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/pkg/checks"
 )
 
 func challengeCmd() *cobra.Command {

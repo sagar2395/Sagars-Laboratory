@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/config"
-	"github.com/sagars-lab/labctl/internal/results"
+	"go.flightdeck.dev/labctl/internal/config"
+	"go.flightdeck.dev/labctl/internal/results"
 )
 
 func newResultsServer(t *testing.T) (*Server, *results.Store) {

@@ -12,11 +12,11 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sagars-lab/labctl/internal/executor"
-	"github.com/sagars-lab/labctl/pkg/checks"
-	"github.com/sagars-lab/labctl/pkg/entitlement"
-	"github.com/sagars-lab/labctl/pkg/extension"
-	schema "github.com/sagars-lab/labctl/pkg/scenario"
+	"go.flightdeck.dev/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/pkg/checks"
+	"go.flightdeck.dev/labctl/pkg/entitlement"
+	"go.flightdeck.dev/labctl/pkg/extension"
+	schema "go.flightdeck.dev/labctl/pkg/scenario"
 )
 
 // ErrAlreadyActive is returned by Up when the scenario is already active.

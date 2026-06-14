@@ -8,11 +8,12 @@
 
 ## What this project is
 
-**Sagars-Laboratory** is a Kubernetes **Platform Engineering Simulator**: a
-toolkit where DevOps/SRE/platform teams replicate real-world production
-scenarios across swappable tech stacks — for learning, PoCs, experimentation,
-and skills assessment. A single Go binary (`labctl`) plus a web UI wraps shell
-scripts and declarative YAML to:
+**Flightdeck** (this repo; historically "Sagars-Laboratory") is a Kubernetes
+**Platform Engineering Simulator**: a toolkit where DevOps/SRE/platform teams
+replicate real-world production scenarios across swappable tech stacks — for
+learning, PoCs, experimentation, and skills assessment. The product name is
+**Flightdeck**; the Go SDK module path is `go.flightdeck.dev/labctl`. A single Go
+binary (`labctl`) plus a web UI wraps shell scripts and declarative YAML to:
 
 - spin up a cluster (k3d locally; AKS/EKS in the cloud),
 - install **swappable** platform components (ingress, monitoring, logging,
@@ -51,8 +52,11 @@ boundary.
   (`labctl pack search`/`add <name>`/`validate-index`), **070 entitlement +
   extension seams** (`pkg/entitlement` allow-all default + `pkg/extension`
   resolver chain/no-op hooks; engine routes install/run through them; anti-lock-in,
-  CODEOWNERS-locked). Next: 071 (module path + brand alignment). Some M7 tasks
-  await maintainer decisions A1–A4, plus publishing the registry repo + Pages.
+  CODEOWNERS-locked), 071 module path + brand alignment (module
+  `go.flightdeck.dev/labctl`; CLI/README/CLAUDE rebranded **Flightdeck**; vanity
+  meta-tag page). Next: 072 (contributor experience — the last M7 task). Maintainer
+  owes: host `go.flightdeck.dev`, org transfer to `snowops/flightdeck`, registry
+  repo + Pages, trademark search (A0/B/C).
 
 **The plan of record is `docs/ROADMAP.md` (+ `docs/strategy/` for Part III).
 Live status is `.ai/state.json` — its `next` field points at the recommended

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sagars-lab/labctl/internal/executor"
-	"github.com/sagars-lab/labctl/internal/platform"
-	"github.com/sagars-lab/labctl/internal/scenario"
+	"go.flightdeck.dev/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/platform"
+	"go.flightdeck.dev/labctl/internal/scenario"
 )
 
 // fakeLabProject builds a project root with everything Execute touches.

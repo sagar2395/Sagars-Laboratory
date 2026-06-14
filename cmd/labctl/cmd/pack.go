@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sagars-lab/labctl/internal/scenario"
-	"github.com/sagars-lab/labctl/pkg/extension"
-	"github.com/sagars-lab/labctl/pkg/pack"
 	"github.com/spf13/cobra"
+	"go.flightdeck.dev/labctl/internal/scenario"
+	"go.flightdeck.dev/labctl/pkg/extension"
+	"go.flightdeck.dev/labctl/pkg/pack"
 )
 
 // `labctl pack` is the first-class command group for scenario packs — content

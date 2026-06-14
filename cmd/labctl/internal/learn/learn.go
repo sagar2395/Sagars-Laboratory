@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/results"
+	"go.flightdeck.dev/labctl/internal/results"
 	"gopkg.in/yaml.v3"
 )
 

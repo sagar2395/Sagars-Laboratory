@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sagars-lab/labctl/internal/config"
+	"go.flightdeck.dev/labctl/internal/config"
 )
 
 const learnTestPathYAML = `

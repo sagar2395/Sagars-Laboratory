@@ -19,8 +19,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sagars-lab/labctl/pkg/checks"
-	"github.com/sagars-lab/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/pkg/checks"
 )
 
 // ErrIncidentActive is returned by Inject when another incident is active.

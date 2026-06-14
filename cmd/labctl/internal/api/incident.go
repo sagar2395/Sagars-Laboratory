@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/sagars-lab/labctl/pkg/checks"
-	"github.com/sagars-lab/labctl/internal/incident"
+	"go.flightdeck.dev/labctl/internal/incident"
+	"go.flightdeck.dev/labctl/pkg/checks"
 )
 
 func (s *Server) incidentRunner() *checks.Runner {

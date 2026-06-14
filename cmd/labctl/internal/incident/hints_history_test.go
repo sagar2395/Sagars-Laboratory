@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sagars-lab/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/executor"
 )
 
 func TestParseHints(t *testing.T) {

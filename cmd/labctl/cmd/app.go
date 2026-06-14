@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sagars-lab/labctl/internal/config"
+	"go.flightdeck.dev/labctl/internal/config"
 )
 
 var appCmd = &cobra.Command{

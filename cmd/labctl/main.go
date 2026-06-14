@@ -2,7 +2,7 @@
 package main
 
 import (
-	"github.com/sagars-lab/labctl/cmd"
+	"go.flightdeck.dev/labctl/cmd"
 )
 
 func main() {

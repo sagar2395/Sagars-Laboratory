@@ -13,7 +13,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sagars-lab/labctl/pkg/checks"
+	"go.flightdeck.dev/labctl/pkg/checks"
 )
 
 const v2ScenarioYAML = `name: v2-scenario

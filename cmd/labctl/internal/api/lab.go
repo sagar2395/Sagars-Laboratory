@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/sagars-lab/labctl/internal/lab"
+	"go.flightdeck.dev/labctl/internal/lab"
 )
 
 func (s *Server) labStore() *lab.Store {

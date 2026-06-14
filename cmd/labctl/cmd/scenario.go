@@ -10,9 +10,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/sagars-lab/labctl/pkg/checks"
-	scenariopkg "github.com/sagars-lab/labctl/internal/scenario"
 	"github.com/spf13/cobra"
+	scenariopkg "go.flightdeck.dev/labctl/internal/scenario"
+	"go.flightdeck.dev/labctl/pkg/checks"
 )
 
 var scenarioCmd = &cobra.Command{

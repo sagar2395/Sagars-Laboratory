@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/executor"
-	"github.com/sagars-lab/labctl/internal/k8s"
+	"go.flightdeck.dev/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/k8s"
 )
 
 // RuntimeInfo describes a discovered runtime and its status.

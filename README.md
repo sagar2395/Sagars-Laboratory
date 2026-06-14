@@ -1,7 +1,11 @@
-# Sagars-Laboratory
+# Flightdeck
 
-A Kubernetes-based homelab for Platform Engineering and DevOps. Spin up infrastructure, deploy apps, activate testing scenarios (observability, GitOps, security, chaos engineering), and tear everything down in minutes.
+**Flightdeck** is a Kubernetes platform engineering simulator. Spin up infrastructure, deploy apps, activate testing scenarios (observability, GitOps, security, chaos engineering), inject incidents, run learning paths and challenges, and tear everything down in minutes.
 
+> **Identity:** the product is **Flightdeck**; the Go SDK module path is
+> `go.flightdeck.dev/labctl`. The canonical home is `snowops/flightdeck` (org
+> transfer pending); until then this repo is the project origin.
+>
 > **Status & plan:** this project is mid-build. The path to the finished state is
 > in [`docs/ROADMAP.md`](docs/ROADMAP.md); hands-on guides are in
 > [`docs/runbooks/`](docs/runbooks/). AI sessions should start from

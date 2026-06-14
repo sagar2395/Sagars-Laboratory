@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<!--
+  Vanity import-path page for the Flightdeck SDK (task 071).
+
+  Deploy this so it is served at:  https://go.flightdeck.dev/labctl
+  (e.g. GitHub Pages on a `go.flightdeck.dev` custom domain, or any static host).
+
+  The go-import meta tag tells `go get go.flightdeck.dev/labctl/...` which VCS repo
+  backs the module, decoupling the import path from the GitHub home so a future
+  org move is a redirect, not a code change.
+
+  Update the repo URL below to the CANONICAL git home once the org transfer
+  (manual action C1) lands — today that is the origin repo. Note: the Go module
+  currently lives in the cmd/labctl/ subdirectory; full `go get` resolution also
+  requires either hoisting the module to the repo root or a matching module
+  layout. Until then this page documents the adopted identity.
+-->
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="go-import" content="go.flightdeck.dev/labctl git https://github.com/snowops/flightdeck">
+    <meta name="go-source" content="go.flightdeck.dev/labctl https://github.com/snowops/flightdeck https://github.com/snowops/flightdeck/tree/main{/dir} https://github.com/snowops/flightdeck/blob/main{/dir}/{file}#L{line}">
+    <meta http-equiv="refresh" content="0; url=https://github.com/snowops/flightdeck">
+  </head>
+  <body>
+    Redirecting to the <a href="https://github.com/snowops/flightdeck">Flightdeck repository</a>.
+  </body>
+</html>

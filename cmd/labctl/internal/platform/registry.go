@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sagars-lab/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/executor"
 )
 
 // Provider represents a platform component provider (e.g., traefik, nginx).
