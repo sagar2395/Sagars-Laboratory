@@ -262,5 +262,88 @@ bin/labctl platform down secrets/vault              # removes Vault + UI ingress
 - [x] Rotating the value in Vault propagates within the ESO refresh interval
 - [x] Uninstall is clean; scripts portable + idempotent; versions pinned
 
-> Autoscaling section (task 057) and the new scenarios (task 058) are appended
-> here as those tasks ship.
+---
+
+## Autoscaling Under Load (task 057)
+
+The `autoscaling` category installs **KEDA**; the `autoscaling-under-load`
+scenario declares a `ScaledObject` that scales **go-api** on its Prometheus
+request rate, plus a Grafana dashboard (replicas vs RPS). Version pinned in
+`versions.env` (`KEDA_CHART_VERSION`).
+
+### Prereqs for this section
+
+- Monitoring stack installed (`make platform-up` — Prometheus + Grafana) and the
+  go-api ServiceMonitor/pod scrape working, so `http_requests_total` is in
+  Prometheus.
+- go-api deployed (runbook 01). Its own HPA is disabled (`autoscaling.enabled:
+  false` in values-dev), so KEDA is the sole scaler.
+
+### Steps — watch it scale
+
+```bash
+# 1. Install KEDA
+AUTOSCALING_PROVIDER=keda bin/labctl platform up autoscaling
+AUTOSCALING_PROVIDER=keda bin/labctl platform status autoscaling   # operator + metrics server ready
+
+# 2. Activate the scenario — applies the ScaledObject + dashboard
+bin/labctl scenario up autoscaling-under-load
+kubectl -n go-api get scaledobject go-api          # KEDA creates keda-hpa-go-api
+kubectl -n go-api get deploy go-api                # baseline: 1 replica
+
+# 3. Drive the spike (baseline 10 RPS, holds ~100 RPS for ~2m)
+bin/labctl traffic start --profile spike --rps 10
+
+# 4. Watch KEDA scale up (in another shell)
+kubectl -n go-api get hpa keda-hpa-go-api -w
+kubectl -n go-api get deploy go-api -w             # climbs toward ~4 replicas (max 6)
+
+# 5. DURING the 2-minute spike hold, verify the scaled-up state
+bin/labctl scenario verify autoscaling-under-load  # all checks pass
+
+# 6. Let the spike end; after ~1m cooldown + recovery, confirm scale-down
+kubectl -n go-api get deploy go-api                # back to 1 replica
+```
+
+### Expected
+
+- KEDA creates `keda-hpa-go-api`; at the 10 RPS baseline go-api holds at **1**
+  replica.
+- Under the ~100 RPS spike, `desiredReplicas = ceil(RPS / 25)` → go-api scales to
+  **≥3** (around 4), and `scenario verify` passes (`go-api-scaled-up` and
+  `latency-within-slo` among the 5 checks).
+- The Grafana **Autoscaling Under Load** dashboard shows the replica line
+  tracking the RPS line with a short lag.
+- After the spike ends, the 60s `cooldownPeriod` elapses and go-api scales back
+  to **1**.
+
+### Cleanup
+
+```bash
+bin/labctl traffic stop
+bin/labctl scenario down autoscaling-under-load    # removes ScaledObject + dashboard
+AUTOSCALING_PROVIDER=keda bin/labctl platform down autoscaling   # removes KEDA + CRDs
+```
+
+### Troubleshooting
+
+- **go-api never scales:** `kubectl -n go-api describe scaledobject go-api` — the
+  Prometheus trigger must reach `prometheus-kube-prometheus-prometheus` in the
+  monitoring namespace, and `sum(rate(http_requests_total{app="go-api"}[1m]))`
+  must return data (confirm go-api is being scraped in Prometheus).
+- **`scenario verify` fails on `go-api-scaled-up`:** run it *during* the spike
+  hold (step 5) — at baseline the check (replicas ≥ 3) is expected to fail.
+- **Scales but `latency-within-slo` fails:** the tiny CPU limit can push p99 up
+  under load; that *is* the SLO story. Raise go-api's CPU limit or lower the spike
+  `--rps` to demonstrate a healthy scale-out.
+- **HPA shows `<unknown>` target:** KEDA's metrics apiserver needs a few polling
+  intervals (15s) after install to report; give it a moment.
+
+### Acceptance check (task 057)
+
+- [x] Spike profile scales go-api from 1 to ≥3 replicas; cooldown returns to 1
+- [x] `labctl scenario verify autoscaling-under-load` passes post-spike
+- [x] Dashboard shows replicas vs RPS correlation
+- [x] Clean uninstall; portable + idempotent; versions pinned
+
+> The remaining new scenarios (task 058) are appended here as that task ships.

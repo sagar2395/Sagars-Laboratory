@@ -37,6 +37,8 @@ func providerForCategory(category string) string {
 		return cfg.MeshProvider
 	case "data":
 		return cfg.DataProvider
+	case "autoscaling":
+		return cfg.AutoscalingProvider
 	default:
 		return ""
 	}

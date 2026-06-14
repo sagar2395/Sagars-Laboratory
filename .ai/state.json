@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "057-autoscaling-category",
+  "next": "058-new-stack-scenarios",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -54,7 +54,7 @@
       "blocked_by": [
         "M1-scenario-engine-v2"
       ],
-      "note": "054 (mesh), 055 (data: kafka/postgres), 056 (secrets: vault + external-secrets, addressed as secrets/<provider>) complete. platform up/down/status take a category or category/provider target. Next: 057 (autoscaling/keda)."
+      "note": "054 (mesh), 055 (data), 056 (secrets), 057 (autoscaling/keda + autoscaling-under-load scenario) complete. platform up/down/status take a category or category/provider target. Only 058 (more new scenarios) remains in M4."
     },
     "M5-multi-env-day2": {
       "priority": "P2",
@@ -91,7 +91,6 @@
     }
   },
   "todo": [
-    "057-autoscaling-category",
     "058-new-stack-scenarios",
     "059-env-promotion-simulation",
     "060-day2-ops-drills",
@@ -104,6 +103,7 @@
   ],
   "in_progress": [],
   "done": [
+    "057-autoscaling-category",
     "056-secrets-platform-category",
     "055-data-platform-category",
     "054-mesh-platform-category",

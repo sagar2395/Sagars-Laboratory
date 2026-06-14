@@ -188,6 +188,30 @@ labctl platform down secrets/external-secrets && labctl platform down secrets/va
 > Vault is in-memory and wiped on restart — rotation, not durability, is the point.
 > Versions are pinned in `versions.env` (`VAULT_CHART_VERSION`, `ESO_CHART_VERSION`).
 
+### Autoscaling (`autoscaling/`)
+
+Event/metric-driven horizontal autoscaling beyond CPU/memory HPA. Selected by
+`AUTOSCALING_PROVIDER`.
+
+| Provider | Chart | Drives |
+|----------|-------|--------|
+| **keda** | `kedacore/keda` | A `ScaledObject` → HPA, scaling on Prometheus queries, Kafka lag, queue depth, … |
+
+The provider installs only the autoscaler; the **scaling rule** (a `ScaledObject`)
+is declared by scenarios/apps, not the provider. The flagship demo is the
+`autoscaling-under-load` scenario: a traffic spike drives go-api from 1 to
+several replicas on Prometheus RPS, then cooldown scales it back.
+
+```bash
+AUTOSCALING_PROVIDER=keda labctl platform up autoscaling
+labctl scenario up autoscaling-under-load        # installs the ScaledObject + dashboard
+labctl traffic start --profile spike --rps 10    # drive the spike
+labctl scenario verify autoscaling-under-load    # asserts the scaled-up state
+AUTOSCALING_PROVIDER=keda labctl platform down autoscaling
+```
+
+Version pinned in `versions.env` (`KEDA_CHART_VERSION`), overridable per-install.
+
 ## Provider Interface Contracts
 
 Each category has an `_interface.yaml` documenting:

@@ -28,16 +28,17 @@ type Config struct {
 	MonitoringNamespace string
 
 	// Provider selections
-	IngressProvider string
-	MetricsProvider string
-	LoggingProvider string
-	TracingProvider string
-	GitOpsProvider  string
-	ChaosProvider   string
-	PolicyProvider  string
-	SecretsProvider string
-	MeshProvider    string
-	DataProvider    string
+	IngressProvider     string
+	MetricsProvider     string
+	LoggingProvider     string
+	TracingProvider     string
+	GitOpsProvider      string
+	ChaosProvider       string
+	PolicyProvider      string
+	SecretsProvider     string
+	MeshProvider        string
+	DataProvider        string
+	AutoscalingProvider string
 
 	// App defaults
 	AppName         string
@@ -107,6 +108,7 @@ func Load(projectRoot string) (*Config, error) {
 	cfg.SecretsProvider = getEnvOrDefault("SECRETS_PROVIDER", "")
 	cfg.MeshProvider = getEnvOrDefault("MESH_PROVIDER", "")
 	cfg.DataProvider = getEnvOrDefault("DATA_PROVIDER", "")
+	cfg.AutoscalingProvider = getEnvOrDefault("AUTOSCALING_PROVIDER", "")
 
 	cfg.AppName = getEnvOrDefault("APP_NAME", "go-api")
 	cfg.HelmReleaseName = getEnvOrDefault("HELM_RELEASE_NAME", "go-api")

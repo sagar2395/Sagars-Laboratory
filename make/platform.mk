@@ -5,6 +5,7 @@ METRICS_PROVIDER  ?= prometheus
 # LOGGING_PROVIDER ?= loki          # set to enable logging stack
 # TRACING_PROVIDER ?= tempo         # set to enable tracing stack
 # MESH_PROVIDER    ?= istio         # set to enable service mesh (istio|linkerd)
+# AUTOSCALING_PROVIDER ?= keda      # set to enable autoscaling (keda)
 
 platform-up: platform-ingress-up platform-monitoring-up
 ifdef LOGGING_PROVIDER
@@ -15,6 +16,9 @@ platform-up: platform-tracing-up
 endif
 ifdef MESH_PROVIDER
 platform-up: platform-mesh-up
+endif
+ifdef AUTOSCALING_PROVIDER
+platform-up: platform-autoscaling-up
 endif
 
 platform-down: platform-monitoring-down platform-ingress-down
@@ -27,6 +31,9 @@ endif
 ifdef MESH_PROVIDER
 platform-down: platform-mesh-down
 endif
+ifdef AUTOSCALING_PROVIDER
+platform-down: platform-autoscaling-down
+endif
 
 platform-status: platform-ingress-status platform-monitoring-status
 ifdef LOGGING_PROVIDER
@@ -37,6 +44,9 @@ platform-status: platform-tracing-status
 endif
 ifdef MESH_PROVIDER
 platform-status: platform-mesh-status
+endif
+ifdef AUTOSCALING_PROVIDER
+platform-status: platform-autoscaling-status
 endif
 
 # Ingress (INGRESS_PROVIDER=traefik|nginx)
@@ -140,6 +150,19 @@ platform-data-up: platform-data-kafka-up platform-data-postgres-up
 platform-data-down: platform-data-postgres-down platform-data-kafka-down
 platform-data-status: platform-data-kafka-status platform-data-postgres-status
 
+# Autoscaling (AUTOSCALING_PROVIDER=keda) — only when AUTOSCALING_PROVIDER is set
+platform-autoscaling-up:
+	@echo "[platform] autoscaling provider: $(AUTOSCALING_PROVIDER)"
+	bash platform/autoscaling/$(AUTOSCALING_PROVIDER)/install.sh
+
+platform-autoscaling-down:
+	@echo "[platform] removing autoscaling provider: $(AUTOSCALING_PROVIDER)"
+	@bash platform/autoscaling/$(AUTOSCALING_PROVIDER)/uninstall.sh
+
+platform-autoscaling-status:
+	@echo "=== Autoscaling ($(AUTOSCALING_PROVIDER)) Status ==="
+	@bash platform/autoscaling/$(AUTOSCALING_PROVIDER)/status.sh
+
 # Secrets management (vault backend + external-secrets sync operator).
 # ESO depends on Vault — install vault first.
 platform-secrets-vault-up:
@@ -177,6 +200,7 @@ platform-secrets-status: platform-secrets-vault-status platform-secrets-eso-stat
         platform-logging-up platform-logging-down platform-logging-status \
         platform-tracing-up platform-tracing-down platform-tracing-status \
         platform-mesh-up platform-mesh-down platform-mesh-status \
+        platform-autoscaling-up platform-autoscaling-down platform-autoscaling-status \
         platform-data-up platform-data-down platform-data-status \
         platform-data-kafka-up platform-data-kafka-down platform-data-kafka-status \
         platform-data-postgres-up platform-data-postgres-down platform-data-postgres-status \

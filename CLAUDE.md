@@ -36,8 +36,9 @@ boundary.
   hints, MTTR, on-call drill; learning paths, challenge mode, unified results
   store, and UI Learn/Challenges/Results views). **M4 is underway:** tasks 054
   (service-mesh — istio + linkerd), 055 (data — kafka/strimzi + postgres/cnpg),
-  and 056 (secrets — vault + external-secrets) are done; `platform up/down/status`
-  now take a `category` or `category/provider` target. Next: 057 (autoscaling/keda).
+  056 (secrets — vault + external-secrets), and 057 (autoscaling — keda + the
+  `autoscaling-under-load` scenario) are done; `platform up/down/status` take a
+  `category` or `category/provider` target. Next: 058 (more new stack scenarios).
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**
