@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "058-new-stack-scenarios",
+  "next": "059-env-promotion-simulation",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -43,7 +43,7 @@
     },
     "M4-stack-expansion": {
       "priority": "P1",
-      "status": "in_progress",
+      "status": "done",
       "tasks": [
         "054",
         "055",
@@ -54,7 +54,7 @@
       "blocked_by": [
         "M1-scenario-engine-v2"
       ],
-      "note": "054/055/056 have no hard dependency on M1 and can be parallelized early."
+      "note": "Complete: mesh (istio+linkerd), data (kafka+postgres), secrets (vault+eso), autoscaling (keda), and 4 new scenarios."
     },
     "M5-multi-env-day2": {
       "priority": "P2",
@@ -91,7 +91,6 @@
     }
   },
   "todo": [
-    "058-new-stack-scenarios",
     "059-env-promotion-simulation",
     "060-day2-ops-drills",
     "061-cost-capacity-scenario",
@@ -121,6 +120,7 @@
     "055-data-platform-category",
     "056-secrets-platform-category",
     "057-autoscaling-category",
+    "058-new-stack-scenarios",
     "004-improve-runtime-detection-and-status-reporting",
     "005-make-platform-targets-provider-aware",
     "009-add-helm-pre-deploy-lint-and-readiness-wait",

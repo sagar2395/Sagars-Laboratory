@@ -163,6 +163,93 @@ You can also use the web UI (`labctl ui`) to activate/deactivate scenarios with 
 
 ---
 
+### Mesh Traffic Management (`mesh-traffic-management`)
+
+Istio-powered traffic management on the `go-api` service. **Requires Istio
+installed** (`MESH_PROVIDER=istio make platform-mesh-up`).
+
+**What it installs:**
+- `go-api-canary` deployment (v2 label, same image for demo) with Istio sidecar
+- `DestinationRule` defining `stable` and `canary` subsets (mTLS enforced)
+- `VirtualService` routing 90% traffic to stable, 10% to canary
+- Stage 2: fault injection — 500 ms latency on canary for header-matched requests
+
+**Prerequisites:**
+- Platform: ingress, mesh/istio
+- Apps: go-api
+
+**Explore after activation:**
+- Send 200 requests and count how many hit each version (expect ~180/20 distribution)
+- Add `end-user: canary-tester` header to a request to trigger 500 ms fault
+- View traffic graph in Kiali (if installed): `http://kiali.k3d.local`
+- Simulate progressive rollout: edit VirtualService weights 90/10 → 50/50 → 0/100
+
+---
+
+### Event-Driven Architecture (`event-driven-arch`)
+
+Kafka producer/consumer demo with observable consumer lag. **Requires Kafka**
+(`DATA_KAFKA=1 make platform-data-kafka-up`).
+
+**What it installs:**
+- One-shot Job that creates the `lab-events` topic (3 partitions)
+- `kafka-producer` deployment: publishes 1 event/second
+- `kafka-consumer` deployment: consumes from `lab-consumer-group`
+
+**Prerequisites:**
+- Platform: ingress, data/kafka
+- Apps: go-api
+
+**Explore after activation:**
+- Scale consumer to 0 replicas — watch lag accumulate (producer still runs)
+- Scale consumer to 3 replicas — watch lag drain rapidly
+- With KEDA installed, attach a Kafka trigger to automate the scale-up
+- Check consumer lag: `kubectl exec -n kafka deploy/kafka-consumer -- kafka-consumer-groups.sh ...`
+
+---
+
+### Secrets Management (`secrets-management`)
+
+Full Vault → ESO → k8s Secret pipeline with live rotation. **Requires Vault and
+ESO** (`SECRETS_VAULT=1 SECRETS_ESO=1 make platform-up`).
+
+**What it installs:**
+- ConfigMap documenting the rotation exercise steps
+- A Kubernetes Job that rotates the secret in Vault and waits for ESO to sync
+
+**Prerequisites:**
+- Platform: ingress, secrets/vault, secrets/external-secrets
+- Apps: go-api
+
+**Explore after activation:**
+- Check current value: `kubectl get secret go-api-external-secret -n go-api ...`
+- Rotate in Vault: `vault kv put secret/go-api db_password=new-value`
+- Wait 30 s — ESO syncs automatically; no pod restart required
+- Compare before/after in the Vault UI: `http://vault.k3d.local` (token: root)
+
+---
+
+### Autoscaling Under Load (`autoscaling-under-load`)
+
+KEDA-driven autoscaling demo. Scales `go-api` from 1 to ≥3 replicas under
+a traffic spike triggered by the 042 traffic generator. **Requires KEDA**
+(`AUTOSCALING_PROVIDER=keda make platform-autoscaling-up`).
+
+**What it installs:**
+- `ScaledObject` on `go-api` using the Prometheus scaler (threshold: 10 RPS/replica)
+
+**Prerequisites:**
+- Platform: ingress, monitoring/metrics, autoscaling/keda
+- Apps: go-api
+
+**Explore after activation:**
+- Generate spike: `labctl traffic spike --duration=30s --rps=50`
+- Watch replicas: `watch kubectl get hpa -n go-api`
+- View Grafana panel: replicas vs RPS correlation
+- Cooldown: replicas return to 1 within ~2 min after traffic stops
+
+---
+
 ## Scenario YAML Format
 
 ```yaml

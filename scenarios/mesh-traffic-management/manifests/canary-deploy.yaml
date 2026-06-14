@@ -1,0 +1,44 @@
+# Canary deployment — go-api v2 label, same image as stable for demo purposes.
+# In a real canary, image tag would differ (e.g. go-api:v2-candidate).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-api-canary
+  namespace: go-api
+  labels:
+    app: go-api
+    version: canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: go-api
+      version: canary
+  template:
+    metadata:
+      labels:
+        app: go-api
+        version: canary
+    spec:
+      containers:
+        - name: go-api
+          image: go-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: CANARY_VERSION
+              value: "v2-canary"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

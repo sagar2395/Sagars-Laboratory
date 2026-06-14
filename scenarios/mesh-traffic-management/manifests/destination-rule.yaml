@@ -1,0 +1,18 @@
+# DestinationRule defines stable/canary subsets for go-api based on version label.
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: go-api
+  namespace: go-api
+spec:
+  host: go-api
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL  # enforce mTLS
+  subsets:
+    - name: stable
+      labels:
+        version: stable
+    - name: canary
+      labels:
+        version: canary
