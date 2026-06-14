@@ -34,14 +34,40 @@ retrofitting them after premium logic has leaked into the engine is a rewrite.
 - Keep hooks data/# script-driven; do NOT introduce compiled Go plugins.
 
 ## Acceptance Criteria
-- [ ] `pkg/entitlement` + `pkg/extension` interfaces with open/no-op defaults
-- [ ] Pack install + scenario run route through them with zero behavior change in OSS
-- [ ] A documented example of injecting a custom resolver/entitlement (test double)
-- [ ] CODEOWNERS locks these packages to the lead maintainer
+- [x] `pkg/entitlement` + `pkg/extension` interfaces with open/no-op defaults
+- [x] Pack install + scenario run route through them with zero behavior change in OSS
+- [x] A documented example of injecting a custom resolver/entitlement (test double)
+- [x] CODEOWNERS locks these packages to the lead maintainer
 
 ## Testing Instructions
 Unit-test the no-op defaults (allow-all); inject a test-double entitlement that
-denies a pack and assert the install path refuses it cleanly.
+denies a pack and assert the install path refuses it cleanly. See
+`pkg/{entitlement,extension}/*_test.go` and
+`internal/scenario/entitlement_test.go`.
 
 ## Dependencies
 066
+
+## Progress
+- Done: `pkg/entitlement` — `Entitlement` interface + `AllowAll` open default
+  (`Default()`), `DeniedError`/`Denied`, and a `TokenVerifier` license-token seam
+  (interface only — no concrete verifier in OSS). `pkg/extension` — `Resolver`
+  interface + `Chain` + open built-ins (`OCIResolver` via pkg/pack,
+  `GitResolver` via the git CLI, `LocalResolver` for dirs/file://) +
+  `DefaultResolver`; `Hooks` interface + `NoopHooks` default
+  (`DefaultHooks()`).
+- Wiring (zero behavior change): `scenario.Engine` gains `Entitlement` + `Hooks`
+  fields defaulted to the open impls in `NewEngine`; `installFetched` authorizes
+  through entitlement; `Up` fires Pre/PostStage; `Verify` fires Pre/PostCheck;
+  `InstallVia(resolver,…)` installs through the resolver seam (the OCI add path
+  now flows through `extension.OCIResolver`).
+- Example + tests: a `denyTier` entitlement double (docs + test) and a
+  `denyAll` integration test proving the install path refuses cleanly with a
+  `*DeniedError`; resolver `Chain`/built-in tests; `NoopHooks` test; a
+  `Verify`-routes-through-hooks test. CODEOWNERS locks
+  `/cmd/labctl/pkg/{entitlement,extension}/` to the lead maintainer.
+- Docs: `docs/authoring/extensions.md`, architecture principle 8 (open core /
+  injected extensions), authoring README index.
+- Note: premium/business logic and concrete token verifiers stay in a private
+  repo and are injected at construction — never compiled into the OSS binary.
+  Hooks are data/script-driven; no compiled Go plugins.

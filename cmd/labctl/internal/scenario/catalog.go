@@ -9,6 +9,7 @@ package scenario
 // only install sources you trust.
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -18,9 +19,20 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sagars-lab/labctl/pkg/entitlement"
+	"github.com/sagars-lab/labctl/pkg/extension"
 	"github.com/sagars-lab/labctl/pkg/pack"
 	schema "github.com/sagars-lab/labctl/pkg/scenario"
 )
+
+// entitlement returns the engine's entitlement, defaulting to the open OSS
+// allow-all when unset (e.g. an Engine built without NewEngine in tests).
+func (e *Engine) entitlement() entitlement.Entitlement {
+	if e.Entitlement == nil {
+		return entitlement.Default()
+	}
+	return e.Entitlement
+}
 
 // Pack describes one installed catalog pack.
 type Pack struct {
@@ -154,6 +166,22 @@ func (e *Engine) InstallPack(src, name string, force bool, git GitFunc) (*Pack, 
 	return e.installFetched(name, dest, tmp)
 }
 
+// InstallVia fetches a pack with the given extension.Resolver into a temp dir,
+// then installs it through the shared validate → entitle → rename path. This is
+// the seam that lets premium/private/hosted sources slot in (task 070): the
+// engine never needs to know where a pack came from, only how to install it.
+func (e *Engine) InstallVia(ctx context.Context, resolver extension.Resolver, ref, name string, force bool) (*Pack, error) {
+	tmp, err := os.MkdirTemp("", "labctl-pack-resolve-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmp)
+	if err := resolver.Resolve(ctx, ref, tmp); err != nil {
+		return nil, err
+	}
+	return e.InstallPackFromDir(tmp, name, force)
+}
+
 // InstallPackFromDir installs a pack whose contents have already been fetched
 // into srcDir (e.g. by an OCI pull). It shares the same validation, manifest,
 // and collision rules as the git path — nothing invalid ever lands in the
@@ -260,6 +288,18 @@ func (e *Engine) installFetched(name, dest, tmp string) (*Pack, error) {
 		if err := manifest.CheckEngineCompat(e.LabctlVersion, schema.SupportedScenarioAPIVersions); err != nil {
 			return nil, err
 		}
+	}
+
+	// Entitlement seam (task 070): the OSS default allows everything, so this is a
+	// no-op for the open engine; an injected premium entitlement can gate the
+	// install here. Premium/private sources are gated upstream too (registry auth).
+	req := entitlement.Request{Name: name}
+	if manifest != nil {
+		req.Name = manifest.Metadata.Name
+		req.Tier = manifest.Tier()
+	}
+	if err := e.entitlement().Authorize(context.Background(), req); err != nil {
+		return nil, err
 	}
 
 	for _, n := range names {

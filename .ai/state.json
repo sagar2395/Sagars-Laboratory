@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "070-entitlement-extension-interface",
+  "next": "071-module-path-brand-alignment",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -102,7 +102,7 @@
         "071",
         "072"
       ],
-      "note": "Part III: community OSS simulator (Flightdeck, org snowops, Apache-2.0, CLA). Plan: docs/strategy/OSS-COMMERCIAL-STRATEGY.md. DONE: 065 governance/license, 066 public SDK boundary (pkg/checks, pkg/scenario, apiVersion, JSON Schemas, RFC 0001), 067 pack format (pkg/pack pack.yaml + labctl pack), 068 OCI distribution + cosign signing (pkg/pack oci/archive, labctl pack publish + add oci://, GHCR release workflow, runbook 13), 069 registry index + discovery (pkg/pack index, labctl pack search/info/add <name>/validate-index, sdk/schemas/index.schema.json, registry/ seed + validate-index CI). Next 070 (entitlement/extension interface). Maintainer still owes: CLA app, branch protection, org/teams, trademark search (manual actions B/C); publish the registry repo + Pages."
+      "note": "Part III: community OSS simulator (Flightdeck, org snowops, Apache-2.0, CLA). Plan: docs/strategy/OSS-COMMERCIAL-STRATEGY.md. DONE: 065 governance/license, 066 public SDK boundary (pkg/checks, pkg/scenario, apiVersion, JSON Schemas, RFC 0001), 067 pack format (pkg/pack pack.yaml + labctl pack), 068 OCI distribution + cosign signing (pkg/pack oci/archive, labctl pack publish + add oci://, GHCR release workflow, runbook 13), 069 registry index + discovery (pkg/pack index, labctl pack search/info/add <name>/validate-index, sdk/schemas/index.schema.json, registry/ seed + validate-index CI), 070 entitlement/extension seams (pkg/entitlement allow-all default + TokenVerifier seam, pkg/extension Resolver chain + OCI/git/local built-ins + no-op Hooks; engine routes install through entitlement and run/verify through hooks; CODEOWNERS-locked). Next 071 (module path + brand alignment). Maintainer still owes: CLA app, branch protection, org/teams, trademark search (manual actions B/C); publish the registry repo + Pages."
     },
     "M8-marketplace": {
       "priority": "P2",
@@ -132,7 +132,6 @@
     }
   },
   "todo": [
-    "070-entitlement-extension-interface",
     "071-module-path-brand-alignment",
     "072-contributor-experience",
     "059-env-promotion-simulation",
@@ -152,6 +151,7 @@
   ],
   "in_progress": [],
   "done": [
+    "070-entitlement-extension-interface",
     "069-registry-index-discovery",
     "068-oci-pack-distribution",
     "067-scenario-pack-format",

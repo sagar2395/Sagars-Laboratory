@@ -29,6 +29,12 @@
 /docs/strategy/             @sagar2395
 /docs/rfcs/                 @sagar2395
 
+# Anti-lock-in extension seams (task 070): the entitlement + extension interfaces
+# and their open defaults must stay lead-maintainer-owned even if /pkg/ subpaths
+# are later opened to area teams — premium/business logic must never land here.
+/cmd/labctl/pkg/entitlement/ @sagar2395
+/cmd/labctl/pkg/extension/   @sagar2395
+
 # --- CONTENT surfaces: open to area maintainers once teams exist (C3) ---
 # /packs/                   @sagar2395 @snowops/scenario-maintainers
 # /scenarios/               @sagar2395 @snowops/scenario-maintainers

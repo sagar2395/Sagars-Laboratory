@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/sagars-lab/labctl/internal/scenario"
+	"github.com/sagars-lab/labctl/pkg/extension"
 	"github.com/sagars-lab/labctl/pkg/pack"
 	"github.com/spf13/cobra"
 )
@@ -127,27 +128,20 @@ func newIndexClient() *pack.IndexClient {
 	}
 }
 
-// addOCIPack pulls an OCI pack into a temp dir (verifying signature first when
-// required), then installs it through the same validate-then-rename path as git.
+// addOCIPack installs an OCI pack through the extension.Resolver seam (task 070):
+// an OCIResolver fetches + verifies it (signature first when required) and the
+// engine installs it through the shared validate → entitle → rename path.
 func addOCIPack(ctx context.Context, ref, name string) (*scenario.Pack, error) {
 	if name == "" {
 		name = pack.PackNameFromOCIRef(ref)
 	}
-	tmp, err := os.MkdirTemp("", "labctl-pack-oci-")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(tmp)
-
-	if _, err := pack.Pull(ctx, ref, tmp, pack.PullOptions{
+	resolver := extension.OCIResolver{Opts: pack.PullOptions{
 		RequireSignature: packAddRequireSig,
 		CosignKey:        packAddCosignKey,
 		CertIdentity:     packAddCertID,
 		CertOIDCIssuer:   packAddCertIssuer,
-	}); err != nil {
-		return nil, err
-	}
-	return scenes.InstallPackFromDir(tmp, name, packAddForce)
+	}}
+	return scenes.InstallVia(ctx, resolver, ref, name, packAddForce)
 }
 
 var packSearchCmd = &cobra.Command{

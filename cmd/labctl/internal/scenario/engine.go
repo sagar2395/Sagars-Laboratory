@@ -14,6 +14,8 @@ import (
 
 	"github.com/sagars-lab/labctl/internal/executor"
 	"github.com/sagars-lab/labctl/pkg/checks"
+	"github.com/sagars-lab/labctl/pkg/entitlement"
+	"github.com/sagars-lab/labctl/pkg/extension"
 	schema "github.com/sagars-lab/labctl/pkg/scenario"
 )
 
@@ -44,9 +46,16 @@ type Engine struct {
 	Profile             string // active runtime profile (k3d|aks|eks), used for preflight
 	MonitoringNamespace string // namespace for monitoring/logging/tracing (default: "monitoring")
 	LabctlVersion       string // CLI version for pack engine-compat checks ("" or "dev" skips)
-	scenarios           map[string]*Scenario
-	loadErrors          map[string]error // scenario dir name → why it failed to load
-	stateDir            string
+
+	// Extension seams (task 070). Both default to the open OSS implementations
+	// (allow-all entitlement, no-op hooks), so the engine behaves identically;
+	// premium/hosted builds inject custom ones at construction.
+	Entitlement entitlement.Entitlement
+	Hooks       extension.Hooks
+
+	scenarios  map[string]*Scenario
+	loadErrors map[string]error // scenario dir name → why it failed to load
+	stateDir   string
 }
 
 // NewEngine creates a scenario engine by scanning the scenarios/ directory.
@@ -60,6 +69,8 @@ func NewEngine(projectRoot, domainSuffix, profile string, monitoringNamespace ..
 		DomainSuffix:        domainSuffix,
 		Profile:             profile,
 		MonitoringNamespace: ns,
+		Entitlement:         entitlement.Default(),
+		Hooks:               extension.DefaultHooks(),
 		scenarios:           make(map[string]*Scenario),
 		loadErrors:          make(map[string]error),
 		stateDir:            filepath.Join(projectRoot, ".labctl", "scenarios"),
@@ -189,6 +200,7 @@ func (e *Engine) Up(name string, exec *executor.Executor) error {
 		fmt.Println()
 	}
 
+	ctx := context.Background()
 	total := len(s.AllComponents())
 	i := 0
 	for _, st := range s.StagesOrDefault() {
@@ -198,12 +210,19 @@ func (e *Engine) Up(name string, exec *executor.Executor) error {
 				fmt.Printf("    %s\n", st.Description)
 			}
 		}
+		ev := extension.Event{Scenario: s.Name, Stage: st.Name}
+		if err := e.hooks().PreStage(ctx, ev); err != nil {
+			return fmt.Errorf("pre-stage hook (%s): %w", st.Name, err)
+		}
 		for _, comp := range st.Components {
 			i++
 			fmt.Printf("[%d/%d] Installing %s (%s)...\n", i, total, comp.Name, comp.Type)
 			if err := e.installComponent(s, &comp, exec); err != nil {
 				return fmt.Errorf("installing component %s: %w", comp.Name, err)
 			}
+		}
+		if err := e.hooks().PostStage(ctx, ev); err != nil {
+			return fmt.Errorf("post-stage hook (%s): %w", st.Name, err)
 		}
 	}
 
@@ -239,7 +258,30 @@ func (e *Engine) Verify(ctx context.Context, name string, runner *checks.Runner)
 	for i, c := range s.Checks {
 		resolved[i] = e.resolveCheck(c)
 	}
-	return runner.RunAll(ctx, resolved), nil
+
+	// Check lifecycle hooks (task 070): no-op in OSS. A Pre-check hook returning
+	// an error aborts verification, letting premium policy gate checks.
+	for _, c := range resolved {
+		if err := e.hooks().PreCheck(ctx, extension.Event{Scenario: name, Check: c.Name}); err != nil {
+			return nil, fmt.Errorf("pre-check hook (%s): %w", c.Name, err)
+		}
+	}
+	results := runner.RunAll(ctx, resolved)
+	for _, c := range resolved {
+		if err := e.hooks().PostCheck(ctx, extension.Event{Scenario: name, Check: c.Name}); err != nil {
+			return nil, fmt.Errorf("post-check hook (%s): %w", c.Name, err)
+		}
+	}
+	return results, nil
+}
+
+// hooks returns the engine's lifecycle hooks, defaulting to the open no-op set
+// when unset (e.g. an Engine built without NewEngine in tests).
+func (e *Engine) hooks() extension.Hooks {
+	if e.Hooks == nil {
+		return extension.DefaultHooks()
+	}
+	return e.Hooks
 }
 
 // resolveCheck resolves template variables in a check's templatable fields.

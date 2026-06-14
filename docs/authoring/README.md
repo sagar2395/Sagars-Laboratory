@@ -15,6 +15,8 @@ the stability guarantees you can rely on.
   format, cosign signing, and fail-closed verification on install.
 - [The Pack Registry & Discovery](registry.md) — `labctl pack search`, the static
   index format, name resolution, TTL caching, and the validate-index PR gate.
+- [Extension Seams](extensions.md) — the entitlement, resolver, and hook
+  interfaces that let premium/hosted builds plug in without forking the engine.
 - [SDK & Schema Stability Policy](sdk-stability-policy.md) — what we keep stable
   and how the schema versions.
 - JSON Schemas (for editor validation):

@@ -434,7 +434,7 @@ per-milestone status; `next` points at the recommended pick).
 | 067 | Scenario-pack format (`pack.yaml`) + `labctl pack` | ✅ done |
 | 068 | OCI pack distribution + cosign signing | ✅ done |
 | 069 | Registry index & discovery (`labctl pack search`) | ✅ done |
-| 070 | Entitlement / extension interface | todo |
+| 070 | Entitlement / extension interface | ✅ done |
 | 071 | Module path & brand alignment | todo |
 | 072 | Contributor experience (scaffolds, walkthrough) | todo |
 
