@@ -34,10 +34,10 @@ boundary.
 - 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
   **M1, M2, and M3 are complete** (scenario engine v2; incident engine incl.
   hints, MTTR, on-call drill; learning paths, challenge mode, unified results
-  store, and UI Learn/Challenges/Results views). **M4 is underway:** task 054
-  (service-mesh category — istio + linkerd) and 055 (data category — kafka/strimzi
-  + postgres/cnpg, addressed as `data/<provider>`) are done; `platform up/down/status`
-  now take a `category` or `category/provider` target. Next: 056 (secrets platform).
+  store, and UI Learn/Challenges/Results views). **M4 is underway:** tasks 054
+  (service-mesh — istio + linkerd), 055 (data — kafka/strimzi + postgres/cnpg),
+  and 056 (secrets — vault + external-secrets) are done; `platform up/down/status`
+  now take a `category` or `category/provider` target. Next: 057 (autoscaling/keda).
 
 **The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
 its `next` field points at the recommended next task.**

@@ -140,6 +140,37 @@ platform-data-up: platform-data-kafka-up platform-data-postgres-up
 platform-data-down: platform-data-postgres-down platform-data-kafka-down
 platform-data-status: platform-data-kafka-status platform-data-postgres-status
 
+# Secrets management (vault backend + external-secrets sync operator).
+# ESO depends on Vault — install vault first.
+platform-secrets-vault-up:
+	@echo "[platform] secrets: vault (dev mode)"
+	bash platform/secrets/vault/install.sh
+
+platform-secrets-vault-down:
+	@echo "[platform] removing secrets: vault"
+	@bash platform/secrets/vault/uninstall.sh
+
+platform-secrets-vault-status:
+	@echo "=== Secrets: Vault Status ==="
+	@bash platform/secrets/vault/status.sh
+
+platform-secrets-eso-up:
+	@echo "[platform] secrets: external-secrets"
+	bash platform/secrets/external-secrets/install.sh
+
+platform-secrets-eso-down:
+	@echo "[platform] removing secrets: external-secrets"
+	@bash platform/secrets/external-secrets/uninstall.sh
+
+platform-secrets-eso-status:
+	@echo "=== Secrets: External Secrets Status ==="
+	@bash platform/secrets/external-secrets/status.sh
+
+# Aggregates: bring up vault then ESO (order matters); tear down in reverse.
+platform-secrets-up: platform-secrets-vault-up platform-secrets-eso-up
+platform-secrets-down: platform-secrets-eso-down platform-secrets-vault-down
+platform-secrets-status: platform-secrets-vault-status platform-secrets-eso-status
+
 .PHONY: platform-up platform-down platform-status \
         platform-ingress-up platform-ingress-down platform-ingress-status \
         platform-monitoring-up platform-monitoring-down platform-monitoring-status \
@@ -148,4 +179,7 @@ platform-data-status: platform-data-kafka-status platform-data-postgres-status
         platform-mesh-up platform-mesh-down platform-mesh-status \
         platform-data-up platform-data-down platform-data-status \
         platform-data-kafka-up platform-data-kafka-down platform-data-kafka-status \
-        platform-data-postgres-up platform-data-postgres-down platform-data-postgres-status
+        platform-data-postgres-up platform-data-postgres-down platform-data-postgres-status \
+        platform-secrets-up platform-secrets-down platform-secrets-status \
+        platform-secrets-vault-up platform-secrets-vault-down platform-secrets-vault-status \
+        platform-secrets-eso-up platform-secrets-eso-down platform-secrets-eso-status

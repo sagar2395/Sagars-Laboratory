@@ -31,7 +31,7 @@ func providerForCategory(category string) string {
 		return cfg.ChaosProvider
 	case "security/policy":
 		return cfg.PolicyProvider
-	case "security/secrets":
+	case "secrets":
 		return cfg.SecretsProvider
 	case "mesh":
 		return cfg.MeshProvider

@@ -178,5 +178,89 @@ bin/labctl platform down data/postgres    # removes operator + Cluster + PVCs + 
 - [x] Uninstall removes operators + CRs + PVCs cleanly
 - [x] Versions pinned; scripts portable + idempotent
 
-> Secrets and autoscaling sections (tasks 056–057) and the new scenarios
-> (task 058) are appended here as those tasks ship.
+---
+
+## Secrets Management (task 056)
+
+The `secrets` category pairs a **Vault** backend (`secrets/vault`, dev mode) with
+the **External Secrets Operator** (`secrets/external-secrets`) that syncs Vault
+values into native Kubernetes Secrets. ESO prerequires Vault, so install Vault
+first. Versions are pinned in `versions.env` (`VAULT_CHART_VERSION`,
+`ESO_CHART_VERSION`).
+
+> **No secrets in git.** The dev root token comes from `VAULT_DEV_ROOT_TOKEN`
+> (defaults to Vault's well-known dev value `root`). Export your own before
+> installing if you prefer: `export VAULT_DEV_ROOT_TOKEN=...`.
+
+### Install + verify the sync chain
+
+```bash
+# 0. (Optional) add the UI host to /etc/hosts so the ingress resolves
+bin/labctl hosts add vault.k3d.local        # or edit /etc/hosts by hand
+
+# 1. Vault (dev): single in-memory pod, seeds secret/go-api, UI via ingress
+bin/labctl platform up secrets/vault
+bin/labctl platform status secrets/vault    # Ready, sealed=false, demo secret present
+#   UI: http://vault.k3d.local  (login: Token = your dev root token)
+
+# 2. External Secrets Operator: wires Vault -> ExternalSecret -> k8s Secret
+bin/labctl platform up secrets/external-secrets
+bin/labctl platform status secrets/external-secrets
+
+# 3. Confirm the secret synced into the go-api namespace
+kubectl -n go-api get secret go-api-secrets \
+  -o go-template='{{index .data "api-key" | base64decode}}{{"\n"}}'
+# => s3cr3t-from-vault-v1   (the seeded value)
+```
+
+**Expected:** the `ExternalSecret go-api-secret` reports `Ready=True` and the
+`go-api-secrets` Secret exists in `go-api` carrying the value from Vault.
+
+### Rotation exercise (the point of the drill)
+
+```bash
+# 4. Rotate the value in Vault
+kubectl -n vault exec vault-0 -- sh -c \
+  "VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN='${VAULT_DEV_ROOT_TOKEN:-root}' \
+   vault kv put secret/go-api api-key=rotated-v2"
+
+# 5. Within the 15s refresh interval, ESO propagates it to the k8s Secret
+sleep 20
+kubectl -n go-api get secret go-api-secrets \
+  -o go-template='{{index .data "api-key" | base64decode}}{{"\n"}}'
+# => rotated-v2
+```
+
+**Expected:** the synced Secret flips to `rotated-v2` without any manual
+re-apply — that propagation is the deliverable. To feed it to the app, add
+`envFrom: [{secretRef: {name: go-api-secrets}}]` to go-api's Deployment (the app
+then reads `api-key` as an env var; a pod restart picks up the new value).
+
+### Cleanup
+
+```bash
+bin/labctl platform down secrets/external-secrets   # removes ESO + wiring + synced secret
+bin/labctl platform down secrets/vault              # removes Vault + UI ingress
+```
+
+### Troubleshooting
+
+- **`platform up secrets/external-secrets` fails preflight:** install
+  `secrets/vault` first — ESO does not auto-install its backend.
+- **`platform up secrets` errors "multiple providers":** name the provider
+  (`secrets/vault` or `secrets/external-secrets`), or set `SECRETS_PROVIDER`.
+- **ExternalSecret stuck not-Ready:** check that `vault-token` exists in `go-api`
+  and matches your dev root token, and that the SecretStore server URL resolves
+  (`http://vault.vault.svc:8200`). `kubectl describe externalsecret go-api-secret -n go-api`.
+- **UI not reachable:** ensure an ingress controller is installed and
+  `vault.<DOMAIN_SUFFIX>` is in `/etc/hosts` (`labctl hosts add`).
+
+### Acceptance check (task 056)
+
+- [x] Vault installs, demo secret seeded, UI reachable via ingress
+- [x] ESO syncs the demo secret into the go-api namespace
+- [x] Rotating the value in Vault propagates within the ESO refresh interval
+- [x] Uninstall is clean; scripts portable + idempotent; versions pinned
+
+> Autoscaling section (task 057) and the new scenarios (task 058) are appended
+> here as those tasks ship.
