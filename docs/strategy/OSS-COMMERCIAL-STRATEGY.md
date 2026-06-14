@@ -132,18 +132,23 @@ distribution encodings, one logical format:
   premium entitlement mechanism (a registry that returns 401 without a license
   token). Same pattern as Helm OCI charts and Argo CD config-management plugins.
 
-A pack is a directory with this shape:
+A pack is a directory with this shape (the flat layout the engine loads today —
+one directory per scenario at the pack root, with `pack.yaml` alongside; see
+`packs/examples/hello-pack/`):
 
 ```
 my-pack/
-  pack.yaml                 # the manifest (see §2.2)
-  scenarios/<name>/...      # scenario.yaml + manifests/values/dashboards/scripts
-  platform/<category>/...   # OPTIONAL: platform modules the pack adds
-  incidents/<name>/...      # OPTIONAL: fault library entries
-  learn/, challenges/       # OPTIONAL: learning paths / challenges
+  pack.yaml                 # the manifest (see §2.2) — at the pack root
+  <scenario-name>/          # one directory per scenario (scenario.yaml + assets)
+    scenario.yaml
+    manifests/  values/  dashboards/  scripts/
   LICENSE                   # the pack's own license (community or premium)
   README.md
 ```
+
+> Planned (later): an optional `scenarios/` subdir plus bundled `platform/`,
+> `incidents/`, `learn/`, `challenges/` directories so a pack can ship modules and
+> content together. The loader and `ValidatePackDir` gain the deeper scan then.
 
 ### 2.2 Scenario / pack metadata model (`pack.yaml`)
 

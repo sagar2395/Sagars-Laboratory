@@ -255,6 +255,27 @@ your cluster, install only trusted sources.
 
 ---
 
+### `labctl pack` — Scenario packs (content add-ons)
+
+First-class commands for versioned scenario packs. A pack may carry a `pack.yaml`
+manifest (`apiVersion: packs.flightdeck.dev/v1`) declaring name, version (SemVer),
+publisher, license, tier, and engine compatibility; the CLI validates it and
+refuses incompatible packs. `labctl scenario install|packs|uninstall` remain as
+aliases. Authoring guide: `docs/authoring/packs.md`.
+
+```bash
+labctl pack add <git-url>[@ref]   # install (flags: --name, --force)
+labctl pack list                  # PACK / VERSION / TIER / SCENARIOS
+labctl pack info <pack-name>      # manifest metadata + provided scenarios
+labctl pack remove <pack-name>    # uninstall (must deactivate its scenarios first)
+```
+
+> Packs run scripts and apply manifests on your cluster — install only trusted
+> sources. OCI distribution + signing (068) and a searchable registry index (069)
+> build on this.
+
+---
+
 ### `labctl traffic` — Synthetic load generation
 
 Run a k6 load generator in-cluster so scenarios, incidents, and autoscaling

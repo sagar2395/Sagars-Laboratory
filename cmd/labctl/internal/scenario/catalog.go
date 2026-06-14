@@ -16,13 +16,17 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/sagars-lab/labctl/pkg/pack"
+	schema "github.com/sagars-lab/labctl/pkg/scenario"
 )
 
 // Pack describes one installed catalog pack.
 type Pack struct {
-	Name      string   `json:"name"`
-	Dir       string   `json:"-"`
-	Scenarios []string `json:"scenarios"`
+	Name      string         `json:"name"`
+	Dir       string         `json:"-"`
+	Scenarios []string       `json:"scenarios"`
+	Manifest  *pack.Manifest `json:"manifest,omitempty"` // nil for legacy packs without pack.yaml
 }
 
 // GitFunc runs a git command; tests inject a stub.
@@ -159,6 +163,23 @@ func (e *Engine) InstallPack(src, name string, force bool, git GitFunc) (*Pack, 
 	if err != nil {
 		return nil, err
 	}
+
+	// Read the optional pack.yaml manifest. Legacy packs without one still
+	// install (a warning is surfaced by the caller); a present manifest must be
+	// valid and compatible with this engine before anything lands.
+	manifest, err := pack.Load(tmp)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", pack.ManifestFile, err)
+	}
+	if manifest != nil {
+		if err := manifest.Validate(); err != nil {
+			return nil, err
+		}
+		if err := manifest.CheckEngineCompat(e.LabctlVersion, schema.SupportedScenarioAPIVersions); err != nil {
+			return nil, err
+		}
+	}
+
 	for _, n := range names {
 		if existing, ok := e.scenarios[n]; ok {
 			from := "the repository"
@@ -173,7 +194,7 @@ func (e *Engine) InstallPack(src, name string, force bool, git GitFunc) (*Pack, 
 		return nil, err
 	}
 	e.rescan()
-	return &Pack{Name: name, Dir: dest, Scenarios: names}, nil
+	return &Pack{Name: name, Dir: dest, Scenarios: names, Manifest: manifest}, nil
 }
 
 // UninstallPack removes an installed pack and its scenarios.
@@ -209,6 +230,9 @@ func (e *Engine) Packs() []Pack {
 			continue
 		}
 		p := Pack{Name: entry.Name(), Dir: filepath.Join(e.CatalogDir(), entry.Name())}
+		if m, err := pack.Load(p.Dir); err == nil {
+			p.Manifest = m // nil for legacy packs without pack.yaml
+		}
 		for _, s := range e.scenarios {
 			if s.Source == p.Name {
 				p.Scenarios = append(p.Scenarios, s.Name)

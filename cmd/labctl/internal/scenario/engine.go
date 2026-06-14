@@ -43,6 +43,7 @@ type Engine struct {
 	DomainSuffix        string
 	Profile             string // active runtime profile (k3d|aks|eks), used for preflight
 	MonitoringNamespace string // namespace for monitoring/logging/tracing (default: "monitoring")
+	LabctlVersion       string // CLI version for pack engine-compat checks ("" or "dev" skips)
 	scenarios           map[string]*Scenario
 	loadErrors          map[string]error // scenario dir name → why it failed to load
 	stateDir            string

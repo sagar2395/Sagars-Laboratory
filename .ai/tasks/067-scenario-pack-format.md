@@ -43,5 +43,20 @@ group. Back-compatible with today's git-pack installs.
 Install a sample pack from a local git dir; verify versioned install dir,
 lockfile, dependency resolution, and that `scenario up` finds packaged scenarios.
 
+## Progress
+- Done: `pkg/pack` (pack.yaml manifest: identity/SemVer/publisher/license/tier,
+  engine + scenario-apiVersion compat, requires/provides, checksum/signature
+  fields, validation) + tests; `sdk/schemas/pack.schema.json`; wired manifest
+  load/validate/engine-compat into `InstallPack` and surfaced on `Pack`; new
+  `labctl pack add|list|info|remove` group (scenario install/packs/uninstall kept
+  as aliases); `packs/examples/hello-pack` reference pack; authoring guide
+  (`docs/authoring/packs.md`) + cli-reference. E2E verified (install→list→info→
+  scenario visible→remove).
+- Deferred (with later tasks): full pack-to-pack semver-range resolution at
+  install time (lands with the registry, 069); richer pack layout (scenarios/
+  subdir + bundled platform/incidents/learn) — loader scan extension; physically
+  repackaging the built-in scenarios under packs/community/ (the in-repo
+  scenarios act as the implicit core pack for now).
+
 ## Dependencies
 066

@@ -9,10 +9,13 @@ the stability guarantees you can rely on.
 
 ## Contents
 
+- [Authoring Scenario Packs](packs.md) — `pack.yaml`, the `labctl pack` commands,
+  and how content is bundled and distributed.
 - [SDK & Schema Stability Policy](sdk-stability-policy.md) — what we keep stable
   and how the schema versions.
 - JSON Schemas (for editor validation):
   - [`sdk/schemas/scenario.schema.json`](../../sdk/schemas/scenario.schema.json)
+  - [`sdk/schemas/pack.schema.json`](../../sdk/schemas/pack.schema.json)
 - Scenario format reference: [../scenarios.md](../scenarios.md)
 - Platform module contract: [../../platform/README.md](../../platform/README.md)
 
