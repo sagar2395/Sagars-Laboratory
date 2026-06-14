@@ -15,8 +15,9 @@ accepts external contributions. This is the single highest-leverage, most
 time-sensitive task: every contribution merged without it is a compounding
 liability.
 
-Depends on maintainer decisions A1 (license) and A2 (CLA vs DCO) in
-docs/strategy/MAINTAINER-MANUAL-ACTIONS.md.
+Decisions locked (2026-06-14): core license **Apache-2.0**, contributions via
+**CLA** (CLA Assistant), GitHub org **`snowops`**. The product name (for prose +
+copyright lines) is finalised in task 071 — use the working title until then.
 
 ## Files to Modify
 - `LICENSE` (chosen core license — recommended Apache-2.0), `NOTICE`
@@ -36,14 +37,15 @@ docs/strategy/MAINTAINER-MANUAL-ACTIONS.md.
 - Keep CONTRIBUTING pointed at the content surface (packs/scenarios) for newcomers.
 
 ## Acceptance Criteria
-- [ ] LICENSE + NOTICE present; SPDX headers added; license-scan gate green
+- [ ] Apache-2.0 LICENSE + NOTICE present; SPDX headers added; license-scan gate green
 - [ ] All governance docs present and internally consistent
 - [ ] CODEOWNERS + (documented) branch-protection settings enforce maintainer review
-- [ ] CLA bot config (or DCO check) in place per decision A2
+- [ ] CLA Assistant config (`.github/cla.yml` + CLA text) in place
 
 ## Testing Instructions
-CI runs the license-scan + (CLA/DCO) checks on a test PR. Manual: confirm
-CODEOWNERS routes a sample engine PR to the maintainer.
+CI runs the license-scan + CLA checks on a test PR. Manual: confirm CODEOWNERS
+routes a sample engine PR to the maintainer.
 
 ## Dependencies
-Maintainer decisions A1, A2 (manual-actions doc)
+None (decisions A1/A2/A3/A4 resolved). Maintainer manual steps B1/B2 (install
+the CLA app, make the licensing commit-of-record) per the manual-actions doc.

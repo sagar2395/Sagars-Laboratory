@@ -15,7 +15,9 @@ repo `sagar2395/Sagars-Laboratory`) and adopt a stable, brandable identity befor
 an ecosystem forms around it. Pick a vanity import path so the module path never
 has to change again even if the GitHub home moves.
 
-Depends on maintainer decision A3 (brand & GitHub home).
+Decided: GitHub org **`snowops`**, monorepo core. Remaining: the exact
+**trademark-able product name** (and the vanity import path derived from it,
+e.g. `go.<product>.dev/...`) — the one sub-decision A0 in the manual-actions doc.
 
 ## Files to Modify
 - `cmd/labctl/go.mod` (+ any `pkg/` go.mod), all import paths
@@ -39,4 +41,4 @@ Depends on maintainer decision A3 (brand & GitHub home).
 resolves (if configured).
 
 ## Dependencies
-Maintainer decision A3 (manual-actions doc)
+Maintainer sub-decision A0 — the product name (manual-actions doc)

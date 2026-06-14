@@ -8,21 +8,27 @@
 
 ---
 
-## A. Decisions to make first (they unblock the engineering tasks)
+## A. Decisions (RESOLVED 2026-06-14)
 
-These are the 4 pivotal choices from `OSS-COMMERCIAL-STRATEGY.md §0`. Until you
-answer, tasks 065 (license/CLA) and 071 (brand/module path) can't be finalised.
+The 4 pivotal choices from `OSS-COMMERCIAL-STRATEGY.md §0`:
 
-- [ ] **A1. Core license.** Recommended: **Apache-2.0**. Alternatives: AGPL-3.0
-  (SaaS-protective, adoption-taxing) / MIT (no patent grant). → drives 065.
-- [ ] **A2. Contribution agreement.** Recommended: **CLA** (preserves relicensing
-  / commercial flexibility). Alternative: DCO (lighter, but no relicensing).
-  → drives 065.
-- [ ] **A3. Brand & GitHub home.** Recommended: a **neutral org + product name**
-  for the ecosystem; keep this repo as the origin. Decide the product name and a
-  **vanity import path** (e.g. `go.<brand>.dev/lab`). → drives 071.
-- [ ] **A4. Repo strategy.** Confirm **monorepo core + `registry` + private
-  `lab-premium`** (recommended) vs polyrepo-now.
+- [x] **A1. Core license → Apache-2.0.**
+- [x] **A2. Contribution agreement → CLA** (CLA Assistant).
+- [x] **A3. Brand & GitHub home → dedicated repo under the `snowops` org.**
+  Still open: the exact **trademark-able product name** (and the vanity import
+  path derived from it, e.g. `go.<product>.dev/...`). This is the one remaining
+  sub-decision that gates task 071.
+- [x] **A4. Repo strategy → monorepo core + `snowops/registry` + private
+  `snowops/<product>-premium`.**
+
+### A0. Remaining sub-decision — the product name (gates 071)
+
+- [ ] **Pick the trademark-able product name.** Criteria: short, distinctive,
+  *not* generic/descriptive (generic names like "platformsim" are hard to
+  trademark), brandable, with an available `.dev`/`.io` domain and GitHub repo
+  name under `snowops`. Then do a basic **trademark knock-out search** before
+  committing. Once chosen, the automation applies it across go.mod, imports, docs
+  (task 071) and the LICENSE/NOTICE copyright lines.
 
 ---
 

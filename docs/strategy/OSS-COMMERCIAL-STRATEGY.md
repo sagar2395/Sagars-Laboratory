@@ -1,7 +1,9 @@
 # Open-Source & Commercial Strategy
 
-> Status: **PROPOSAL — pending maintainer confirmation on the 4 pivotal
-> decisions in §0.** Author: AI session, 2026-06-14. Owner: @sagar2395.
+> Status: **DECISIONS LOCKED 2026-06-14** — core license **Apache-2.0**,
+> **CLA** for contributions, GitHub org **`snowops`** with a **monorepo core +
+> 2 satellites**. One sub-decision open: the **trademark-able product name**
+> (the repo/module identity, task 071). Author: AI session. Owner: @sagar2395.
 >
 > This document proposes how to evolve Sagars-Laboratory from a personal homelab
 > project into a community-driven open-source **platform-engineering simulator**
@@ -32,15 +34,18 @@ assurance (certification, support) — never in crippling the core.
 | Licensing | **Apache-2.0** for engine + CLI + SDK (max adoption, patent + trademark safety). **Open-core**: premium content under a separate proprietary EULA, never mixed into the OSS tree. Protect the SaaS moat with **trademark + hosted convenience + premium content**, not license restrictions. |
 | Governance | **Maintainer-led (you hold architectural + release authority)** via `CODEOWNERS` + `GOVERNANCE.md`; open contribution for scenarios/docs/modules; **CLA** to preserve relicensing/commercial flexibility. |
 
-**The 4 decisions that change the tasks (please confirm — see the questions
-asked alongside this document):**
+**The 4 pivotal decisions — RESOLVED 2026-06-14:**
 
-1. **Core license** — Apache-2.0 (recommended) vs AGPL-3.0 vs MIT.
-2. **Contribution agreement** — CLA (recommended) vs DCO sign-off.
-3. **Brand & GitHub home** — keep `sagar2395/Sagars-Laboratory` vs create a
-   neutral **GitHub org + product brand** (recommended for a community/commercial
-   project; "Sagars-Laboratory" reads as a personal brand).
-4. **Repo strategy** — confirm monorepo-core (recommended) vs polyrepo-now.
+1. **Core license** — ✅ **Apache-2.0**.
+2. **Contribution agreement** — ✅ **CLA** (via CLA Assistant).
+3. **Brand & GitHub home** — ✅ a **dedicated repo under the `snowops` GitHub
+   org**, with a **trademark-able product name** (the name itself is the one
+   remaining sub-decision — drives task 071's module/vanity path).
+4. **Repo strategy** — ✅ **monorepo core + 2 satellites** (`registry`,
+   private premium).
+
+In the trees below, `<product>` is the pending trademark-able product name; the
+core monorepo will be `snowops/<product>`.
 
 Everything below is structured so that only a handful of tasks (§7) depend on
 these answers; the rest can start immediately.
@@ -61,9 +66,9 @@ The sustainable middle path is **three repositories**:
 
 | Repo | Visibility | Contains | Why separate |
 |---|---|---|---|
-| **`<org>/lab`** (core monorepo) | Public, Apache-2.0 | engine, `labctl` CLI, SDK (`pkg/`), platform modules, runtimes, **community scenario packs**, docs, web UI | One place to contribute, one CI, atomic cross-cutting changes |
-| **`<org>/registry`** (marketplace index) | Public, Apache-2.0/CC0 | the **catalog index** (signed JSON/YAML) listing community + verified third-party packs, publisher metadata | The catalog evolves on its own cadence; third parties PR their pack entries here without touching core |
-| **`<org>/lab-premium`** (premium content + entitlement) | **Private**, proprietary EULA | enterprise/premium scenario packs, certification content, entitlement/license-key service, SaaS control-plane | Must never be in the OSS tree; different license; restricted access |
+| **`snowops/<product>`** (core monorepo) | Public, Apache-2.0 | engine, `labctl` CLI, SDK (`pkg/`), platform modules, runtimes, **community scenario packs**, docs, web UI | One place to contribute, one CI, atomic cross-cutting changes |
+| **`snowops/registry`** (marketplace index) | Public, Apache-2.0/CC0 | the **catalog index** (signed JSON/YAML) listing community + verified third-party packs, publisher metadata | The catalog evolves on its own cadence; third parties PR their pack entries here without touching core |
+| **`snowops/<product>-premium`** (premium content + entitlement) | **Private**, proprietary EULA | enterprise/premium scenario packs, certification content, entitlement/license-key service, SaaS control-plane | Must never be in the OSS tree; different license; restricted access |
 
 Rationale: this mirrors what worked for **Grafana** (core OSS + enterprise repo),
 **HashiCorp pre-BSL** (core + enterprise), **Argo/Backstage** (core + a plugin
@@ -486,7 +491,7 @@ without them.
 ## 8. Proposed repository structure (core monorepo)
 
 ```
-<org>/lab  (public, Apache-2.0)
+snowops/<product>   (public, Apache-2.0)
 ├── LICENSE  NOTICE  CODE_OF_CONDUCT.md  CONTRIBUTING.md  GOVERNANCE.md
 ├── SECURITY.md  MAINTAINERS.md  RELEASING.md  TRADEMARKS.md
 ├── .github/
@@ -537,13 +542,13 @@ without them.
 ├── make/  versions.env  .ai/        # build includes, pinned versions, task state
 └── go.work / go.mod                 # workspace tying cmd + pkg modules
 
-<org>/registry  (public)            # marketplace catalog
+snowops/registry   (public)            # marketplace catalog
 ├── index/<publisher>/<pack>/<version>.yaml   # signed pack entries
 ├── publishers/<publisher>.yaml               # verified-publisher metadata
 ├── schema/                                    # index entry JSON Schema
 └── .github/workflows/validate-index.yml       # PR gate for new entries
 
-<org>/lab-premium  (PRIVATE, proprietary)
+snowops/<product>-premium   (PRIVATE, proprietary)
 ├── packs/<enterprise-packs>/        # premium/enterprise content
 ├── certification/                   # cert tracks & exams
 ├── entitlement-service/             # license-key issuance/verification (impl of pkg/entitlement)
