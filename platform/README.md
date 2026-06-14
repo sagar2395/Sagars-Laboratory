@@ -101,6 +101,21 @@ These are typically activated via the `security-compliance` scenario.
 
 Activated via the `chaos-engineering` scenario. Includes a web dashboard (port-forward to 2333).
 
+### Autoscaling (`autoscaling/`)
+
+| Provider | Chart | Description |
+|----------|-------|-------------|
+| **keda** | `kedacore/keda` | KEDA operator; drives ScaledObjects using Prometheus, Kafka, and 60+ other event sources |
+
+Enable: `AUTOSCALING_PROVIDER=keda make platform-autoscaling-up`
+
+Pair with the `autoscaling-under-load` scenario for a live demo:
+```bash
+AUTOSCALING_PROVIDER=keda labctl platform up
+labctl scenario up autoscaling-under-load
+labctl traffic spike --duration=30s --rps=50
+```
+
 ### Data (`data/`)
 
 Data infrastructure sub-components. Both can be active simultaneously.
@@ -240,4 +255,6 @@ platform/
   secrets/
     vault/                install.sh, uninstall.sh, status.sh, values.yaml, values-prod-like.yaml
     external-secrets/     install.sh, uninstall.sh, status.sh, values.yaml
+  autoscaling/
+    keda/                 install.sh, uninstall.sh, status.sh, values.yaml
 ```

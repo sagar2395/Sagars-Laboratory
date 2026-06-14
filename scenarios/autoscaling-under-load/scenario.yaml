@@ -1,0 +1,71 @@
+name: autoscaling-under-load
+displayName: "Autoscaling Under Load"
+description: "Demonstrates KEDA-driven autoscaling: go-api scales from 1 to ≥3 replicas under a traffic spike driven by Prometheus RPS metrics, then cools down back to 1."
+category: autoscaling
+prerequisites:
+  platform:
+    - ingress
+    - monitoring/metrics
+    - autoscaling/keda
+  apps:
+    - go-api
+runtimes:
+  - k3d
+
+objectives:
+  - "Watch go-api scale out automatically when request rate exceeds the threshold"
+  - "Observe Prometheus metrics driving real scaling decisions via KEDA"
+  - "See cooldown: replicas drop back to 1 when traffic subsides"
+
+stages:
+  - name: keda-scaledobject
+    description: Deploy the KEDA ScaledObject that watches Prometheus RPS
+    components:
+      - name: scaledobject
+        type: manifest
+        path: manifests/scaledobject.yaml
+        namespace: go-api
+
+checks:
+  - name: keda-ready
+    type: kubectl
+    resource: deployment/keda-operator
+    namespace: keda
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="
+    value: "1"
+
+  - name: scaledobject-active
+    type: kubectl
+    resource: scaledobject/go-api-rps
+    namespace: go-api
+    jsonpath: "{.status.conditions[?(@.type=='Active')].status}"
+    operator: "=="
+    value: "True"
+
+  - name: go-api-reachable
+    type: http
+    url: "http://go-api.{{.DomainSuffix}}/health"
+    expectStatus: 200
+
+explore:
+  urls:
+    - label: "Grafana — Replicas vs RPS"
+      url: "http://grafana.{{.DomainSuffix}}/d/go-api-autoscaling"
+    - label: "Prometheus — go-api RPS"
+      url: "http://prometheus.{{.DomainSuffix}}/graph?g0.expr=rate(http_requests_total%7Bapp%3D%22go-api%22%7D%5B1m%5D)"
+  commands:
+    - label: "Generate spike traffic (30 s)"
+      command: "labctl traffic spike --duration=30s --rps=50"
+    - label: "Watch replica count"
+      command: "watch kubectl get hpa -n go-api"
+    - label: "Watch ScaledObject status"
+      command: "kubectl get scaledobject go-api-rps -n go-api -w"
+    - label: "Check current replicas"
+      command: "kubectl get deployment go-api -n go-api -o jsonpath='{.status.replicas}'"
+  tips:
+    - "Spike traffic for at least 30 s to trigger scale-out (KEDA polling interval = 15 s)"
+    - "Scale-out threshold is 10 RPS per replica — spike above 30 RPS to force ≥3 replicas"
+    - "Cooldown is 60 s; after traffic stops, replicas return to 1 within ~2 min"
+    - "KEDA delegates to an HPA — run 'kubectl get hpa -n go-api' to see it"
+    - "If Prometheus is not reachable, check KEDA TriggerAuthentication with: kubectl describe scaledobject go-api-rps -n go-api"
