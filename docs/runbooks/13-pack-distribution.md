@@ -1,8 +1,10 @@
 # Runbook 13 — Pack Distribution over OCI (M7)
 
 Publish a scenario pack to an OCI registry as a signed, content-addressed
-artifact and install it back, verifying the signature fails closed on tampering.
-This is task 068 of milestone **M7 — OSS & Ecosystem Foundation**.
+artifact and install it back, verifying the signature fails closed on tampering —
+then discover packs through the registry index. This covers tasks **068**
+(OCI distribution + signing) and **069** (registry index + discovery) of
+milestone **M7 — OSS & Ecosystem Foundation**.
 
 ## Prereqs
 
@@ -74,6 +76,26 @@ because the signature is valid.
 # Negative check — expect a non-zero exit and "verification failed"
 bin/labctl pack add --force oci://localhost:5001/hello-pack:0.1.0 --require-signature --cosign-key cosign.pub
 ```
+
+### 5. Discover via the registry index (task 069)
+
+Point the CLI at the seed index (a local fixture works) and search/resolve:
+
+```bash
+export PACK_REGISTRY_INDEX="file://$(pwd)/registry/index.json"
+
+bin/labctl pack search                 # list every pack
+bin/labctl pack search hello           # filter by term
+bin/labctl pack info hello-pack        # registry entry (not installed yet)
+bin/labctl pack validate-index registry/index.json   # the PR-gate check
+```
+
+**Expected:** `search` prints NAME/VERSION/TIER/VERIFIED/DESCRIPTION; `info`
+shows the entry with its resolvable `ref`; `validate-index` reports the index is
+valid. `bin/labctl pack add hello-pack` would resolve the name to its `ref` and
+install it (needs the OCI ref reachable / `oras` installed). The index caches to
+`.labctl/cache/registry-index.json` with a 1h TTL; a failed refresh falls back to
+the cache with a warning.
 
 ## Expected (acceptance)
 

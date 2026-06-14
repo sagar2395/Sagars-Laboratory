@@ -13,6 +13,8 @@ the stability guarantees you can rely on.
   and how content is bundled and distributed.
 - [Publishing Packs (OCI)](publishing.md) — `labctl pack publish`, OCI artifact
   format, cosign signing, and fail-closed verification on install.
+- [The Pack Registry & Discovery](registry.md) — `labctl pack search`, the static
+  index format, name resolution, TTL caching, and the validate-index PR gate.
 - [SDK & Schema Stability Policy](sdk-stability-policy.md) — what we keep stable
   and how the schema versions.
 - JSON Schemas (for editor validation):

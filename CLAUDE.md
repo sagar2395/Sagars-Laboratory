@@ -46,10 +46,12 @@ boundary.
   `docs/strategy/OSS-COMMERCIAL-STRATEGY.md`; maintainer-only steps:
   `docs/strategy/MAINTAINER-MANUAL-ACTIONS.md`. Milestones M7 (OSS foundation,
   P0), M8 (marketplace), M9 (commercial/hosted). **M7 is the top priority.**
-  Done: 065 governance/license, 066 public SDK boundary, 067 pack format, **068
-  OCI pack distribution + cosign signing** (`labctl pack publish` / `pack add
-  oci://`, GHCR release workflow, runbook 13). Next: 069 (registry index +
-  `pack search`). Some M7 tasks await maintainer decisions A1–A4.
+  Done: 065 governance/license, 066 public SDK boundary, 067 pack format, 068
+  OCI pack distribution + cosign signing, **069 registry index + discovery**
+  (`labctl pack search`/`info`/`add <name>`/`validate-index`, static signed
+  index, `registry/` seed + validate-index CI, runbook 13). Next: 070
+  (entitlement/extension interface). Some M7 tasks await maintainer decisions
+  A1–A4, plus publishing the registry repo + Pages.
 
 **The plan of record is `docs/ROADMAP.md` (+ `docs/strategy/` for Part III).
 Live status is `.ai/state.json` — its `next` field points at the recommended

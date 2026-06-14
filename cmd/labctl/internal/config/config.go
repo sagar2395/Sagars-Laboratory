@@ -45,6 +45,12 @@ type Config struct {
 	AppName         string
 	HelmReleaseName string
 	HelmValues      string
+
+	// Pack registry (task 069). The community index is a static, optionally
+	// signed JSON artifact; these point the CLI at it. Empty key => no signature
+	// verification (community default).
+	RegistryIndexURL string
+	RegistryIndexKey string
 }
 
 // AppConfig holds per-app configuration from app.env.
@@ -114,6 +120,9 @@ func Load(projectRoot string) (*Config, error) {
 	cfg.AppName = getEnvOrDefault("APP_NAME", "go-api")
 	cfg.HelmReleaseName = getEnvOrDefault("HELM_RELEASE_NAME", "go-api")
 	cfg.HelmValues = getEnvOrDefault("HELM_VALUES", "values-dev.yaml")
+
+	cfg.RegistryIndexURL = getEnvOrDefault("PACK_REGISTRY_INDEX", "https://snowops.github.io/registry/index.json")
+	cfg.RegistryIndexKey = getEnvOrDefault("PACK_REGISTRY_KEY", "")
 
 	return cfg, nil
 }

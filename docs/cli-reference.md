@@ -264,23 +264,27 @@ refuses incompatible packs. `labctl scenario install|packs|uninstall` remain as
 aliases. Authoring guide: `docs/authoring/packs.md`.
 
 ```bash
+labctl pack search [term]                  # find packs in the registry index
+labctl pack add <name>                     # resolve a name via the index, then install
 labctl pack add <git-url>[@ref]            # install from git (flags: --name, --force)
 labctl pack add oci://<reg>/<repo>[:tag]   # install from an OCI registry
     # OCI verification flags: --require-signature, --cosign-key,
     #                         --certificate-identity, --certificate-oidc-issuer
 labctl pack publish <dir> oci://<reg>/<repo>[:tag]   # publish (flags: --sign, --cosign-key)
-labctl pack list                  # PACK / VERSION / TIER / SCENARIOS
-labctl pack info <pack-name>      # manifest metadata + provided scenarios
+labctl pack list                  # installed: PACK / VERSION / TIER / SCENARIOS
+labctl pack info <name>           # installed manifest, else registry entry
 labctl pack remove <pack-name>    # uninstall (must deactivate its scenarios first)
+labctl pack validate-index <file> # validate a registry index (PR gate)
 ```
 
-OCI publish/install shells out to `oras` (and `cosign` when signing/verifying) —
-install those binaries to use OCI packs. Signature verification is fail-closed
-and runs before any content is extracted. Full guide: `docs/authoring/publishing.md`.
+`pack search`/`info`/`add <name>` read the registry index (`PACK_REGISTRY_INDEX`,
+cached with a 1h TTL; `PACK_REGISTRY_KEY` verifies its cosign signature).
+OCI publish/install shells out to `oras` (and `cosign` when signing/verifying).
+Signature verification is fail-closed and runs before any content is extracted.
+Guides: `docs/authoring/publishing.md`, `docs/authoring/registry.md`.
 
 > Packs run scripts and apply manifests on your cluster — install only trusted
-> sources; prefer signed OCI packs pinned by digest. A searchable registry index
-> (069) builds on this.
+> sources; prefer signed OCI packs pinned by digest.
 
 ---
 

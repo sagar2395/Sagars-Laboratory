@@ -62,11 +62,13 @@ in your editor.
 ## Install / inspect / remove
 
 ```bash
+labctl pack search [term]                # discover packs in the registry index
+labctl pack add <name>                   # install by registry name (latest version)
 labctl pack add <git-url>[@ref]          # install from git
 labctl pack add oci://<reg>/<repo>[:tag] # install from an OCI registry
 labctl pack publish <dir> oci://...      # publish a pack (see publishing.md)
 labctl pack list                         # name, version, tier, scenarios
-labctl pack info <pack-name>             # manifest metadata
+labctl pack info <name>                  # manifest metadata (installed or registry)
 labctl scenario up <scenario>            # activate a scenario the pack provides
 labctl pack remove <pack-name>
 ```
@@ -74,7 +76,8 @@ labctl pack remove <pack-name>
 `labctl scenario install|packs|uninstall` remain as aliases.
 
 For OCI distribution, signing, and verification, see
-[publishing.md](./publishing.md). A searchable registry index lands in task 069.
+[publishing.md](./publishing.md). For discovery and the registry index, see
+[registry.md](./registry.md).
 
 > **Security:** packs run scripts and apply manifests on your cluster. Only
 > install sources you trust — prefer signed OCI packs pinned by digest.

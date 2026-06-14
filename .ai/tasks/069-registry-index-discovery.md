@@ -30,14 +30,36 @@ auditable, PR-moderated.
   superset, not a replacement.
 
 ## Acceptance Criteria
-- [ ] `labctl pack search/info` read the static index and resolve installs
-- [ ] Index entry JSON Schema + a validate-index PR gate (in the registry repo)
-- [ ] Seed index lists the first-party community packs
-- [ ] Signed index; CLI verifies before trusting
+- [x] `labctl pack search/info` read the static index and resolve installs
+- [x] Index entry JSON Schema + a validate-index PR gate (in the registry repo)
+- [x] Seed index lists the first-party community packs
+- [x] Signed index; CLI verifies before trusting
 
 ## Testing Instructions
 Point the CLI at a local index fixture; search, info, and add by index name;
-confirm signature verification and TTL caching.
+confirm signature verification and TTL caching. See runbook 13 (section 5).
 
 ## Dependencies
 067, 068
+
+## Progress
+- Done: `pkg/pack/index.go` — `Index`/`IndexEntry` types, `ParseIndex`/`Validate`
+  (schema + semantics: name/semver/ref/tier/duplicates), `Find` (bare-name +
+  highest-version resolution), `Search` (substring over name/desc/keywords,
+  deduped to latest), `ResolveRef` (strips `git+`), and `IndexClient`
+  (`Getter`-injectable fetch with `file://` support, TTL file cache, stale
+  fallback on network error, optional cosign `verify-blob` that fails closed)
+  with full hermetic tests.
+- CLI: `labctl pack search [term]`, `pack info <name>` now falls back to the
+  index, `pack add <name>` resolves a bare name → latest ref → install (OCI or
+  git), `pack validate-index <file>` (the PR gate). Config: `PACK_REGISTRY_INDEX`
+  + `PACK_REGISTRY_KEY`; cache at `.labctl/cache/registry-index.json` (1h TTL).
+- Registry artifacts: `sdk/schemas/index.schema.json`, `registry/index.json`
+  seed (lists first-party hello-pack) + `registry/README.md` contributor flow,
+  `.github/workflows/validate-index.yml` PR gate.
+- Docs: `docs/authoring/registry.md`, runbook 13 §5, updated packs.md / authoring
+  README / cli-reference.
+- Notes: the index lives here in seed form; the OSS layout publishes it to a
+  separate public `registry` repo over Pages (maintainer action). Signature
+  verification is opt-in (`PACK_REGISTRY_KEY`) — community indexes are unsigned;
+  availability never fails closed (stale cache fallback), only verification does.

@@ -1,0 +1,37 @@
+name: Validate registry index
+
+# PR gate for the community pack registry. Mirrors what lands in the separate
+# `registry` repo: every change to the index must parse, match the schema, and
+# pass the same validation the CLI applies before trusting it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'registry/**'
+      - 'sdk/schemas/index.schema.json'
+      - 'cmd/labctl/pkg/pack/index.go'
+      - '.github/workflows/validate-index.yml'
+  pull_request:
+    paths:
+      - 'registry/**'
+      - 'sdk/schemas/index.schema.json'
+      - 'cmd/labctl/pkg/pack/index.go'
+      - '.github/workflows/validate-index.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate index.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cmd/labctl/go.mod
+      - name: Build labctl
+        run: cd cmd/labctl && go build -o "$GITHUB_WORKSPACE/bin/labctl" .
+      - name: Validate registry index
+        run: bin/labctl pack validate-index registry/index.json
