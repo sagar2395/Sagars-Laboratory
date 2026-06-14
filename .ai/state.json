@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "059-env-promotion-simulation",
+  "next": "079-comprehensive-test-suite",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -132,6 +132,7 @@
     }
   },
   "todo": [
+    "079-comprehensive-test-suite",
     "059-env-promotion-simulation",
     "060-day2-ops-drills",
     "061-cost-capacity-scenario",

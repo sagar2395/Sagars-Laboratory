@@ -2,7 +2,7 @@
 
 > Read this file first in every session. It is the lean entry point.
 > Anything deeper lives in `docs/` — only open those when the task needs them.
-> Last updated: 2026-06-13
+> Last updated: 2026-06-14
 
 ---
 
@@ -41,6 +41,7 @@ boundary.
   scenarios (autoscaling-under-load, mesh-traffic-management, event-driven-arch,
   secrets-management); `platform up/down/status` take a `category` or
   `category/provider` target. Next: M5 (Multi-Env & Day-2 Ops), task 059.
+  **Before M5 feature work: task 079 (comprehensive test suite) is the current `next`.**
 
 - 🧭 **Part III (new direction):** evolve into a community-driven OSS
   platform-engineering simulator with future commercial offerings. Strategy:
@@ -85,6 +86,21 @@ next task.**
    "Current status" truthful. An undocumented change is an unfinished change.
 9. **Simulator content is declarative.** Scenarios, faults, learning paths,
    challenges, and checks are YAML + scripts. Never bake their logic into Go.
+10. **Every new feature ships with thorough tests — no exceptions.**
+    - New or modified Go packages must include tests covering: the happy path,
+      at least two error/edge cases per public function, and cancellation/timeout
+      where the function accepts a `context.Context`.
+    - Use **table-driven tests** (`tests := []struct{...}{...}`) when two or more
+      cases share the same shape. Never write `TestFoo_CaseA` + `TestFoo_CaseB`
+      as separate top-level functions for the same behaviour.
+    - Tests must be **hermetic**: use `t.TempDir()` for disk I/O; mock or stub
+      external calls (cluster, network, shell scripts). Never depend on a live
+      cluster or real cloud credentials in unit tests.
+    - Target **≥ 75% statement coverage** for any package you add or significantly
+      modify, verified with `go test -cover ./...`. Run `make test-coverage` to
+      confirm before committing.
+    - Shell scripts that contain logic (not just `helm install`) need a matching
+      `bats` or inline `bash -c 'source ...; assert ...'` test in the same PR.
 
 ## Repository map
 
@@ -137,12 +153,18 @@ cd cmd/labctl && go build -o ../../bin/labctl . && cd ../..
 # Or via make
 make cli-build
 
-# Run CLI tests
+# Run CLI tests (must pass before every commit)
 cd cmd/labctl && go test ./... && cd ../..
+
+# Run tests with coverage report (HTML output → coverage.html)
+make test-coverage
 
 # App tests
 cd apps/go-api && go test ./... ; cd ../..
 ```
+
+**Test coverage is not optional.** If `go test -cover ./...` shows a package you
+touched dropped below 75%, add tests before committing (golden rule 10).
 
 `make help` lists all targets. `bin/labctl --help` lists all commands.
 
