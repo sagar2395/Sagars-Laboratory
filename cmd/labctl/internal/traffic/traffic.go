@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package traffic validates options for the k6 traffic generator and turns
 // them into the environment the services/traffic scripts consume. All the
 // real work happens in those scripts (golden rule 2) — this package only

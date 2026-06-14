@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package incident
 
 // MTTR tracking (task 048): every completed incident run is recorded in the

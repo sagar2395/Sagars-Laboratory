@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package incident
 
 // Progressive hints (task 047): hints.md is plain markdown split on

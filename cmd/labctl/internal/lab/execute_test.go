@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package lab
 
 // End-to-end plan execution against a fake project: stub platform

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package scenario
 
 // Scenario catalog (task 044): install scenario packs from git into

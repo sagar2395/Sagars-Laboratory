@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package results provides a unified, append-only store for all scored runs
 // (incidents, challenge submissions, learn module completions).  Records are
 // written as newline-delimited JSON in .labctl/history/results.jsonl.

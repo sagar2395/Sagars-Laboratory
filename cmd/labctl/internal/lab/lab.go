@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package lab implements lab-state snapshots and reset (task 043). A
 // snapshot records *intent* — which platform components, apps, and
 // scenarios were active — not cluster bytes. Restore replays the existing

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package checks defines machine-verifiable assertions used by scenario
 // format v2 (and, later, incident detection and challenge grading). A Check
 // is declarative YAML; the Runner executes it and reports a Result. Keeping

@@ -38,14 +38,14 @@ assurance (certification, support) — never in crippling the core.
 
 1. **Core license** — ✅ **Apache-2.0**.
 2. **Contribution agreement** — ✅ **CLA** (via CLA Assistant).
-3. **Brand & GitHub home** — ✅ a **dedicated repo under the `snowops` GitHub
-   org**, with a **trademark-able product name** (the name itself is the one
-   remaining sub-decision — drives task 071's module/vanity path).
+3. **Brand & GitHub home** — ✅ dedicated repo **`snowops/flightdeck`**; product
+   name **Flightdeck** (pending a formal trademark knock-out search); vanity
+   import path `go.flightdeck.dev/...` (drives task 071).
 4. **Repo strategy** — ✅ **monorepo core + 2 satellites** (`registry`,
    private premium).
 
-In the trees below, `<product>` is the pending trademark-able product name; the
-core monorepo will be `snowops/<product>`.
+In the trees below, `flightdeck` is the chosen product name (pending a trademark
+knock-out search); the core monorepo is `snowops/flightdeck`.
 
 Everything below is structured so that only a handful of tasks (§7) depend on
 these answers; the rest can start immediately.
@@ -66,9 +66,9 @@ The sustainable middle path is **three repositories**:
 
 | Repo | Visibility | Contains | Why separate |
 |---|---|---|---|
-| **`snowops/<product>`** (core monorepo) | Public, Apache-2.0 | engine, `labctl` CLI, SDK (`pkg/`), platform modules, runtimes, **community scenario packs**, docs, web UI | One place to contribute, one CI, atomic cross-cutting changes |
+| **`snowops/flightdeck`** (core monorepo) | Public, Apache-2.0 | engine, `labctl` CLI, SDK (`pkg/`), platform modules, runtimes, **community scenario packs**, docs, web UI | One place to contribute, one CI, atomic cross-cutting changes |
 | **`snowops/registry`** (marketplace index) | Public, Apache-2.0/CC0 | the **catalog index** (signed JSON/YAML) listing community + verified third-party packs, publisher metadata | The catalog evolves on its own cadence; third parties PR their pack entries here without touching core |
-| **`snowops/<product>-premium`** (premium content + entitlement) | **Private**, proprietary EULA | enterprise/premium scenario packs, certification content, entitlement/license-key service, SaaS control-plane | Must never be in the OSS tree; different license; restricted access |
+| **`snowops/flightdeck-premium`** (premium content + entitlement) | **Private**, proprietary EULA | enterprise/premium scenario packs, certification content, entitlement/license-key service, SaaS control-plane | Must never be in the OSS tree; different license; restricted access |
 
 Rationale: this mirrors what worked for **Grafana** (core OSS + enterprise repo),
 **HashiCorp pre-BSL** (core + enterprise), **Argo/Backstage** (core + a plugin
@@ -491,7 +491,7 @@ without them.
 ## 8. Proposed repository structure (core monorepo)
 
 ```
-snowops/<product>   (public, Apache-2.0)
+snowops/flightdeck   (public, Apache-2.0)
 ├── LICENSE  NOTICE  CODE_OF_CONDUCT.md  CONTRIBUTING.md  GOVERNANCE.md
 ├── SECURITY.md  MAINTAINERS.md  RELEASING.md  TRADEMARKS.md
 ├── .github/
@@ -548,7 +548,7 @@ snowops/registry   (public)            # marketplace catalog
 ├── schema/                                    # index entry JSON Schema
 └── .github/workflows/validate-index.yml       # PR gate for new entries
 
-snowops/<product>-premium   (PRIVATE, proprietary)
+snowops/flightdeck-premium   (PRIVATE, proprietary)
 ├── packs/<enterprise-packs>/        # premium/enterprise content
 ├── certification/                   # cert tracks & exams
 ├── entitlement-service/             # license-key issuance/verification (impl of pkg/entitlement)

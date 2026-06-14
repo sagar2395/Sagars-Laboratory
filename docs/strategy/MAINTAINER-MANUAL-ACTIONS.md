@@ -14,21 +14,18 @@ The 4 pivotal choices from `OSS-COMMERCIAL-STRATEGY.md §0`:
 
 - [x] **A1. Core license → Apache-2.0.**
 - [x] **A2. Contribution agreement → CLA** (CLA Assistant).
-- [x] **A3. Brand & GitHub home → dedicated repo under the `snowops` org.**
-  Still open: the exact **trademark-able product name** (and the vanity import
-  path derived from it, e.g. `go.<product>.dev/...`). This is the one remaining
-  sub-decision that gates task 071.
+- [x] **A3. Brand & GitHub home → `snowops/flightdeck`.** Product name
+  **Flightdeck**; vanity import path `go.flightdeck.dev/...`.
 - [x] **A4. Repo strategy → monorepo core + `snowops/registry` + private
-  `snowops/<product>-premium`.**
+  `snowops/flightdeck-premium`.**
 
-### A0. Remaining sub-decision — the product name (gates 071)
+### A0. Product name chosen → **Flightdeck** (verify before registering)
 
-- [ ] **Pick the trademark-able product name.** Criteria: short, distinctive,
-  *not* generic/descriptive (generic names like "platformsim" are hard to
-  trademark), brandable, with an available `.dev`/`.io` domain and GitHub repo
-  name under `snowops`. Then do a basic **trademark knock-out search** before
-  committing. Once chosen, the automation applies it across go.mod, imports, docs
-  (task 071) and the LICENSE/NOTICE copyright lines.
+- [ ] **Trademark knock-out search for "Flightdeck"** before filing/registering.
+  Note: "Flightdeck" has prior uses in software — confirm clearance in your
+  classes/jurisdictions (consider counsel). If it doesn't clear, the only rework
+  is re-running task 071 with a different name; nothing else depends on it.
+- [ ] **Register `flightdeck.dev` + `go.flightdeck.dev`** (and `.io` if desired).
 
 ---
 
