@@ -219,3 +219,92 @@ DATA_POSTGRES=1  make platform-data-postgres-down
 - **PostgreSQL PVCs stuck on uninstall** — if the namespace hangs, manually
   remove the finalizers:
   `kubectl patch pvc <name> -n postgres -p '{"metadata":{"finalizers":null}}'`
+
+---
+
+## Part C — Secrets Management (task 056)
+
+Adds `platform/secrets/vault/` and `platform/secrets/external-secrets/`.
+Install in order: Vault first, then ESO.
+
+### Prerequisites
+
+- A healthy cluster (runbooks 00–01).
+- Vault requires the ingress to be running for UI access (optional but useful).
+
+### 10. Install Vault (dev mode)
+
+```bash
+SECRETS_VAULT=1 make platform-secrets-vault-up
+# or directly:
+bash platform/secrets/vault/install.sh
+```
+
+**Expected:**
+- `vault` namespace with a single Vault pod (dev mode: auto-unsealed, in-memory).
+- Demo secret seeded: `secret/go-api` with `db_password` and `api_key` keys.
+- UI accessible at `http://vault.k3d.local` (token: `root`).
+
+Verify:
+
+```bash
+make platform-secrets-vault-status SECRETS_VAULT=1
+
+# Browse secrets via the CLI
+kubectl exec -n vault deploy/vault -- vault kv get secret/go-api
+```
+
+### 11. Install External Secrets Operator
+
+```bash
+SECRETS_ESO=1 make platform-secrets-eso-up
+# or directly:
+bash platform/secrets/external-secrets/install.sh
+```
+
+**Expected:**
+- `external-secrets` namespace with operator + webhook pods.
+- `vault-backend` SecretStore created in the `go-api` namespace.
+- `go-api-secrets` ExternalSecret created; syncs within 30 s.
+
+Verify:
+
+```bash
+make platform-secrets-eso-status SECRETS_ESO=1
+kubectl get externalsecret -n go-api
+kubectl get secret go-api-external-secret -n go-api
+```
+
+### 12. Secret rotation exercise
+
+```bash
+# 1. Update the secret in Vault
+kubectl exec -n vault deploy/vault -- \
+  vault kv put secret/go-api db_password=rotated-password-v2
+
+# 2. Wait up to 30 s (ESO refreshInterval)
+sleep 35
+
+# 3. Verify the k8s Secret is updated
+kubectl get secret go-api-external-secret -n go-api \
+  -o jsonpath='{.data.db_password}' | base64 -d
+```
+
+**Expected:** Output is `rotated-password-v2`.
+
+### 13. Uninstall
+
+```bash
+SECRETS_ESO=1   make platform-secrets-eso-down    # remove ESO first
+SECRETS_VAULT=1 make platform-secrets-vault-down  # then Vault
+```
+
+### Troubleshooting (Secrets)
+
+- **Vault ingress 404** — check that Traefik is running and the `vault.k3d.local`
+  entry is in `/etc/hosts` (runbook 00). The Vault UI renders at `/ui/`.
+- **ESO SecretStore shows "Invalid"** — Vault may not be reachable. Check:
+  `kubectl exec -n external-secrets deploy/external-secrets -- wget -qO- http://vault.vault.svc.cluster.local:8200/v1/sys/health`
+- **ExternalSecret stuck "Syncing"** — the token secret may be missing or the
+  KV path may differ. Run:
+  `kubectl describe externalsecret go-api-secrets -n go-api`

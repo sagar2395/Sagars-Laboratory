@@ -112,6 +112,22 @@ Enable each independently: `DATA_KAFKA=1 make platform-data-kafka-up` or
 | **kafka** | `bitnami/kafka` | Single-node KRaft Kafka cluster, ephemeral storage |
 | **postgres** | `cnpg/cloudnative-pg` + Cluster CR | 2-instance PostgreSQL (CloudNativePG), built-in failover drill |
 
+### Secrets (`secrets/`)
+
+Secrets management sub-components. Install Vault first, then ESO.
+
+| Sub-component | Chart | Description |
+|--------------|-------|-------------|
+| **vault** | `hashicorp/vault` | HashiCorp Vault in dev mode; seeds `secret/go-api` demo KV; ingress at `vault.<DOMAIN_SUFFIX>` |
+| **external-secrets** | `external-secrets/external-secrets` | External Secrets Operator; creates SecretStore + ExternalSecret → syncs Vault KV to k8s Secret |
+
+```bash
+SECRETS_VAULT=1 make platform-secrets-vault-up    # install Vault
+SECRETS_ESO=1   make platform-secrets-eso-up      # install ESO (Vault must be running)
+```
+
+Rotation exercise: `vault kv put secret/go-api db_password=new-val` → wait 30 s → ESO syncs.
+
 ### Mesh (`mesh/`)
 
 Service mesh providers for mTLS, traffic management, and observability between services.
@@ -221,4 +237,7 @@ platform/
   data/
     kafka/                install.sh, uninstall.sh, status.sh, values.yaml
     postgres/             install.sh, uninstall.sh, status.sh, values.yaml
+  secrets/
+    vault/                install.sh, uninstall.sh, status.sh, values.yaml, values-prod-like.yaml
+    external-secrets/     install.sh, uninstall.sh, status.sh, values.yaml
 ```

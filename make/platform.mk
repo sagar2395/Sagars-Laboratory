@@ -7,6 +7,8 @@ METRICS_PROVIDER  ?= prometheus
 # MESH_PROVIDER    ?= istio         # set to enable service mesh (istio|linkerd)
 # DATA_KAFKA       ?= 1             # set to enable Kafka (Bitnami/KRaft)
 # DATA_POSTGRES    ?= 1             # set to enable PostgreSQL (CloudNativePG)
+# SECRETS_VAULT    ?= 1             # set to enable HashiCorp Vault (dev mode)
+# SECRETS_ESO      ?= 1             # set to enable External Secrets Operator (requires Vault)
 
 platform-up: platform-ingress-up platform-monitoring-up
 ifdef LOGGING_PROVIDER
@@ -23,6 +25,12 @@ platform-up: platform-data-kafka-up
 endif
 ifdef DATA_POSTGRES
 platform-up: platform-data-postgres-up
+endif
+ifdef SECRETS_VAULT
+platform-up: platform-secrets-vault-up
+endif
+ifdef SECRETS_ESO
+platform-up: platform-secrets-eso-up
 endif
 
 platform-down: platform-monitoring-down platform-ingress-down
@@ -41,6 +49,12 @@ endif
 ifdef DATA_POSTGRES
 platform-down: platform-data-postgres-down
 endif
+ifdef SECRETS_ESO
+platform-down: platform-secrets-eso-down
+endif
+ifdef SECRETS_VAULT
+platform-down: platform-secrets-vault-down
+endif
 
 platform-status: platform-ingress-status platform-monitoring-status
 ifdef LOGGING_PROVIDER
@@ -57,6 +71,12 @@ platform-status: platform-data-kafka-status
 endif
 ifdef DATA_POSTGRES
 platform-status: platform-data-postgres-status
+endif
+ifdef SECRETS_VAULT
+platform-status: platform-secrets-vault-status
+endif
+ifdef SECRETS_ESO
+platform-status: platform-secrets-eso-status
 endif
 
 # Ingress (INGRESS_PROVIDER=traefik|nginx)
@@ -154,6 +174,31 @@ platform-data-postgres-status:
 	@echo "=== Data / PostgreSQL Status ==="
 	@bash platform/data/postgres/status.sh
 
+# Secrets management (Vault, External Secrets Operator)
+platform-secrets-vault-up:
+	@echo "[platform] installing secrets/vault"
+	bash platform/secrets/vault/install.sh
+
+platform-secrets-vault-down:
+	@echo "[platform] removing secrets/vault"
+	@bash platform/secrets/vault/uninstall.sh
+
+platform-secrets-vault-status:
+	@echo "=== Secrets / Vault Status ==="
+	@bash platform/secrets/vault/status.sh
+
+platform-secrets-eso-up:
+	@echo "[platform] installing secrets/external-secrets"
+	bash platform/secrets/external-secrets/install.sh
+
+platform-secrets-eso-down:
+	@echo "[platform] removing secrets/external-secrets"
+	@bash platform/secrets/external-secrets/uninstall.sh
+
+platform-secrets-eso-status:
+	@echo "=== Secrets / External Secrets Operator Status ==="
+	@bash platform/secrets/external-secrets/status.sh
+
 .PHONY: platform-up platform-down platform-status \
         platform-ingress-up platform-ingress-down platform-ingress-status \
         platform-monitoring-up platform-monitoring-down platform-monitoring-status \
@@ -161,4 +206,6 @@ platform-data-postgres-status:
         platform-tracing-up platform-tracing-down platform-tracing-status \
         platform-mesh-up platform-mesh-down platform-mesh-status \
         platform-data-kafka-up platform-data-kafka-down platform-data-kafka-status \
-        platform-data-postgres-up platform-data-postgres-down platform-data-postgres-status
+        platform-data-postgres-up platform-data-postgres-down platform-data-postgres-status \
+        platform-secrets-vault-up platform-secrets-vault-down platform-secrets-vault-status \
+        platform-secrets-eso-up platform-secrets-eso-down platform-secrets-eso-status
