@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/sagars-lab/labctl/internal/challenge"
-	"github.com/sagars-lab/labctl/internal/checks"
+	"github.com/sagars-lab/labctl/pkg/checks"
 	"github.com/sagars-lab/labctl/internal/executor"
 	"github.com/spf13/cobra"
 )

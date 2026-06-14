@@ -65,6 +65,7 @@
         "version": { "type": "string" },
         "valuesFile": { "type": "string" },
         "path": { "type": "string" },
+        "set": { "type": "object", "additionalProperties": { "type": "string" } },
         "script": { "type": "string" }
       },
       "allOf": [

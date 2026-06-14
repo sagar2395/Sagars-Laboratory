@@ -1,6 +1,6 @@
 # RFC 0001: Public SDK boundary (`pkg/`)
 
-- **Status:** accepted
+- **Status:** implemented (phases 1–2; pkg/pack + pkg/results + entitlement land with tasks 067/070)
 - **Author(s):** @sagar2395
 - **Created:** 2026-06-14
 - **Tracking task:** .ai/tasks/066-public-sdk-boundary.md

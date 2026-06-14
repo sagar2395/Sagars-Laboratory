@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "066-public-sdk-boundary",
+  "next": "067-scenario-pack-format",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -102,7 +102,7 @@
         "071",
         "072"
       ],
-      "note": "Part III: community OSS platform-engineering simulator. Plan: docs/strategy/OSS-COMMERCIAL-STRATEGY.md. Decisions LOCKED: Apache-2.0, CLA, GitHub org 'snowops', product name 'Flightdeck', monorepo core. 065 (governance/license baseline) DONE. Next 066 (public SDK boundary, decision-independent). 071 needs maintainer trademark search + domains (manual actions B/C); maintainer must install the CLA app + branch protection."
+      "note": "Part III: community OSS simulator (brand: Flightdeck, org: snowops, Apache-2.0, CLA). Plan: docs/strategy/OSS-COMMERCIAL-STRATEGY.md. DONE: 065 (governance/license), 066 (public SDK boundary: pkg/checks + pkg/scenario, scenario apiVersion, JSON Schema, stability policy, RFC 0001). Next 067 (pack.yaml format + labctl pack). Maintainer must still install CLA app + branch protection + create org/teams (manual actions B/C)."
     },
     "M8-marketplace": {
       "priority": "P2",
@@ -153,10 +153,9 @@
     "077-saas-control-plane-spike",
     "078-certification-training-framework"
   ],
-  "in_progress": [
-    "066-public-sdk-boundary"
-  ],
+  "in_progress": [],
   "done": [
+    "066-public-sdk-boundary",
     "065-oss-governance-baseline",
     "058-new-stack-scenarios",
     "057-autoscaling-category",

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sagars-lab/labctl/internal/checks"
+	"github.com/sagars-lab/labctl/pkg/checks"
 	"github.com/sagars-lab/labctl/internal/learn"
 	"github.com/spf13/cobra"
 )
