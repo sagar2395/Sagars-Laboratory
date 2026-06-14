@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package services
 
 // Executes the services/pager shell scripts against a stub kubectl so

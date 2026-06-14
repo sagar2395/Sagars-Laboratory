@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package cmd
 
 import (
@@ -7,13 +8,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sagars-lab/labctl/internal/config"
-	"github.com/sagars-lab/labctl/internal/executor"
-	"github.com/sagars-lab/labctl/internal/incident"
-	"github.com/sagars-lab/labctl/internal/platform"
-	"github.com/sagars-lab/labctl/internal/runtime"
-	"github.com/sagars-lab/labctl/internal/scenario"
-	"github.com/sagars-lab/labctl/internal/services"
+	"go.flightdeck.dev/labctl/internal/config"
+	"go.flightdeck.dev/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/incident"
+	"go.flightdeck.dev/labctl/internal/platform"
+	"go.flightdeck.dev/labctl/internal/runtime"
+	"go.flightdeck.dev/labctl/internal/scenario"
+	"go.flightdeck.dev/labctl/internal/services"
 )
 
 var (
@@ -31,8 +32,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "labctl",
-	Short: "Sagars-Laboratory controller",
-	Long:  `labctl is the CLI and web UI for managing your Platform Engineering homelab.`,
+	Short: "Flightdeck — platform engineering simulator control plane",
+	Long:  `labctl is the CLI, web UI, and API for Flightdeck, a Kubernetes platform engineering simulator.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip init for completion and help commands
 		if cmd.Name() == "completion" || cmd.Name() == "help" {

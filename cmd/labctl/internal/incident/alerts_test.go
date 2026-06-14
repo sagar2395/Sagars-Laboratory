@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package incident
 
 import (
@@ -10,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sagars-lab/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/executor"
 )
 
 func amServer(t *testing.T, body string, status int) *httptest.Server {

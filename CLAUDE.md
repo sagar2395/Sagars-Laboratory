@@ -8,11 +8,12 @@
 
 ## What this project is
 
-**Sagars-Laboratory** is a Kubernetes **Platform Engineering Simulator**: a
-toolkit where DevOps/SRE/platform teams replicate real-world production
-scenarios across swappable tech stacks — for learning, PoCs, experimentation,
-and skills assessment. A single Go binary (`labctl`) plus a web UI wraps shell
-scripts and declarative YAML to:
+**Flightdeck** (this repo; historically "Sagars-Laboratory") is a Kubernetes
+**Platform Engineering Simulator**: a toolkit where DevOps/SRE/platform teams
+replicate real-world production scenarios across swappable tech stacks — for
+learning, PoCs, experimentation, and skills assessment. The product name is
+**Flightdeck**; the Go SDK module path is `go.flightdeck.dev/labctl`. A single Go
+binary (`labctl`) plus a web UI wraps shell scripts and declarative YAML to:
 
 - spin up a cluster (k3d locally; AKS/EKS in the cloud),
 - install **swappable** platform components (ingress, monitoring, logging,
@@ -32,13 +33,35 @@ boundary.
   four original scenarios work on macOS + Linux with k3d.
 - ❌ Cloud runtimes (AKS/EKS) never verified against real accounts (tasks 038/039).
 - 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
-  **M1, M2, M3, and M4 are complete** (scenario engine v2; incident engine;
-  learning paths, challenge mode, unified results store, UI views; mesh/
-  data/secrets/autoscaling platform categories + 4 new scenarios). Next: M5,
-  multi-env day-2 ops (059–061).
+  **M1, M2, and M3 are complete** (scenario engine v2; incident engine incl.
+  hints, MTTR, on-call drill; learning paths, challenge mode, unified results
+  store, and UI Learn/Challenges/Results views). **M4 is complete:** service-mesh
+  (istio + linkerd), data (kafka/strimzi + postgres/cnpg), secrets (vault +
+  external-secrets), and autoscaling (keda) categories, with four new v2
+  scenarios (autoscaling-under-load, mesh-traffic-management, event-driven-arch,
+  secrets-management); `platform up/down/status` take a `category` or
+  `category/provider` target. Next: M5 (Multi-Env & Day-2 Ops), task 059.
 
-**The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
-its `next` field points at the recommended next task.**
+- 🧭 **Part III (new direction):** evolve into a community-driven OSS
+  platform-engineering simulator with future commercial offerings. Strategy:
+  `docs/strategy/OSS-COMMERCIAL-STRATEGY.md`; maintainer-only steps:
+  `docs/strategy/MAINTAINER-MANUAL-ACTIONS.md`. Milestones M7 (OSS foundation,
+  P0), M8 (marketplace), M9 (commercial/hosted). **M7 is COMPLETE:** 065
+  governance/license, 066 public SDK boundary, 067 pack format, 068 OCI pack
+  distribution + cosign signing, 069 registry index + discovery (`labctl pack
+  search`/`add <name>`/`validate-index`), 070 entitlement + extension seams
+  (`pkg/entitlement` allow-all + `pkg/extension` resolver chain/no-op hooks,
+  CODEOWNERS-locked), 071 module path + brand (`go.flightdeck.dev/labctl`,
+  rebranded **Flightdeck**), 072 contributor experience (`labctl scenario new` /
+  `pack init` scaffolds, `sdk/*-template`, editor schema validation,
+  `docs/authoring/first-pack.md`). Next: **M5 (Multi-Env & Day-2 Ops), task 059**
+  (M8/M9 are deferred P2). Maintainer owes: host `go.flightdeck.dev`, org
+  transfer to `snowops/flightdeck`, registry repo + Pages, CLA app, branch
+  protection, trademark search, seed good-first-issues (A0/B/C).
+
+**The plan of record is `docs/ROADMAP.md` (+ `docs/strategy/` for Part III).
+Live status is `.ai/state.json` — its `next` field points at the recommended
+next task.**
 
 ## The golden rules (do not violate)
 

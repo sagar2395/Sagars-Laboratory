@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package api
 
 import (
@@ -10,8 +11,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/sagars-lab/labctl/internal/checks"
-	"github.com/sagars-lab/labctl/internal/incident"
+	"go.flightdeck.dev/labctl/internal/incident"
+	"go.flightdeck.dev/labctl/pkg/checks"
 )
 
 func (s *Server) incidentRunner() *checks.Runner {

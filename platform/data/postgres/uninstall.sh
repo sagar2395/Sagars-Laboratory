@@ -1,38 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OPERATOR_NS=cnpg-system
-DB_NS=postgres
+# Remove the Postgres cluster, CNPG operator, and PVCs. Idempotent.
 
-echo "Uninstalling CloudNativePG..."
+NAMESPACE="${POSTGRES_NAMESPACE:-postgres}"
+OPERATOR_NS="cnpg-system"
+CLUSTER="${POSTGRES_CLUSTER:-lab-postgres}"
 
-# Delete the Cluster CR first (triggers PVC cleanup via finalizers)
-if kubectl get cluster lab-postgres -n "${DB_NS}" >/dev/null 2>&1; then
-  kubectl delete cluster lab-postgres -n "${DB_NS}" --timeout=60s || true
-  echo "Cluster CR deleted."
+echo "Uninstalling Postgres (namespace=${NAMESPACE})..."
+
+if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+  # 1. Delete the Cluster CR so the operator removes its pods first.
+  kubectl delete cluster "$CLUSTER" -n "$NAMESPACE" --ignore-not-found --timeout=120s || true
+
+  # 2. Drop the cluster's PVCs (CNPG keeps them by default for safety).
+  kubectl delete pvc -n "$NAMESPACE" -l cnpg.io/cluster="$CLUSTER" --ignore-not-found || true
+
+  # 3. Namespace cleanup (postgres has its own namespace).
+  kubectl delete namespace "$NAMESPACE" --timeout=60s || true
 fi
 
-# Delete any leftover PVCs (CNPG creates them with retain policy)
-if kubectl get namespace "${DB_NS}" >/dev/null 2>&1; then
-  kubectl delete pvc --all -n "${DB_NS}" --timeout=60s 2>/dev/null || true
-  kubectl delete namespace "${DB_NS}" --timeout=60s || true
-  echo "Namespace '${DB_NS}' deleted."
+# 4. Remove the operator (cluster-scoped, in its own namespace).
+if helm status cnpg -n "$OPERATOR_NS" >/dev/null 2>&1; then
+  helm uninstall cnpg -n "$OPERATOR_NS"
+fi
+if kubectl get namespace "$OPERATOR_NS" >/dev/null 2>&1; then
+  kubectl delete namespace "$OPERATOR_NS" --timeout=60s || true
 fi
 
-# Uninstall operator
-if helm status cnpg -n "${OPERATOR_NS}" >/dev/null 2>&1; then
-  helm uninstall cnpg -n "${OPERATOR_NS}"
-  echo "CNPG operator Helm release removed."
-fi
-
-# Remove CRDs installed by CNPG
-for crd in $(kubectl get crd -o name 2>/dev/null | grep 'postgresql.cnpg.io'); do
-  kubectl delete "${crd}" 2>/dev/null || true
-done
-
-if kubectl get namespace "${OPERATOR_NS}" >/dev/null 2>&1; then
-  kubectl delete namespace "${OPERATOR_NS}" --timeout=60s || true
-  echo "Namespace '${OPERATOR_NS}' deleted."
-fi
-
-echo "CloudNativePG uninstalled."
+echo ""
+echo "Postgres uninstalled."

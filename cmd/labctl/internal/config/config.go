@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package config
 
 import (
@@ -28,19 +29,28 @@ type Config struct {
 	MonitoringNamespace string
 
 	// Provider selections
-	IngressProvider string
-	MetricsProvider string
-	LoggingProvider string
-	TracingProvider string
-	GitOpsProvider  string
-	ChaosProvider   string
-	PolicyProvider  string
-	SecretsProvider string
+	IngressProvider     string
+	MetricsProvider     string
+	LoggingProvider     string
+	TracingProvider     string
+	GitOpsProvider      string
+	ChaosProvider       string
+	PolicyProvider      string
+	SecretsProvider     string
+	MeshProvider        string
+	DataProvider        string
+	AutoscalingProvider string
 
 	// App defaults
 	AppName         string
 	HelmReleaseName string
 	HelmValues      string
+
+	// Pack registry (task 069). The community index is a static, optionally
+	// signed JSON artifact; these point the CLI at it. Empty key => no signature
+	// verification (community default).
+	RegistryIndexURL string
+	RegistryIndexKey string
 }
 
 // AppConfig holds per-app configuration from app.env.
@@ -103,10 +113,16 @@ func Load(projectRoot string) (*Config, error) {
 	cfg.ChaosProvider = getEnvOrDefault("CHAOS_PROVIDER", "")
 	cfg.PolicyProvider = getEnvOrDefault("POLICY_PROVIDER", "")
 	cfg.SecretsProvider = getEnvOrDefault("SECRETS_PROVIDER", "")
+	cfg.MeshProvider = getEnvOrDefault("MESH_PROVIDER", "")
+	cfg.DataProvider = getEnvOrDefault("DATA_PROVIDER", "")
+	cfg.AutoscalingProvider = getEnvOrDefault("AUTOSCALING_PROVIDER", "")
 
 	cfg.AppName = getEnvOrDefault("APP_NAME", "go-api")
 	cfg.HelmReleaseName = getEnvOrDefault("HELM_RELEASE_NAME", "go-api")
 	cfg.HelmValues = getEnvOrDefault("HELM_VALUES", "values-dev.yaml")
+
+	cfg.RegistryIndexURL = getEnvOrDefault("PACK_REGISTRY_INDEX", "https://snowops.github.io/registry/index.json")
+	cfg.RegistryIndexKey = getEnvOrDefault("PACK_REGISTRY_KEY", "")
 
 	return cfg, nil
 }

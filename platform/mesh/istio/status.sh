@@ -1,42 +1,48 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE=istio-system
-MESH_APP_NAMESPACE="${MESH_APP_NAMESPACE:-go-api}"
+SYSTEM_NS="istio-system"
+MESH_NAMESPACE="${MESH_NAMESPACE:-go-api}"
 
 echo "=== Istio Service Mesh Status ==="
 echo ""
 
-if ! kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1; then
-  echo "Istio is not installed (namespace ${NAMESPACE} not found)"
+if ! kubectl get namespace "$SYSTEM_NS" >/dev/null 2>&1; then
+  echo "Istio is not installed (namespace $SYSTEM_NS not found)"
   exit 0
 fi
 
-echo "Control Plane (${NAMESPACE}):"
-kubectl get pods -n "${NAMESPACE}" 2>/dev/null || echo "  No pods found"
-echo ""
-
-echo "Services:"
-kubectl get svc -n "${NAMESPACE}" 2>/dev/null || echo "  No services found"
-echo ""
-
-echo "Istiod deployment:"
-kubectl get deployment istiod -n "${NAMESPACE}" 2>/dev/null || echo "  istiod not found"
-echo ""
-
-echo "Sidecar injection namespaces:"
-kubectl get namespace --show-labels 2>/dev/null | grep 'istio-injection=enabled' || echo "  No namespaces with sidecar injection enabled"
-echo ""
-
-echo "Meshed pods in ${MESH_APP_NAMESPACE}:"
-if kubectl get namespace "${MESH_APP_NAMESPACE}" >/dev/null 2>&1; then
-  kubectl get pods -n "${MESH_APP_NAMESPACE}" \
-    -o jsonpath='{range .items[*]}{.metadata.name}{"  containers: "}{range .spec.containers[*]}{.name}{" "}{end}{"\n"}{end}' \
-    2>/dev/null | head -20 || echo "  No pods found"
+# Control plane health
+echo "Control plane (istiod):"
+if kubectl get deployment istiod -n "$SYSTEM_NS" >/dev/null 2>&1; then
+  ready=$(kubectl get deployment istiod -n "$SYSTEM_NS" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  desired=$(kubectl get deployment istiod -n "$SYSTEM_NS" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 0)
+  echo "  istiod: ${ready:-0}/${desired:-0} ready"
 else
-  echo "  Namespace ${MESH_APP_NAMESPACE} not found"
+  echo "  istiod deployment not found"
 fi
 echo ""
 
-echo "Istio CRDs installed:"
-kubectl get crd -o name 2>/dev/null | grep -c '\.istio\.io' | xargs -I{} echo "  {} Istio CRDs"
+echo "Pods:"
+kubectl get pods -n "$SYSTEM_NS" -o wide 2>/dev/null || echo "  No pods found"
+echo ""
+
+# Injection enrolment
+echo "Meshed namespaces (istio-injection=enabled):"
+kubectl get namespace -l istio-injection=enabled --no-headers 2>/dev/null | awk '{print "  "$1}' || echo "  (none)"
+echo ""
+
+# Sidecar visibility in the target namespace
+echo "Sidecars in '$MESH_NAMESPACE':"
+if kubectl get namespace "$MESH_NAMESPACE" >/dev/null 2>&1; then
+  found=0
+  for pod in $(kubectl get pods -n "$MESH_NAMESPACE" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+    if kubectl get pod "$pod" -n "$MESH_NAMESPACE" -o jsonpath='{.spec.containers[*].name}' 2>/dev/null | grep -qw istio-proxy; then
+      echo "  $pod: istio-proxy present"
+      found=1
+    fi
+  done
+  [ "$found" -eq 0 ] && echo "  No injected pods found (deploy a workload, then it gets a sidecar)"
+else
+  echo "  namespace '$MESH_NAMESPACE' not found"
+fi

@@ -1,35 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE=kafka
+NAMESPACE="${KAFKA_NAMESPACE:-kafka}"
+CLUSTER="${KAFKA_CLUSTER:-lab-kafka}"
 
-echo "=== Kafka Status ==="
+echo "=== Kafka (Strimzi) Status ==="
 echo ""
 
-if ! kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1; then
-  echo "Kafka is not installed (namespace ${NAMESPACE} not found)"
+if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+  echo "Kafka is not installed (namespace $NAMESPACE not found)"
   exit 0
 fi
 
-echo "Pods:"
-kubectl get pods -n "${NAMESPACE}" 2>/dev/null || echo "  No pods found"
-echo ""
-
-echo "Services:"
-kubectl get svc -n "${NAMESPACE}" 2>/dev/null || echo "  No services found"
-echo ""
-
-# Check controller readiness
-READY=$(kubectl get deployment -n "${NAMESPACE}" -o jsonpath='{range .items[*]}{.metadata.name}{": "}{.status.readyReplicas}{"/"}{.status.replicas}{"\n"}{end}' 2>/dev/null)
-if [ -n "${READY}" ]; then
-  echo "Deployments:"
-  while IFS= read -r line; do echo "  ${line}"; done <<< "${READY}"
-  echo ""
+# Operator health
+echo "Operator:"
+if kubectl get deployment strimzi-cluster-operator -n "$NAMESPACE" >/dev/null 2>&1; then
+  ready=$(kubectl get deployment strimzi-cluster-operator -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  desired=$(kubectl get deployment strimzi-cluster-operator -n "$NAMESPACE" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 0)
+  echo "  strimzi-cluster-operator: ${ready:-0}/${desired:-0} ready"
+else
+  echo "  operator deployment not found"
 fi
-
-echo "Bootstrap address:"
-echo "  kafka.${NAMESPACE}.svc.cluster.local:9092"
 echo ""
-echo "Quick smoke test:"
-echo "  kubectl run kafka-smoke -it --rm --restart=Never --image=bitnami/kafka:latest -- \\"
-echo "    kafka-topics.sh --bootstrap-server kafka.${NAMESPACE}.svc.cluster.local:9092 --list"
+
+# Kafka CR readiness condition (portable jsonpath, no text scraping)
+echo "Kafka cluster '$CLUSTER':"
+if kubectl get kafka "$CLUSTER" -n "$NAMESPACE" >/dev/null 2>&1; then
+  cond=$(kubectl get kafka "$CLUSTER" -n "$NAMESPACE" \
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+  echo "  Ready: ${cond:-Unknown}"
+  kver=$(kubectl get kafka "$CLUSTER" -n "$NAMESPACE" -o jsonpath='{.status.kafkaVersion}' 2>/dev/null || echo "")
+  [ -n "$kver" ] && echo "  Kafka version: $kver"
+else
+  echo "  Kafka CR not found"
+fi
+echo ""
+
+echo "Pods:"
+kubectl get pods -n "$NAMESPACE" -o wide 2>/dev/null || echo "  No pods found"
+echo ""
+
+echo "Topics:"
+kubectl get kafkatopic -n "$NAMESPACE" --no-headers 2>/dev/null | awk '{print "  "$1}' || echo "  (none)"
+echo ""
+
+echo "Smoke test (produce/consume) — run from inside the cluster:"
+echo "  kubectl -n $NAMESPACE run kcat --rm -it --image=edenhill/kcat:1.7.1 --restart=Never -- \\"
+echo "    -b ${CLUSTER}-kafka-bootstrap:9092 -t demo -P   # producer (Ctrl-D to send)"

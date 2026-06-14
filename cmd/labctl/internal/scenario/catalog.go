@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package scenario
 
 // Scenario catalog (task 044): install scenario packs from git into
@@ -8,20 +9,37 @@ package scenario
 // only install sources you trust.
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"go.flightdeck.dev/labctl/pkg/entitlement"
+	"go.flightdeck.dev/labctl/pkg/extension"
+	"go.flightdeck.dev/labctl/pkg/pack"
+	schema "go.flightdeck.dev/labctl/pkg/scenario"
 )
+
+// entitlement returns the engine's entitlement, defaulting to the open OSS
+// allow-all when unset (e.g. an Engine built without NewEngine in tests).
+func (e *Engine) entitlement() entitlement.Entitlement {
+	if e.Entitlement == nil {
+		return entitlement.Default()
+	}
+	return e.Entitlement
+}
 
 // Pack describes one installed catalog pack.
 type Pack struct {
-	Name      string   `json:"name"`
-	Dir       string   `json:"-"`
-	Scenarios []string `json:"scenarios"`
+	Name      string         `json:"name"`
+	Dir       string         `json:"-"`
+	Scenarios []string       `json:"scenarios"`
+	Manifest  *pack.Manifest `json:"manifest,omitempty"` // nil for legacy packs without pack.yaml
 }
 
 // GitFunc runs a git command; tests inject a stub.
@@ -126,17 +144,8 @@ func (e *Engine) InstallPack(src, name string, force bool, git GitFunc) (*Pack, 
 		return nil, fmt.Errorf("invalid pack name %q: must match ^[a-zA-Z0-9_-]{1,64}$ (use --name)", name)
 	}
 
-	dest := filepath.Join(e.CatalogDir(), name)
-	if _, err := os.Stat(dest); err == nil {
-		if !force {
-			return nil, fmt.Errorf("pack %q is already installed (use --force to replace it)", name)
-		}
-		if err := os.RemoveAll(dest); err != nil {
-			return nil, err
-		}
-		e.rescan() // drop the old pack's scenarios before collision checks
-	}
-	if err := os.MkdirAll(e.CatalogDir(), 0755); err != nil {
+	dest, err := e.prepareDest(name, force)
+	if err != nil {
 		return nil, err
 	}
 
@@ -154,10 +163,145 @@ func (e *Engine) InstallPack(src, name string, force bool, git GitFunc) (*Pack, 
 	}
 	os.RemoveAll(filepath.Join(tmp, ".git")) // packs are content snapshots
 
+	return e.installFetched(name, dest, tmp)
+}
+
+// InstallVia fetches a pack with the given extension.Resolver into a temp dir,
+// then installs it through the shared validate → entitle → rename path. This is
+// the seam that lets premium/private/hosted sources slot in (task 070): the
+// engine never needs to know where a pack came from, only how to install it.
+func (e *Engine) InstallVia(ctx context.Context, resolver extension.Resolver, ref, name string, force bool) (*Pack, error) {
+	tmp, err := os.MkdirTemp("", "labctl-pack-resolve-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmp)
+	if err := resolver.Resolve(ctx, ref, tmp); err != nil {
+		return nil, err
+	}
+	return e.InstallPackFromDir(tmp, name, force)
+}
+
+// InstallPackFromDir installs a pack whose contents have already been fetched
+// into srcDir (e.g. by an OCI pull). It shares the same validation, manifest,
+// and collision rules as the git path — nothing invalid ever lands in the
+// catalog because everything is checked in a staging copy before the rename.
+func (e *Engine) InstallPackFromDir(srcDir, name string, force bool) (*Pack, error) {
+	if name == "" {
+		return nil, fmt.Errorf("a pack name is required (use --name)")
+	}
+	if !validPackName.MatchString(name) {
+		return nil, fmt.Errorf("invalid pack name %q: must match ^[a-zA-Z0-9_-]{1,64}$ (use --name)", name)
+	}
+
+	dest, err := e.prepareDest(name, force)
+	if err != nil {
+		return nil, err
+	}
+
+	tmp := dest + ".installing"
+	os.RemoveAll(tmp)
+	defer os.RemoveAll(tmp)
+	if err := copyTree(srcDir, tmp); err != nil {
+		return nil, fmt.Errorf("staging pack: %w", err)
+	}
+	os.RemoveAll(filepath.Join(tmp, ".git"))
+
+	return e.installFetched(name, dest, tmp)
+}
+
+// prepareDest resolves the catalog destination for a pack, enforcing the
+// already-installed/--force rule and ensuring the catalog dir exists.
+func (e *Engine) prepareDest(name string, force bool) (string, error) {
+	dest := filepath.Join(e.CatalogDir(), name)
+	if _, err := os.Stat(dest); err == nil {
+		if !force {
+			return "", fmt.Errorf("pack %q is already installed (use --force to replace it)", name)
+		}
+		if err := os.RemoveAll(dest); err != nil {
+			return "", err
+		}
+		e.rescan() // drop the old pack's scenarios before collision checks
+	}
+	if err := os.MkdirAll(e.CatalogDir(), 0755); err != nil {
+		return "", err
+	}
+	return dest, nil
+}
+
+// copyTree recursively copies src into dst, preserving file permissions. Used to
+// stage an already-fetched pack (OCI pull) into the catalog's .installing dir so
+// it goes through the same validate-then-rename path as a git clone.
+func copyTree(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return err
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode().Perm())
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(out, in); err != nil {
+			out.Close()
+			return err
+		}
+		return out.Close()
+	})
+}
+
+// installFetched validates a staged pack in tmp and, if it is sound, atomically
+// renames it into dest. It is the shared tail of every install path (git, OCI,
+// local dir).
+func (e *Engine) installFetched(name, dest, tmp string) (*Pack, error) {
 	names, err := ValidatePackDir(tmp)
 	if err != nil {
 		return nil, err
 	}
+
+	// Read the optional pack.yaml manifest. Legacy packs without one still
+	// install (a warning is surfaced by the caller); a present manifest must be
+	// valid and compatible with this engine before anything lands.
+	manifest, err := pack.Load(tmp)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", pack.ManifestFile, err)
+	}
+	if manifest != nil {
+		if err := manifest.Validate(); err != nil {
+			return nil, err
+		}
+		if err := manifest.CheckEngineCompat(e.LabctlVersion, schema.SupportedScenarioAPIVersions); err != nil {
+			return nil, err
+		}
+	}
+
+	// Entitlement seam (task 070): the OSS default allows everything, so this is a
+	// no-op for the open engine; an injected premium entitlement can gate the
+	// install here. Premium/private sources are gated upstream too (registry auth).
+	req := entitlement.Request{Name: name}
+	if manifest != nil {
+		req.Name = manifest.Metadata.Name
+		req.Tier = manifest.Tier()
+	}
+	if err := e.entitlement().Authorize(context.Background(), req); err != nil {
+		return nil, err
+	}
+
 	for _, n := range names {
 		if existing, ok := e.scenarios[n]; ok {
 			from := "the repository"
@@ -172,7 +316,7 @@ func (e *Engine) InstallPack(src, name string, force bool, git GitFunc) (*Pack, 
 		return nil, err
 	}
 	e.rescan()
-	return &Pack{Name: name, Dir: dest, Scenarios: names}, nil
+	return &Pack{Name: name, Dir: dest, Scenarios: names, Manifest: manifest}, nil
 }
 
 // UninstallPack removes an installed pack and its scenarios.
@@ -208,6 +352,9 @@ func (e *Engine) Packs() []Pack {
 			continue
 		}
 		p := Pack{Name: entry.Name(), Dir: filepath.Join(e.CatalogDir(), entry.Name())}
+		if m, err := pack.Load(p.Dir); err == nil {
+			p.Manifest = m // nil for legacy packs without pack.yaml
+		}
 		for _, s := range e.scenarios {
 			if s.Source == p.Name {
 				p.Scenarios = append(p.Scenarios, s.Name)

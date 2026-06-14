@@ -129,6 +129,25 @@ The platform should teach users how systems behave. Metrics, logs, traces, event
 
 The repository layout should mirror the product architecture closely enough that contributors can infer where new capabilities belong.
 
+### 8. Open Core with Injected Extensions (anti-lock-in)
+
+Premium content and hosted/SaaS capabilities must plug in **without forking the
+engine**. The OSS core defines extension *seams* as public-SDK interfaces and
+ships open, behavior-preserving defaults; richer implementations are injected at
+construction and live outside the OSS tree. No premium or business logic ever
+enters the open engine.
+
+- `pkg/entitlement` — `Entitlement.Authorize(pack)`. OSS default `AllowAll`
+  (every tier runs identically). Consulted on the pack-install path. License
+  tokens are validated through a `TokenVerifier` seam (interface only in OSS).
+- `pkg/extension` — `Resolver` (where a pack comes from: OCI / git / local
+  built-ins, composed in a `Chain`; the engine installs via
+  `InstallVia(resolver, …)`) and `Hooks` (no-op `PreStage`/`PostStage`/
+  `PreCheck`/`PostCheck` around scenario run/verify).
+
+These packages are CODEOWNERS-locked to the lead maintainer. Authoring guide:
+`docs/authoring/extensions.md`.
+
 ---
 
 ## Desired-State System Model

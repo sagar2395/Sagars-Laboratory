@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package incident
 
 // MTTR tracking (task 048): every completed incident run is recorded in the
@@ -8,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/results"
+	"go.flightdeck.dev/labctl/internal/results"
 )
 
 // Record is a view of a completed incident run, reconstructed from the

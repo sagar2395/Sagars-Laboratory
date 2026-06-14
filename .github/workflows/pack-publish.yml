@@ -1,0 +1,81 @@
+name: Publish community packs
+
+# Publishes the first-party community packs under packs/examples/ to GHCR as
+# signed OCI artifacts on release. This is the reference implementation of the
+# pack-distribution path: tarball layer pushed with oras, keyless-signed with
+# cosign so consumers can `labctl pack add oci://... --require-signature`.
+#
+# Premium/enterprise packs live OUTSIDE this OSS tree and are published from
+# their own private repos against an auth-gated registry — the engine treats all
+# tiers identically; only the registry (and the entitlement interface, task 070)
+# gates access.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag/version to use for the published packs (default: run number)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # keyless cosign signing via GitHub OIDC
+
+env:
+  REGISTRY: ghcr.io
+  # Packs are published under the org namespace, registry-neutral identity
+  # publisher/name preserved by the pack.yaml metadata.
+  NAMESPACE: ${{ github.repository_owner }}
+
+jobs:
+  publish:
+    name: Publish + sign packs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build labctl
+        run: |
+          cd cmd/labctl
+          go build -o "$GITHUB_WORKSPACE/bin/labctl" .
+
+      - name: Set up oras
+        uses: oras-project/setup-oras@v1
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login "$REGISTRY" -u "${{ github.actor }}" --password-stdin
+
+      - name: Resolve version
+        id: ver
+        run: |
+          ref="${{ github.event.inputs.ref }}"
+          if [ -z "$ref" ]; then
+            ref="${GITHUB_REF_NAME}"
+          fi
+          # Strip a leading v so 1.2.3 tags match pack.yaml semver.
+          ref="${ref#v}"
+          [ -z "$ref" ] && ref="0.0.0-${GITHUB_RUN_NUMBER}"
+          echo "version=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Publish + sign each pack
+        env:
+          COSIGN_YES: "true"
+        run: |
+          set -euo pipefail
+          version="${{ steps.ver.outputs.version }}"
+          for pack_yaml in packs/examples/*/pack.yaml; do
+            dir="$(dirname "$pack_yaml")"
+            # Derive the repo name from the pack dir; identity is registry-neutral.
+            name="$(basename "$dir")"
+            ref="oci://${REGISTRY}/${NAMESPACE}/${name}:${version}"
+            echo "::group::Publishing $dir -> $ref"
+            "$GITHUB_WORKSPACE/bin/labctl" pack publish "$dir" "$ref" --sign
+            echo "::endgroup::"
+          done

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package learn
 
 import (
@@ -8,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/results"
+	"go.flightdeck.dev/labctl/internal/results"
 	"gopkg.in/yaml.v3"
 )
 

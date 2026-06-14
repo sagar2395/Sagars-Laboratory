@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package cmd
 
 import (
@@ -6,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sagars-lab/labctl/internal/checks"
-	"github.com/sagars-lab/labctl/internal/learn"
 	"github.com/spf13/cobra"
+	"go.flightdeck.dev/labctl/internal/learn"
+	"go.flightdeck.dev/labctl/pkg/checks"
 )
 
 func learnCmd() *cobra.Command {

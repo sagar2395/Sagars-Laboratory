@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package services
 
 import (
@@ -5,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sagars-lab/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/executor"
 )
 
 // Service represents a shared service (e.g., redis, postgres).

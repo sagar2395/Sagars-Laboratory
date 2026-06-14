@@ -1,4 +1,4 @@
-module github.com/sagars-lab/labctl
+module go.flightdeck.dev/labctl
 
 go 1.24.2
 

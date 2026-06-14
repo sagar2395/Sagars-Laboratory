@@ -1,7 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
 package main
 
 import (
-	"github.com/sagars-lab/labctl/cmd"
+	"go.flightdeck.dev/labctl/cmd"
 )
 
 func main() {

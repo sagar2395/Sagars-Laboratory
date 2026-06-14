@@ -1,36 +1,26 @@
-# KEDA values for k3d local development.
-# Full reference: https://artifacthub.io/packages/helm/kedacore/keda
-
-replicaCount: 1
+# Custom values for the kedacore/keda Helm chart.
+# Referenced by platform/autoscaling/keda/install.sh via -f.
+# Keep the operator, metrics apiserver, and admission webhook small for k3d.
 
 resources:
   operator:
     requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 250m
-      memory: 256Mi
-  metricServer:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 250m
-      memory: 256Mi
-  webhooks:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
       cpu: 100m
       memory: 128Mi
-
-# Reduce log verbosity for local dev
-logging:
-  operator:
-    level: warn
+    limits:
+      cpu: 500m
+      memory: 256Mi
   metricServer:
-    level: 0
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
   webhooks:
-    level: warn
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

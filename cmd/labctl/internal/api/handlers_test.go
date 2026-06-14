@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package api
 
 import (
@@ -8,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	"github.com/sagars-lab/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/executor"
 )
 
 func TestIsValidName(t *testing.T) {

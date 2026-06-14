@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package cmd
 
 import (
@@ -8,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sagars-lab/labctl/internal/api"
-	"github.com/sagars-lab/labctl/ui"
+	"go.flightdeck.dev/labctl/internal/api"
+	"go.flightdeck.dev/labctl/ui"
 )
 
 var uiPort string

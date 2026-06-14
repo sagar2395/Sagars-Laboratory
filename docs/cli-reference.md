@@ -129,30 +129,42 @@ labctl app destroy go-api
 
 Manage platform infrastructure components (ingress, monitoring, etc.).
 
-#### `labctl platform up`
+#### `labctl platform up [category|category/provider]`
 
-Install all platform components based on the configured providers.
-
-```bash
-labctl platform up
-```
-
-Installs components selected by `INGRESS_PROVIDER`, `METRICS_PROVIDER`, etc. in `.env`.
-
-#### `labctl platform down`
-
-Uninstall all platform components.
+Install all platform components based on the configured providers, or a single
+target when one is named. A target is either a **category** (its provider is
+chosen via env var or is the only one) or an explicit **`category/provider`**
+spec for additive categories like `data`.
 
 ```bash
-labctl platform down
+labctl platform up                         # full stack (ingress + monitoring)
+MESH_PROVIDER=istio labctl platform up mesh # a category — provider via env var
+labctl platform up data/kafka              # a specific provider (additive)
+labctl platform up data/postgres
 ```
 
-#### `labctl platform status`
+Installs components selected by `INGRESS_PROVIDER`, `METRICS_PROVIDER`,
+`MESH_PROVIDER`, etc. in `.env`. When a category has more than one provider and
+none is selected, the command lists the choices and the env var to set.
 
-Show the status of all discovered platform components by category.
+#### `labctl platform down [category|category/provider]`
+
+Uninstall all platform components, or a single target when one is named.
+
+```bash
+labctl platform down                       # full stack
+MESH_PROVIDER=istio labctl platform down mesh
+labctl platform down data/kafka
+```
+
+#### `labctl platform status [category|category/provider]`
+
+Show the status of all discovered platform components, or just one target.
 
 ```bash
 labctl platform status
+labctl platform status mesh
+labctl platform status data/postgres
 ```
 
 ---
@@ -160,6 +172,16 @@ labctl platform status
 ### Scenarios
 
 Manage declarative lab scenarios (observability, security, chaos, etc.).
+
+#### `labctl scenario new <name>`
+
+Scaffold `scenarios/<name>/` with a valid v2 `scenario.yaml` and a passing
+readiness check — green under `scenario verify` immediately. `--force` overwrites.
+See `docs/authoring/first-pack.md`.
+
+```bash
+labctl scenario new my-first-scenario
+```
 
 #### `labctl scenario list`
 
@@ -240,6 +262,40 @@ pack). Companion commands: `labctl scenario packs` (list installed packs)
 and `labctl scenario uninstall <pack-name>`. See "Scenario Packs" in
 `docs/scenarios.md` — including the security note: packs run scripts on
 your cluster, install only trusted sources.
+
+---
+
+### `labctl pack` — Scenario packs (content add-ons)
+
+First-class commands for versioned scenario packs. A pack may carry a `pack.yaml`
+manifest (`apiVersion: packs.flightdeck.dev/v1`) declaring name, version (SemVer),
+publisher, license, tier, and engine compatibility; the CLI validates it and
+refuses incompatible packs. `labctl scenario install|packs|uninstall` remain as
+aliases. Authoring guide: `docs/authoring/packs.md`.
+
+```bash
+labctl pack init <name>                    # scaffold a new pack (--dir, --force)
+labctl pack search [term]                  # find packs in the registry index
+labctl pack add <name>                     # resolve a name via the index, then install
+labctl pack add <git-url>[@ref]            # install from git (flags: --name, --force)
+labctl pack add oci://<reg>/<repo>[:tag]   # install from an OCI registry
+    # OCI verification flags: --require-signature, --cosign-key,
+    #                         --certificate-identity, --certificate-oidc-issuer
+labctl pack publish <dir> oci://<reg>/<repo>[:tag]   # publish (flags: --sign, --cosign-key)
+labctl pack list                  # installed: PACK / VERSION / TIER / SCENARIOS
+labctl pack info <name>           # installed manifest, else registry entry
+labctl pack remove <pack-name>    # uninstall (must deactivate its scenarios first)
+labctl pack validate-index <file> # validate a registry index (PR gate)
+```
+
+`pack search`/`info`/`add <name>` read the registry index (`PACK_REGISTRY_INDEX`,
+cached with a 1h TTL; `PACK_REGISTRY_KEY` verifies its cosign signature).
+OCI publish/install shells out to `oras` (and `cosign` when signing/verifying).
+Signature verification is fail-closed and runs before any content is extracted.
+Guides: `docs/authoring/publishing.md`, `docs/authoring/registry.md`.
+
+> Packs run scripts and apply manifests on your cluster — install only trusted
+> sources; prefer signed OCI packs pinned by digest.
 
 ---
 

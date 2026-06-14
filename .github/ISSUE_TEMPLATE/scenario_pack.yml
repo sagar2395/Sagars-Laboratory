@@ -1,0 +1,53 @@
+name: Scenario / pack proposal
+description: Propose a new scenario or scenario pack
+labels: ["content", "scenario"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Scenario / pack name
+    validations:
+      required: true
+  - type: dropdown
+    id: domain
+    attributes:
+      label: Domain
+      options:
+        - kubernetes
+        - cloud
+        - devops / platform engineering
+        - security
+        - compliance
+        - observability
+        - incident response
+        - sre
+        - data / event-driven
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Learning objective
+      description: What should someone understand or be able to do after running it?
+    validations:
+      required: true
+  - type: textarea
+    id: stages
+    attributes:
+      label: Stages & checks (sketch)
+      description: The stages it would deploy and the machine-verifiable checks that prove success.
+    validations:
+      required: true
+  - type: textarea
+    id: prereqs
+    attributes:
+      label: Platform prerequisites
+      placeholder: "e.g. data/kafka, mesh, secrets/vault"
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Acknowledgements
+      options:
+        - label: I've read the authoring guide (docs/authoring) and CONTRIBUTING.md
+        - label: Content is declarative (YAML + scripts), cross-platform, and idempotent

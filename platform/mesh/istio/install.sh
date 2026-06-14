@@ -1,42 +1,60 @@
 #!/usr/bin/env bash
-# Installs Istio service mesh (sidecar mode) via Helm.
-# Selects sidecar over ambient for broad demo app compatibility.
 set -euo pipefail
 
-NAMESPACE=istio-system
-CHART_VERSION="${ISTIO_CHART_VERSION:-1.24.2}"
-DOMAIN_SUFFIX="${DOMAIN_SUFFIX:-k3d.local}"
-MESH_APP_NAMESPACE="${MESH_APP_NAMESPACE:-go-api}"
+# Istio service mesh (sidecar mode) installer.
+# Selected via MESH_PROVIDER=istio. Portable + idempotent.
+#
+# Config (env, with defaults — scripts never source .env themselves):
+#   ISTIO_VERSION   pinned chart/app version (see versions.env)
+#   MESH_NAMESPACE  workload namespace to enrol into the mesh (default: go-api)
 
-echo "Installing Istio ${CHART_VERSION} (sidecar mode)..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SYSTEM_NS="istio-system"
+ISTIO_VERSION="${ISTIO_VERSION:-1.24.2}"
+MESH_NAMESPACE="${MESH_NAMESPACE:-go-api}"
+
+echo "Installing Istio ${ISTIO_VERSION} (sidecar mode)..."
 
 helm repo add istio https://istio-release.storage.googleapis.com/charts --force-update
-helm repo update
+helm repo update istio
 
-echo "Installing istio/base..."
+# 1. CRDs + cluster resources (istio/base). Idempotent via upgrade --install.
 helm upgrade --install istio-base istio/base \
-  --namespace "${NAMESPACE}" \
+  --namespace "$SYSTEM_NS" \
   --create-namespace \
-  --version "${CHART_VERSION}" \
-  --wait --timeout 3m
-
-echo "Installing istiod (control plane)..."
-helm upgrade --install istiod istio/istiod \
-  --namespace "${NAMESPACE}" \
-  --version "${CHART_VERSION}" \
-  -f "$(dirname "$0")/values.yaml" \
+  --version "$ISTIO_VERSION" \
+  --set defaultRevision=default \
   --wait --timeout 5m
 
-# Enable sidecar injection in the app namespace
-if kubectl get namespace "${MESH_APP_NAMESPACE}" >/dev/null 2>&1; then
-  echo "Enabling sidecar injection in namespace ${MESH_APP_NAMESPACE}..."
-  kubectl label namespace "${MESH_APP_NAMESPACE}" istio-injection=enabled --overwrite
-  echo "Rolling pods in ${MESH_APP_NAMESPACE} to acquire sidecars..."
-  kubectl rollout restart deployment -n "${MESH_APP_NAMESPACE}" 2>/dev/null || true
+# 2. Control plane (istiod). Minimal resources for k3d (see values.yaml).
+helm upgrade --install istiod istio/istiod \
+  --namespace "$SYSTEM_NS" \
+  --version "$ISTIO_VERSION" \
+  -f "$SCRIPT_DIR/values.yaml" \
+  --wait --timeout 5m
+
+echo "Waiting for istiod to be ready..."
+kubectl rollout status deployment/istiod -n "$SYSTEM_NS" --timeout=120s
+
+# 3. Enrol the workload namespace: sidecar auto-injection via namespace label.
+if kubectl get namespace "$MESH_NAMESPACE" >/dev/null 2>&1; then
+  echo "Enrolling namespace '$MESH_NAMESPACE' into the mesh (istio-injection=enabled)..."
+  kubectl label namespace "$MESH_NAMESPACE" istio-injection=enabled --overwrite
+  # Restart existing workloads so the sidecar is injected. Safe no-op if none.
+  if kubectl get deployments -n "$MESH_NAMESPACE" --no-headers 2>/dev/null | grep -q .; then
+    echo "Restarting deployments in '$MESH_NAMESPACE' to inject sidecars..."
+    kubectl rollout restart deployment -n "$MESH_NAMESPACE"
+    kubectl rollout status deployment -n "$MESH_NAMESPACE" --timeout=120s || true
+  fi
+else
+  echo "Namespace '$MESH_NAMESPACE' not found yet."
+  echo "Create it and deploy your app, then re-run to inject sidecars:"
+  echo "    kubectl create namespace $MESH_NAMESPACE"
+  echo "    kubectl label namespace $MESH_NAMESPACE istio-injection=enabled"
 fi
 
 echo ""
-echo "Istio ${CHART_VERSION} installed."
-echo "  Control plane: kubectl get pods -n ${NAMESPACE}"
-echo "  Kiali (if installed): http://kiali.${DOMAIN_SUFFIX}"
-echo "  Sidecar injection active on namespace: ${MESH_APP_NAMESPACE}"
+echo "Istio installed successfully."
+echo "    Control plane: namespace '$SYSTEM_NS'"
+echo "    Meshed namespace: '$MESH_NAMESPACE' (label istio-injection=enabled)"
+echo "    Verify a sidecar: kubectl get pod -n $MESH_NAMESPACE -o jsonpath='{.items[0].spec.containers[*].name}'"

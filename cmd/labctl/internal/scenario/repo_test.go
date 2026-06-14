@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package scenario
 
 // Repo-wide scenario validation: every scenario.yaml checked into this

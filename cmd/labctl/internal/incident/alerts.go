@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package incident
 
 // Alertmanager integration (task 049): when a fault declares expectAlert,

@@ -19,7 +19,6 @@ The active provider for each category is selected via environment variables in `
 ```bash
 INGRESS_PROVIDER=traefik       # or nginx
 METRICS_PROVIDER=prometheus
-# MESH_PROVIDER=istio          # or linkerd (optional)
 ```
 
 Each category also has an `_interface.yaml` file documenting the contract that all providers in that category must satisfy.
@@ -101,61 +100,117 @@ These are typically activated via the `security-compliance` scenario.
 
 Activated via the `chaos-engineering` scenario. Includes a web dashboard (port-forward to 2333).
 
-### Autoscaling (`autoscaling/`)
+### Mesh (`mesh/`)
 
-| Provider | Chart | Description |
-|----------|-------|-------------|
-| **keda** | `kedacore/keda` | KEDA operator; drives ScaledObjects using Prometheus, Kafka, and 60+ other event sources |
+Service mesh providing mTLS, traffic management, and L7 telemetry between meshed
+workloads. Swappable via `MESH_PROVIDER`.
 
-Enable: `AUTOSCALING_PROVIDER=keda make platform-autoscaling-up`
+| Provider | Charts | Inject marker | Sidecar |
+|----------|--------|---------------|---------|
+| **istio** | `istio/base`, `istio/istiod` | namespace label `istio-injection=enabled` | `istio-proxy` |
+| **linkerd** | `linkerd/linkerd-crds`, `linkerd/linkerd-control-plane` | namespace annotation `linkerd.io/inject=enabled` | `linkerd-proxy` |
 
-Pair with the `autoscaling-under-load` scenario for a live demo:
+`install.sh` enrols the workload namespace (`MESH_NAMESPACE`, default `go-api`)
+into the mesh and restarts its deployments so sidecars are injected;
+`uninstall.sh` reverses both. Chart versions are pinned in `versions.env`
+(`ISTIO_VERSION`, `LINKERD_CRDS_CHART_VERSION`,
+`LINKERD_CONTROL_PLANE_CHART_VERSION`) and overridable per-install.
+
 ```bash
-AUTOSCALING_PROVIDER=keda labctl platform up
-labctl scenario up autoscaling-under-load
-labctl traffic spike --duration=30s --rps=50
+# Install / swap / remove on the same cluster:
+MESH_PROVIDER=istio   labctl platform up mesh
+MESH_PROVIDER=istio   labctl platform down mesh
+MESH_PROVIDER=linkerd labctl platform up mesh
 ```
+
+> **k3d resource reality:** give the cluster at least 4Gi memory (6Gi is
+> comfortable with a meshed app running). Linkerd needs `openssl` on the host
+> for portable mTLS identity cert generation — no `step` CLI required.
 
 ### Data (`data/`)
 
-Data infrastructure sub-components. Both can be active simultaneously.
-Enable each independently: `DATA_KAFKA=1 make platform-data-kafka-up` or
-`DATA_POSTGRES=1 make platform-data-postgres-up`.
+Stateful data infrastructure driven by Kubernetes operators. Unlike most
+categories these are **additive sub-components** (like `monitoring/*`): `kafka`
+and `postgres` coexist. Address each as `data/<provider>`.
 
-| Sub-component | Chart | Description |
-|--------------|-------|-------------|
-| **kafka** | `bitnami/kafka` | Single-node KRaft Kafka cluster, ephemeral storage |
-| **postgres** | `cnpg/cloudnative-pg` + Cluster CR | 2-instance PostgreSQL (CloudNativePG), built-in failover drill |
+| Provider | Operator chart | Cluster | Ready signal |
+|----------|----------------|---------|--------------|
+| **kafka** | `strimzi/strimzi-kafka-operator` | Kafka (KRaft) + KafkaNodePool, 1 dual-role node, ephemeral | `kafka/<name>` condition `Ready=True` |
+| **postgres** | `cnpg/cloudnative-pg` | `Cluster`, 2 instances (1 primary + 1 replica) | `readyInstances == spec.instances` |
 
-### Secrets (`secrets/`)
-
-Secrets management sub-components. Install Vault first, then ESO.
-
-| Sub-component | Chart | Description |
-|--------------|-------|-------------|
-| **vault** | `hashicorp/vault` | HashiCorp Vault in dev mode; seeds `secret/go-api` demo KV; ingress at `vault.<DOMAIN_SUFFIX>` |
-| **external-secrets** | `external-secrets/external-secrets` | External Secrets Operator; creates SecretStore + ExternalSecret → syncs Vault KV to k8s Secret |
+Each provider owns its own namespace (kafka → `kafka`, postgres → `postgres`;
+CNPG's operator lives in `cnpg-system`) so installing/removing one never
+disturbs the other. Chart/app versions are pinned in `versions.env`
+(`STRIMZI_VERSION`, `KAFKA_VERSION`, `CNPG_CHART_VERSION`) and overridable.
 
 ```bash
-SECRETS_VAULT=1 make platform-secrets-vault-up    # install Vault
-SECRETS_ESO=1   make platform-secrets-eso-up      # install ESO (Vault must be running)
+labctl platform up   data/kafka       # Strimzi operator + 1-broker Kafka
+labctl platform up   data/postgres    # CNPG operator + 2-instance Postgres
+labctl platform status data/postgres  # CR readiness + per-pod roles
+labctl platform down data/kafka       # remove operator + CR + PVCs + namespace
+# or via make: make platform-data-up   (both)   /  make platform-data-kafka-up
 ```
 
-Rotation exercise: `vault kv put secret/go-api db_password=new-val` → wait 30 s → ESO syncs.
+CNPG's built-in failover is a ready-made day-2 drill — delete the primary pod
+and watch a replica promote (see the runbook). Kafka ships a kcat
+produce/consume smoke test in the runbook.
 
-### Mesh (`mesh/`)
+### Secrets Management (`secrets/`)
 
-Service mesh providers for mTLS, traffic management, and observability between services.
-Enable via `MESH_PROVIDER` in `.env`, then `make platform-mesh-up` or `labctl platform up`.
+Centralised secrets: a **Vault** backend plus the **External Secrets Operator
+(ESO)** that syncs Vault values into native Kubernetes Secrets. Selected by
+`SECRETS_PROVIDER`, or addressed explicitly as `secrets/<provider>`.
 
-| Provider | Chart | Description |
-|----------|-------|-------------|
-| **istio** | `istio/base` + `istio/istiod` | Sidecar mode, mTLS, traffic management, Kiali-compatible |
-| **linkerd** | `linkerd/linkerd-crds` + `linkerd/linkerd-control-plane` | Lightweight proxy, automatic mTLS, no cert CLI required |
+> **Not** to be confused with `security/secrets/` (sealed-secrets) — a different,
+> Git-encryption approach activated via the `security-compliance` scenario.
 
-The app namespace (`MESH_APP_NAMESPACE`, default `go-api`) is automatically labelled for sidecar/proxy injection on install and un-labelled on uninstall.
+| Provider | Chart | Role |
+|----------|-------|------|
+| **vault** | `hashicorp/vault` | Secrets backend (dev mode for the lab; seeds `secret/go-api`, UI via ingress) |
+| **external-secrets** | `external-secrets/external-secrets` | Syncs `secret/go-api` → `ExternalSecret` → k8s Secret `go-api-secrets` |
 
-Swap providers: `make platform-mesh-down` first, then set `MESH_PROVIDER=linkerd` and `make platform-mesh-up`.
+ESO **prerequires** Vault — its `install.sh` preflights for the Vault service and
+errors (rather than auto-installing) if it's missing. The full chain demonstrates
+`Vault KV → ExternalSecret → k8s Secret → go-api env var`, and rotating the value
+in Vault propagates within the 15s refresh interval (the rotation exercise).
+
+```bash
+labctl platform up secrets/vault            # backend + demo secret + UI
+labctl platform up secrets/external-secrets # operator + SecretStore + ExternalSecret
+# or both, in order:  make platform-secrets-up
+labctl platform status secrets/external-secrets
+labctl platform down secrets/external-secrets && labctl platform down secrets/vault
+```
+
+> **No secrets in git, ever.** The Vault dev root token comes from the
+> environment (`VAULT_DEV_ROOT_TOKEN`, defaulting to Vault's well-known dev value
+> `root`); the token ESO uses is created in-cluster from that env value. Dev-mode
+> Vault is in-memory and wiped on restart — rotation, not durability, is the point.
+> Versions are pinned in `versions.env` (`VAULT_CHART_VERSION`, `ESO_CHART_VERSION`).
+
+### Autoscaling (`autoscaling/`)
+
+Event/metric-driven horizontal autoscaling beyond CPU/memory HPA. Selected by
+`AUTOSCALING_PROVIDER`.
+
+| Provider | Chart | Drives |
+|----------|-------|--------|
+| **keda** | `kedacore/keda` | A `ScaledObject` → HPA, scaling on Prometheus queries, Kafka lag, queue depth, … |
+
+The provider installs only the autoscaler; the **scaling rule** (a `ScaledObject`)
+is declared by scenarios/apps, not the provider. The flagship demo is the
+`autoscaling-under-load` scenario: a traffic spike drives go-api from 1 to
+several replicas on Prometheus RPS, then cooldown scales it back.
+
+```bash
+AUTOSCALING_PROVIDER=keda labctl platform up autoscaling
+labctl scenario up autoscaling-under-load        # installs the ScaledObject + dashboard
+labctl traffic start --profile spike --rps 10    # drive the spike
+labctl scenario verify autoscaling-under-load    # asserts the scaled-up state
+AUTOSCALING_PROVIDER=keda labctl platform down autoscaling
+```
+
+Version pinned in `versions.env` (`KEDA_CHART_VERSION`), overridable per-install.
 
 ## Provider Interface Contracts
 
@@ -246,15 +301,4 @@ platform/
   chaos/
     _interface.yaml
     chaos-mesh/           install.sh, uninstall.sh, status.sh, values.yaml
-  mesh/
-    istio/                install.sh, uninstall.sh, status.sh, values.yaml
-    linkerd/              install.sh, uninstall.sh, status.sh, values.yaml
-  data/
-    kafka/                install.sh, uninstall.sh, status.sh, values.yaml
-    postgres/             install.sh, uninstall.sh, status.sh, values.yaml
-  secrets/
-    vault/                install.sh, uninstall.sh, status.sh, values.yaml, values-prod-like.yaml
-    external-secrets/     install.sh, uninstall.sh, status.sh, values.yaml
-  autoscaling/
-    keda/                 install.sh, uninstall.sh, status.sh, values.yaml
 ```

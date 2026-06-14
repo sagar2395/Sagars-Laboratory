@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://go.flightdeck.dev/schemas/pack.schema.json
+apiVersion: packs.flightdeck.dev/v1
+kind: ScenarioPack
+metadata:
+  name: example-pack
+  version: 0.1.0
+  publisher: TODO
+  displayName: Example Pack
+  description: TODO — one-line description of this pack.
+  license: Apache-2.0
+  tier: community
+  keywords: []
+spec:
+  engine:
+    scenarioApiVersions: ["scenario.flightdeck.dev/v2"]
+    minLabctlVersion: "0.1.0"
+  provides:
+    scenarios: [example-scenario]

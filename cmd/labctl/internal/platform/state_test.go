@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package platform
 
 import (
@@ -6,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/sagars-lab/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/executor"
 )
 
 // fakeProvider creates platform/<category>/<name>/ with install/uninstall

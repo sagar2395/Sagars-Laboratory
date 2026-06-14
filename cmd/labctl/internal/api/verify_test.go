@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package api
 
 import (
@@ -9,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sagars-lab/labctl/internal/config"
-	"github.com/sagars-lab/labctl/internal/scenario"
+	"go.flightdeck.dev/labctl/internal/config"
+	"go.flightdeck.dev/labctl/internal/scenario"
 )
 
 // newScenarioServer builds a Server whose scenario engine scans a temp

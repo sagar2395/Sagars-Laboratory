@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package api
 
 import (
@@ -12,13 +13,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
-	"github.com/sagars-lab/labctl/internal/config"
-	"github.com/sagars-lab/labctl/internal/executor"
-	"github.com/sagars-lab/labctl/internal/incident"
-	"github.com/sagars-lab/labctl/internal/platform"
-	"github.com/sagars-lab/labctl/internal/runtime"
-	"github.com/sagars-lab/labctl/internal/scenario"
-	"github.com/sagars-lab/labctl/internal/services"
+	"go.flightdeck.dev/labctl/internal/config"
+	"go.flightdeck.dev/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/incident"
+	"go.flightdeck.dev/labctl/internal/platform"
+	"go.flightdeck.dev/labctl/internal/runtime"
+	"go.flightdeck.dev/labctl/internal/scenario"
+	"go.flightdeck.dev/labctl/internal/services"
 )
 
 // Server is the API server that backs the web UI.

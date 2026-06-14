@@ -5,11 +5,7 @@ METRICS_PROVIDER  ?= prometheus
 # LOGGING_PROVIDER ?= loki          # set to enable logging stack
 # TRACING_PROVIDER ?= tempo         # set to enable tracing stack
 # MESH_PROVIDER    ?= istio         # set to enable service mesh (istio|linkerd)
-# DATA_KAFKA       ?= 1             # set to enable Kafka (Bitnami/KRaft)
-# DATA_POSTGRES    ?= 1             # set to enable PostgreSQL (CloudNativePG)
-# SECRETS_VAULT    ?= 1             # set to enable HashiCorp Vault (dev mode)
-# SECRETS_ESO      ?= 1             # set to enable External Secrets Operator (requires Vault)
-# AUTOSCALING_PROVIDER ?= keda      # set to enable event-driven autoscaling
+# AUTOSCALING_PROVIDER ?= keda      # set to enable autoscaling (keda)
 
 platform-up: platform-ingress-up platform-monitoring-up
 ifdef LOGGING_PROVIDER
@@ -20,18 +16,6 @@ platform-up: platform-tracing-up
 endif
 ifdef MESH_PROVIDER
 platform-up: platform-mesh-up
-endif
-ifdef DATA_KAFKA
-platform-up: platform-data-kafka-up
-endif
-ifdef DATA_POSTGRES
-platform-up: platform-data-postgres-up
-endif
-ifdef SECRETS_VAULT
-platform-up: platform-secrets-vault-up
-endif
-ifdef SECRETS_ESO
-platform-up: platform-secrets-eso-up
 endif
 ifdef AUTOSCALING_PROVIDER
 platform-up: platform-autoscaling-up
@@ -47,18 +31,6 @@ endif
 ifdef MESH_PROVIDER
 platform-down: platform-mesh-down
 endif
-ifdef DATA_KAFKA
-platform-down: platform-data-kafka-down
-endif
-ifdef DATA_POSTGRES
-platform-down: platform-data-postgres-down
-endif
-ifdef SECRETS_ESO
-platform-down: platform-secrets-eso-down
-endif
-ifdef SECRETS_VAULT
-platform-down: platform-secrets-vault-down
-endif
 ifdef AUTOSCALING_PROVIDER
 platform-down: platform-autoscaling-down
 endif
@@ -72,18 +44,6 @@ platform-status: platform-tracing-status
 endif
 ifdef MESH_PROVIDER
 platform-status: platform-mesh-status
-endif
-ifdef DATA_KAFKA
-platform-status: platform-data-kafka-status
-endif
-ifdef DATA_POSTGRES
-platform-status: platform-data-postgres-status
-endif
-ifdef SECRETS_VAULT
-platform-status: platform-secrets-vault-status
-endif
-ifdef SECRETS_ESO
-platform-status: platform-secrets-eso-status
 endif
 ifdef AUTOSCALING_PROVIDER
 platform-status: platform-autoscaling-status
@@ -146,7 +106,7 @@ platform-tracing-status:
 	@echo "=== Tracing ($(TRACING_PROVIDER)) Status ==="
 	@bash platform/tracing/$(TRACING_PROVIDER)/status.sh
 
-# Mesh (MESH_PROVIDER=istio|linkerd) — only when MESH_PROVIDER is set
+# Service mesh (MESH_PROVIDER=istio|linkerd) — only when MESH_PROVIDER is set
 platform-mesh-up:
 	@echo "[platform] mesh provider: $(MESH_PROVIDER)"
 	bash platform/mesh/$(MESH_PROVIDER)/install.sh
@@ -159,57 +119,38 @@ platform-mesh-status:
 	@echo "=== Mesh ($(MESH_PROVIDER)) Status ==="
 	@bash platform/mesh/$(MESH_PROVIDER)/status.sh
 
-# Data sub-components (kafka, postgres) — only when DATA_KAFKA/DATA_POSTGRES is set
+# Data infrastructure (additive sub-components: kafka, postgres).
+# Address each independently — they coexist like the monitoring/* components.
 platform-data-kafka-up:
-	@echo "[platform] installing data/kafka"
+	@echo "[platform] data: kafka (Strimzi)"
 	bash platform/data/kafka/install.sh
 
 platform-data-kafka-down:
-	@echo "[platform] removing data/kafka"
+	@echo "[platform] removing data: kafka"
 	@bash platform/data/kafka/uninstall.sh
 
 platform-data-kafka-status:
-	@echo "=== Data / Kafka Status ==="
+	@echo "=== Data: Kafka Status ==="
 	@bash platform/data/kafka/status.sh
 
 platform-data-postgres-up:
-	@echo "[platform] installing data/postgres"
+	@echo "[platform] data: postgres (CloudNativePG)"
 	bash platform/data/postgres/install.sh
 
 platform-data-postgres-down:
-	@echo "[platform] removing data/postgres"
+	@echo "[platform] removing data: postgres"
 	@bash platform/data/postgres/uninstall.sh
 
 platform-data-postgres-status:
-	@echo "=== Data / PostgreSQL Status ==="
+	@echo "=== Data: Postgres Status ==="
 	@bash platform/data/postgres/status.sh
 
-# Secrets management (Vault, External Secrets Operator)
-platform-secrets-vault-up:
-	@echo "[platform] installing secrets/vault"
-	bash platform/secrets/vault/install.sh
+# Convenience aggregates for the whole data category.
+platform-data-up: platform-data-kafka-up platform-data-postgres-up
+platform-data-down: platform-data-postgres-down platform-data-kafka-down
+platform-data-status: platform-data-kafka-status platform-data-postgres-status
 
-platform-secrets-vault-down:
-	@echo "[platform] removing secrets/vault"
-	@bash platform/secrets/vault/uninstall.sh
-
-platform-secrets-vault-status:
-	@echo "=== Secrets / Vault Status ==="
-	@bash platform/secrets/vault/status.sh
-
-platform-secrets-eso-up:
-	@echo "[platform] installing secrets/external-secrets"
-	bash platform/secrets/external-secrets/install.sh
-
-platform-secrets-eso-down:
-	@echo "[platform] removing secrets/external-secrets"
-	@bash platform/secrets/external-secrets/uninstall.sh
-
-platform-secrets-eso-status:
-	@echo "=== Secrets / External Secrets Operator Status ==="
-	@bash platform/secrets/external-secrets/status.sh
-
-# Autoscaling (AUTOSCALING_PROVIDER=keda)
+# Autoscaling (AUTOSCALING_PROVIDER=keda) — only when AUTOSCALING_PROVIDER is set
 platform-autoscaling-up:
 	@echo "[platform] autoscaling provider: $(AUTOSCALING_PROVIDER)"
 	bash platform/autoscaling/$(AUTOSCALING_PROVIDER)/install.sh
@@ -222,14 +163,47 @@ platform-autoscaling-status:
 	@echo "=== Autoscaling ($(AUTOSCALING_PROVIDER)) Status ==="
 	@bash platform/autoscaling/$(AUTOSCALING_PROVIDER)/status.sh
 
+# Secrets management (vault backend + external-secrets sync operator).
+# ESO depends on Vault — install vault first.
+platform-secrets-vault-up:
+	@echo "[platform] secrets: vault (dev mode)"
+	bash platform/secrets/vault/install.sh
+
+platform-secrets-vault-down:
+	@echo "[platform] removing secrets: vault"
+	@bash platform/secrets/vault/uninstall.sh
+
+platform-secrets-vault-status:
+	@echo "=== Secrets: Vault Status ==="
+	@bash platform/secrets/vault/status.sh
+
+platform-secrets-eso-up:
+	@echo "[platform] secrets: external-secrets"
+	bash platform/secrets/external-secrets/install.sh
+
+platform-secrets-eso-down:
+	@echo "[platform] removing secrets: external-secrets"
+	@bash platform/secrets/external-secrets/uninstall.sh
+
+platform-secrets-eso-status:
+	@echo "=== Secrets: External Secrets Status ==="
+	@bash platform/secrets/external-secrets/status.sh
+
+# Aggregates: bring up vault then ESO (order matters); tear down in reverse.
+platform-secrets-up: platform-secrets-vault-up platform-secrets-eso-up
+platform-secrets-down: platform-secrets-eso-down platform-secrets-vault-down
+platform-secrets-status: platform-secrets-vault-status platform-secrets-eso-status
+
 .PHONY: platform-up platform-down platform-status \
         platform-ingress-up platform-ingress-down platform-ingress-status \
         platform-monitoring-up platform-monitoring-down platform-monitoring-status \
         platform-logging-up platform-logging-down platform-logging-status \
         platform-tracing-up platform-tracing-down platform-tracing-status \
         platform-mesh-up platform-mesh-down platform-mesh-status \
+        platform-autoscaling-up platform-autoscaling-down platform-autoscaling-status \
+        platform-data-up platform-data-down platform-data-status \
         platform-data-kafka-up platform-data-kafka-down platform-data-kafka-status \
         platform-data-postgres-up platform-data-postgres-down platform-data-postgres-status \
+        platform-secrets-up platform-secrets-down platform-secrets-status \
         platform-secrets-vault-up platform-secrets-vault-down platform-secrets-vault-status \
-        platform-secrets-eso-up platform-secrets-eso-down platform-secrets-eso-status \
-        platform-autoscaling-up platform-autoscaling-down platform-autoscaling-status
+        platform-secrets-eso-up platform-secrets-eso-down platform-secrets-eso-status

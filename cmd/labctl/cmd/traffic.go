@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
 package cmd
 
 import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sagars-lab/labctl/internal/traffic"
 	"github.com/spf13/cobra"
+	"go.flightdeck.dev/labctl/internal/traffic"
 )
 
 var trafficOpts traffic.Options

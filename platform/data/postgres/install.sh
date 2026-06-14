@@ -1,78 +1,77 @@
 #!/usr/bin/env bash
-# Installs CloudNativePG operator + a 2-instance PostgreSQL cluster.
-# The 2-instance setup enables a built-in failover drill (delete primary → watch promotion).
 set -euo pipefail
 
-OPERATOR_NS=cnpg-system
-DB_NS=postgres
-CNPG_CHART_VERSION="${CNPG_CHART_VERSION:-0.22.0}"
-PG_VERSION="${PG_VERSION:-16}"
+# PostgreSQL via the CloudNativePG (CNPG) operator — a small 2-instance HA
+# cluster whose built-in failover is a ready-made day-2 drill.
+# Sub-component of the `data` category: install/remove independently of kafka.
+# Portable + idempotent.
+#
+# Config (env, with defaults — scripts never source .env themselves):
+#   CNPG_CHART_VERSION  pinned cloudnative-pg chart version (versions.env)
+#   POSTGRES_NAMESPACE  namespace for the Postgres Cluster CR (default: postgres)
+#   POSTGRES_CLUSTER    Cluster CR name (default: lab-postgres)
+#   POSTGRES_INSTANCES  number of instances (default: 2 — 1 primary + 1 replica)
 
-echo "Installing CloudNativePG operator ${CNPG_CHART_VERSION}..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+NAMESPACE="${POSTGRES_NAMESPACE:-postgres}"
+OPERATOR_NS="cnpg-system"
+CLUSTER="${POSTGRES_CLUSTER:-lab-postgres}"
+INSTANCES="${POSTGRES_INSTANCES:-2}"
+CNPG_CHART_VERSION="${CNPG_CHART_VERSION:-0.23.0}"
+
+echo "Installing CloudNativePG operator (chart ${CNPG_CHART_VERSION})..."
 
 helm repo add cnpg https://cloudnative-pg.github.io/charts --force-update
-helm repo update
+helm repo update cnpg
 
+# Operator (cluster-scoped, watches all namespaces). Idempotent.
 helm upgrade --install cnpg cnpg/cloudnative-pg \
-  --namespace "${OPERATOR_NS}" \
+  --namespace "$OPERATOR_NS" \
   --create-namespace \
-  --version "${CNPG_CHART_VERSION}" \
-  -f "$(dirname "$0")/values.yaml" \
+  --version "$CNPG_CHART_VERSION" \
+  -f "$SCRIPT_DIR/values.yaml" \
   --wait --timeout 5m
 
-# Wait for operator webhook to be ready
-echo "Waiting for CNPG operator webhook..."
-kubectl rollout status deployment/cnpg-cloudnative-pg \
-  -n "${OPERATOR_NS}" --timeout=90s
+echo "Waiting for the CNPG operator to be ready..."
+kubectl rollout status deployment/cnpg-cloudnative-pg -n "$OPERATOR_NS" --timeout=180s
 
-# Create database namespace + the Cluster CR
-kubectl create namespace "${DB_NS}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
+# Postgres cluster: 2 instances (1 primary + 1 replica), small storage.
+echo "Applying Postgres cluster '$CLUSTER' (${INSTANCES} instances)..."
 cat <<EOF | kubectl apply -f -
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: lab-postgres
-  namespace: ${DB_NS}
+  name: ${CLUSTER}
+  namespace: ${NAMESPACE}
 spec:
-  instances: 2
-  imageName: ghcr.io/cloudnative-pg/postgresql:${PG_VERSION}
-  primaryUpdateStrategy: unsupervised
+  instances: ${INSTANCES}
   storage:
     size: 1Gi
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      memory: 256Mi
+      cpu: 100m
     limits:
-      cpu: 500m
       memory: 512Mi
-  postgresql:
-    parameters:
-      max_connections: "30"
-      shared_buffers: 32MB
+      cpu: 500m
 EOF
 
-echo "Waiting for Cluster to become ready (may take 2–3 min)..."
-# Poll until both instances are Running; timeout after 5 min
-DEADLINE=$(( $(date +%s) + 300 ))
-while true; do
-  READY=$(kubectl get cluster lab-postgres -n "${DB_NS}" \
-    -o jsonpath='{.status.readyInstances}' 2>/dev/null || echo "0")
-  if [ "${READY}" = "2" ]; then
-    break
-  fi
-  if [ "$(date +%s)" -ge "${DEADLINE}" ]; then
-    echo "Warning: Cluster not fully ready within 5 min — check with:"
-    echo "  kubectl describe cluster lab-postgres -n ${DB_NS}"
-    break
-  fi
-  sleep 10
-done
+echo "Waiting for Postgres cluster to become Ready..."
+# CNPG sets a Ready condition; fall back to polling readyInstances if absent.
+if ! kubectl wait cluster/"$CLUSTER" -n "$NAMESPACE" --for=condition=Ready --timeout=300s 2>/dev/null; then
+  echo "Polling readyInstances..."
+  for _ in $(seq 1 60); do
+    ready=$(kubectl get cluster "$CLUSTER" -n "$NAMESPACE" -o jsonpath='{.status.readyInstances}' 2>/dev/null || echo 0)
+    [ "${ready:-0}" = "$INSTANCES" ] && break
+    sleep 5
+  done
+fi
 
 echo ""
-echo "CloudNativePG ${CNPG_CHART_VERSION} + PostgreSQL ${PG_VERSION} installed."
-echo "  Primary:  lab-postgres-rw.${DB_NS}.svc.cluster.local:5432"
-echo "  Replicas: lab-postgres-ro.${DB_NS}.svc.cluster.local:5432"
-echo "  Credentials: kubectl get secret lab-postgres-superuser -n ${DB_NS} -o jsonpath='{.data.password}' | base64 -d"
-echo "  Failover drill: kubectl delete pod lab-postgres-1 -n ${DB_NS} && watch kubectl get pods -n ${DB_NS}"
+echo "Postgres installed successfully."
+echo "    Cluster: '$CLUSTER' in namespace '$NAMESPACE' (${INSTANCES} instances)"
+echo "    Service (read-write/primary): ${CLUSTER}-rw.${NAMESPACE}.svc:5432"
+echo "    App credentials secret: ${CLUSTER}-app (keys: username, password, dbname)"
+echo "    Failover drill — see docs/runbooks/10-stack-expansion.md"

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package cmd
 
 import (
@@ -9,10 +10,31 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/checks"
-	scenariopkg "github.com/sagars-lab/labctl/internal/scenario"
 	"github.com/spf13/cobra"
+	"go.flightdeck.dev/labctl/internal/scaffold"
+	scenariopkg "go.flightdeck.dev/labctl/internal/scenario"
+	"go.flightdeck.dev/labctl/pkg/checks"
 )
+
+var scenarioNewForce bool
+
+var scenarioNewCmd = &cobra.Command{
+	Use:   "new <name>",
+	Short: "Scaffold a new scenario (valid + verify-ready)",
+	Long: `Create scenarios/<name>/ with a valid v2 scenario.yaml and a passing readiness
+check, so 'labctl scenario verify <name>' is green out of the box. Edit it from
+there. The file carries a $schema modeline for inline editor validation.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dir, err := scaffold.Scenario(cfg.ProjectRoot, args[0], scenarioNewForce)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Created %s\n", dir)
+		fmt.Printf("\nNext:\n  labctl scenario verify %s\n  $EDITOR %s\n", args[0], dir+"/scenario.yaml")
+		return nil
+	},
+}
 
 var scenarioCmd = &cobra.Command{
 	Use:   "scenario",
@@ -368,6 +390,9 @@ func init() {
 	scenarioInstallCmd.Flags().StringVar(&packName, "name", "", "pack name (default: repository basename)")
 	scenarioInstallCmd.Flags().BoolVar(&packForce, "force", false, "replace the pack if it is already installed")
 
+	scenarioNewCmd.Flags().BoolVar(&scenarioNewForce, "force", false, "overwrite the scenario if it already exists")
+
+	scenarioCmd.AddCommand(scenarioNewCmd)
 	scenarioCmd.AddCommand(scenarioListCmd)
 	scenarioCmd.AddCommand(scenarioUpCmd)
 	scenarioCmd.AddCommand(scenarioDownCmd)

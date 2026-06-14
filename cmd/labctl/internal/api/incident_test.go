@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package api
 
 import (
@@ -9,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sagars-lab/labctl/internal/config"
-	"github.com/sagars-lab/labctl/internal/executor"
-	"github.com/sagars-lab/labctl/internal/incident"
+	"go.flightdeck.dev/labctl/internal/config"
+	"go.flightdeck.dev/labctl/internal/executor"
+	"go.flightdeck.dev/labctl/internal/incident"
 )
 
 const apiTestFaultYAML = `name: api-fault

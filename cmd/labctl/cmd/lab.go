@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package cmd
 
 import (
@@ -9,8 +10,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/lab"
 	"github.com/spf13/cobra"
+	"go.flightdeck.dev/labctl/internal/lab"
 )
 
 var labResetYes bool

@@ -1,6 +1,9 @@
-# Minimal Istio istiod values for k3d local development.
-# Full reference: https://artifacthub.io/packages/helm/istio-official/istiod
+# Custom values for istiod (control plane).
+# Referenced by platform/mesh/istio/install.sh via -f.
+# Tuned minimal for k3d resource reality — raise for cloud/load testing.
+
 pilot:
+  # Keep the control plane lightweight on a laptop cluster.
   resources:
     requests:
       cpu: 100m
@@ -8,25 +11,15 @@ pilot:
     limits:
       cpu: 500m
       memory: 512Mi
-  # Single replica sufficient for local dev
-  replicaCount: 1
   autoscaleEnabled: false
 
-# Disable telemetry addons (install separately if needed)
-telemetry:
-  enabled: true
-  v2:
-    enabled: false
-
+# Sidecar proxy defaults kept modest; the demo workloads are tiny.
 global:
   proxy:
     resources:
       requests:
-        cpu: 10m
-        memory: 40Mi
+        cpu: 50m
+        memory: 64Mi
       limits:
         cpu: 200m
-        memory: 128Mi
-  # Reduce log verbosity for local dev
-  logging:
-    level: "default:warning"
+        memory: 256Mi

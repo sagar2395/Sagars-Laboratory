@@ -18,9 +18,10 @@ Each runbook maps to a phase or milestone in `docs/ROADMAP.md`.
 | [07-scenario-engine-v2.md](07-scenario-engine-v2.md) | Checks + `scenario verify`, traffic generator, lab snapshot/reset, scenario packs | M1 |
 | [08-incident-engine.md](08-incident-engine.md) | Fault library, game days, hints, MTTR history, on-call drill | M2 |
 | [09-learning-and-challenges.md](09-learning-and-challenges.md) | Learning paths, `labctl learn`, progress persistence | M3 |
-| 10-stack-expansion.md *(planned)* | Mesh, data, secrets, autoscaling stacks + scenarios | M4 |
+| [10-stack-expansion.md](10-stack-expansion.md) | Mesh, data, secrets, autoscaling stacks + scenarios | M4 |
 | 11-multi-env-day2.md *(planned)* | Env promotion, upgrade/drain/backup drills, cost | M5 |
 | 12-team-mode.md *(planned)* | Auth, shared deploy, game days, kind/GKE | M6 |
+| [13-pack-distribution.md](13-pack-distribution.md) | Publish/install packs over OCI, cosign signing + verification, registry index discovery | M7 |
 
 *(planned)* runbooks are created by the first task of their milestone that
 ships a verifiable feature — golden rule 7 in `CLAUDE.md`.

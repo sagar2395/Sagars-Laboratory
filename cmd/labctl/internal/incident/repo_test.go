@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package incident
 
 // Repo-wide fault validation (runs in CI on every PR): every fault in

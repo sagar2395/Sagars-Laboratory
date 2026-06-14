@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package api
 
 import (
@@ -5,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/gorilla/mux"
-	"github.com/sagars-lab/labctl/internal/results"
+	"go.flightdeck.dev/labctl/internal/results"
 )
 
 func resultsStore(s *Server) *results.Store {

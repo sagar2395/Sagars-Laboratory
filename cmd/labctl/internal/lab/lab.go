@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package lab implements lab-state snapshots and reset (task 043). A
 // snapshot records *intent* — which platform components, apps, and
 // scenarios were active — not cluster bytes. Restore replays the existing
@@ -18,10 +19,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sagars-lab/labctl/internal/config"
-	"github.com/sagars-lab/labctl/internal/k8s"
-	"github.com/sagars-lab/labctl/internal/platform"
-	"github.com/sagars-lab/labctl/internal/scenario"
+	"go.flightdeck.dev/labctl/internal/config"
+	"go.flightdeck.dev/labctl/internal/k8s"
+	"go.flightdeck.dev/labctl/internal/platform"
+	"go.flightdeck.dev/labctl/internal/scenario"
 )
 
 // Snapshot is the declarative record of a lab's desired state.

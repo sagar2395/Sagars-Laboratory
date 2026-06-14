@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package traffic
 
 // Integration tests for the services/traffic shell scripts. They run the

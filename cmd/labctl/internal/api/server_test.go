@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package api
 
 import (
@@ -7,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sagars-lab/labctl/internal/platform"
+	"go.flightdeck.dev/labctl/internal/platform"
 )
 
 func reqWithOrigin(host, origin string) *http.Request {
