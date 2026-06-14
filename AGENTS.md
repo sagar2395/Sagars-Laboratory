@@ -72,7 +72,13 @@ session may implement any task. The only hard rules are the golden rules in
 ## Definition of done
 
 - [ ] Acceptance criteria in the task file are met.
-- [ ] Tests named in the task pass (`go test ./...` where relevant).
+- [ ] `cd cmd/labctl && go test ./...` passes with zero failures.
+- [ ] New or modified packages have ≥ 75% statement coverage (`go test -cover`).
+      Run `make test-coverage` and check the HTML report before committing.
+- [ ] Tests follow quality rules (CLAUDE.md golden rule 10):
+      - Table-driven tests for cases that share the same shape.
+      - At least one error/edge path per public function.
+      - Hermetic: `t.TempDir()` for disk I/O; no live cluster or network calls.
 - [ ] The change is portable (macOS + Linux) per CLAUDE.md rule 1.
 - [ ] The matching `docs/runbooks/` file exists and is accurate.
 - [ ] `.ai/state.json` updated and a conventional commit made.
