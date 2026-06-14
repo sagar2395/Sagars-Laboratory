@@ -32,13 +32,26 @@ boundary.
   four original scenarios work on macOS + Linux with k3d.
 - ❌ Cloud runtimes (AKS/EKS) never verified against real accounts (tasks 038/039).
 - 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
-  **M1, M2, M3, and M4 are complete** (scenario engine v2; incident engine;
-  learning paths, challenge mode, unified results store, UI views; mesh/
-  data/secrets/autoscaling platform categories + 4 new scenarios). Next: M5,
-  multi-env day-2 ops (059–061).
+  **M1, M2, and M3 are complete** (scenario engine v2; incident engine incl.
+  hints, MTTR, on-call drill; learning paths, challenge mode, unified results
+  store, and UI Learn/Challenges/Results views). **M4 is complete:** service-mesh
+  (istio + linkerd), data (kafka/strimzi + postgres/cnpg), secrets (vault +
+  external-secrets), and autoscaling (keda) categories, with four new v2
+  scenarios (autoscaling-under-load, mesh-traffic-management, event-driven-arch,
+  secrets-management); `platform up/down/status` take a `category` or
+  `category/provider` target. Next: M5 (Multi-Env & Day-2 Ops), task 059.
 
-**The plan of record is `docs/ROADMAP.md`. Live status is `.ai/state.json` —
-its `next` field points at the recommended next task.**
+- 🧭 **Part III (new direction):** evolve into a community-driven OSS
+  platform-engineering simulator with future commercial offerings. Strategy:
+  `docs/strategy/OSS-COMMERCIAL-STRATEGY.md`; maintainer-only steps:
+  `docs/strategy/MAINTAINER-MANUAL-ACTIONS.md`. Milestones M7 (OSS foundation,
+  P0), M8 (marketplace), M9 (commercial/hosted). **M7 is the new top priority**
+  (governance/license before external contributions); some M7 tasks await
+  maintainer decisions A1–A4.
+
+**The plan of record is `docs/ROADMAP.md` (+ `docs/strategy/` for Part III).
+Live status is `.ai/state.json` — its `next` field points at the recommended
+next task.**
 
 ## The golden rules (do not violate)
 

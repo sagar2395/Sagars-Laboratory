@@ -1,28 +1,34 @@
-# KEDA ScaledObject: scales go-api based on Prometheus HTTP request rate.
-# Scale-out trigger: > 10 RPS per replica → add replica.
-# Min: 1, Max: 10, cooldown: 60 s.
+# KEDA ScaledObject: scale go-api on its Prometheus request rate (RPS).
+# The Prometheus server address reads the monitoring namespace from the engine
+# template ({{.MonitoringNamespace}}) — no hardcoded namespace (rule 3/4).
+#
+# Threshold is RPS-per-replica: desiredReplicas = ceil(totalRPS / threshold),
+# clamped to [minReplicaCount, maxReplicaCount]. With the spike profile holding
+# ~100 RPS and threshold 25, go-api scales to ~4 replicas; at the 10 RPS
+# baseline it returns to 1 after the cooldown.
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: go-api-rps
+  name: go-api
   namespace: go-api
 spec:
   scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
     name: go-api
   minReplicaCount: 1
-  maxReplicaCount: 10
-  cooldownPeriod: 60
-  pollingInterval: 15
+  maxReplicaCount: 6
+  pollingInterval: 15      # seconds between metric polls
+  cooldownPeriod: 60       # seconds at/under threshold before scaling down
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+        scaleDown:
+          stabilizationWindowSeconds: 60
   triggers:
     - type: prometheus
       metadata:
-        # Prometheus scrapes go-api's /metrics endpoint;
-        # http_requests_total is the standard metric from go-api's middleware.
-        serverAddress: "http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
-        metricName: go_api_rps
-        query: |
-          sum(rate(http_requests_total{namespace="go-api"}[1m]))
-        # Each replica handles up to 10 RPS; KEDA drives targetValue replicas = query / 10.
-        threshold: "10"
+        serverAddress: "http://prometheus-kube-prometheus-prometheus.{{.MonitoringNamespace}}.svc:9090"
+        metricName: go_api_requests_per_second
+        query: "sum(rate(http_requests_total{app=\"go-api\"}[1m]))"
+        threshold: "25"

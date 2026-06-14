@@ -1,26 +1,28 @@
-# Minimal Linkerd control-plane values for k3d local development.
-# Full reference: https://artifacthub.io/packages/helm/linkerd2/linkerd-control-plane
-controllerReplicas: 1
+# Custom values for linkerd-control-plane.
+# Referenced by platform/mesh/linkerd/install.sh via -f.
+# Trust anchor + issuer certs are injected at install time via --set-file.
+# Tuned minimal for k3d resource reality — raise for cloud/load testing.
 
-# Reduce resource footprint for local k3d clusters
+# Single replica control plane components on a laptop cluster.
+controllerReplicas: 1
+enablePodAntiAffinity: false
+
+# High-availability off (default), keep proxy + control-plane footprints small.
 proxy:
   resources:
     cpu:
-      request: 10m
-      limit: 100m
+      request: 50m
+      limit: 200m
     memory:
-      request: 20Mi
-      limit: 128Mi
+      request: 64Mi
+      limit: 256Mi
 
-# Identity issuer — certs are passed via --set-string at install time
-identity:
-  issuer:
-    scheme: kubernetes.io/tls
-
-# Disable high-availability (single-replica fine for local dev)
-enablePodAntiAffinity: false
-nodeAffinity: {}
-tolerations: []
-
-# Reduce log verbosity
-controllerLogLevel: warn
+destinationResources: &cpres
+  cpu:
+    request: 50m
+    limit: 250m
+  memory:
+    request: 64Mi
+    limit: 256Mi
+identityResources: *cpres
+proxyInjectorResources: *cpres

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package api
 
 import (
@@ -12,7 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/sagars-lab/labctl/internal/checks"
+	"github.com/sagars-lab/labctl/pkg/checks"
 	"github.com/sagars-lab/labctl/internal/config"
 	"github.com/sagars-lab/labctl/internal/k8s"
 	"github.com/sagars-lab/labctl/internal/scenario"

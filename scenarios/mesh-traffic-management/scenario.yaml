@@ -1,52 +1,46 @@
+apiVersion: scenario.flightdeck.dev/v2
 name: mesh-traffic-management
 displayName: "Mesh Traffic Management"
-description: "Istio-powered traffic management: deploy a canary version of go-api, progressively shift 10% of traffic to it, then inject a latency fault to simulate a bad deployment."
-category: mesh
+description: "Istio canary release for go-api: a 90/10 weighted split between v1 and v2, mesh-level latency fault injection, and STRICT mTLS on the canary workload. Watch the split and faults in mesh telemetry."
+category: networking
 prerequisites:
   platform:
     - ingress
-    - mesh/istio
+    - mesh
+    - monitoring/metrics
   apps:
     - go-api
 runtimes:
   - k3d
+  - aks
+  - eks
 
 objectives:
-  - "Deploy a canary version of go-api and verify it receives 10% of traffic"
-  - "Inject a 500 ms latency fault on the canary to simulate a regression"
-  - "Observe mTLS between services via Istio telemetry"
+  - "Route traffic 90/10 across two go-api versions with an Istio VirtualService"
+  - "Inject mesh-level latency without touching the app, and observe the impact"
+  - "Enforce STRICT mTLS between meshed workloads and verify it"
 
 stages:
-  - name: canary-deployment
-    description: Deploy go-api-canary (v2 label) and DestinationRule for subset routing
+  - name: canary-rollout
+    description: Deploy v1 + v2, split 90/10, and require mTLS
     components:
-      - name: destination-rule
+      - name: canary
         type: manifest
-        path: manifests/destination-rule.yaml
-        namespace: go-api
-      - name: canary-deploy
-        type: manifest
-        path: manifests/canary-deploy.yaml
-        namespace: go-api
-
-  - name: traffic-split
-    description: VirtualService routing 90% stable / 10% canary
-    components:
-      - name: virtual-service
-        type: manifest
-        path: manifests/virtual-service.yaml
+        path: manifests/canary.yaml
         namespace: go-api
 
   - name: fault-injection
-    description: 500 ms latency fault on requests routed to canary
+    description: Add a mesh-level latency fault to a fraction of requests
     components:
-      - name: fault-inject
+      - name: latency-fault
         type: manifest
-        path: manifests/fault-inject.yaml
+        path: manifests/fault-injection.yaml
         namespace: go-api
 
+# These assume the mesh provider is Istio (the default). Checks read CR/Deployment
+# state via jsonpath — no text scraping.
 checks:
-  - name: istio-control-plane-ready
+  - name: istiod-ready
     type: kubectl
     resource: deployment/istiod
     namespace: istio-system
@@ -54,47 +48,48 @@ checks:
     operator: ">="
     value: "1"
 
-  - name: canary-deployment-ready
+  - name: canary-v1-ready
     type: kubectl
-    resource: deployment/go-api-canary
+    resource: deployment/go-api-v1
     namespace: go-api
     jsonpath: "{.status.readyReplicas}"
     operator: ">="
     value: "1"
 
-  - name: virtual-service-exists
+  - name: canary-v2-ready
+    type: kubectl
+    resource: deployment/go-api-v2
+    namespace: go-api
+    jsonpath: "{.status.readyReplicas}"
+    operator: ">="
+    value: "1"
+
+  - name: virtualservice-present
     type: kubectl
     resource: virtualservice/go-api-canary
     namespace: go-api
 
-  - name: destination-rule-exists
+  - name: mtls-strict-present
     type: kubectl
-    resource: destinationrule/go-api
+    resource: peerauthentication/go-api-mtls
     namespace: go-api
-
-  - name: go-api-reachable
-    type: http
-    url: "http://go-api.{{.DomainSuffix}}/health"
-    expectStatus: 200
 
 explore:
   urls:
-    - label: "Kiali — Traffic Graph"
-      url: "http://kiali.{{.DomainSuffix}}"
-    - label: "Grafana — Service Mesh"
+    - label: "Grafana (mesh / app dashboards)"
       url: "http://grafana.{{.DomainSuffix}}"
   commands:
-    - label: "Generate 200 requests and see version distribution"
-      command: "for i in $(seq 1 200); do curl -s http://go-api.{{.DomainSuffix}}/health; done | sort | uniq -c"
-    - label: "Check VirtualService routing weights"
-      command: "kubectl get virtualservice go-api-canary -n go-api -o jsonpath='{.spec.http[0].route[*].weight}'"
-    - label: "Verify mTLS between pods"
-      command: "kubectl exec -n go-api deploy/go-api -c istio-proxy -- pilot-agent request GET stats | grep ssl"
-    - label: "View Istio telemetry"
-      command: "kubectl -n go-api get pod -l app=go-api -o jsonpath='{.items[0].metadata.name}' | xargs -I{} kubectl exec -n go-api {} -c istio-proxy -- pilot-agent request GET stats | grep upstream"
+    - label: "Send 20 requests and watch the 90/10 split by version"
+      command: "for i in $(seq 1 20); do kubectl -n go-api exec deploy/go-api-v1 -c go-api -- wget -qO- http://go-api-canary/version 2>/dev/null; done | sort | uniq -c"
+    - label: "Observe the injected latency (v2 path delayed)"
+      command: "kubectl -n go-api exec deploy/go-api-v1 -c go-api -- sh -c 'time wget -qO- http://go-api-canary/health'"
+    - label: "Verify mTLS is STRICT on the canary workload"
+      command: "kubectl -n go-api get peerauthentication go-api-mtls -o jsonpath='{.spec.mtls.mode}{\"\\n\"}'"
+    - label: "Inspect the weighted route"
+      command: "kubectl -n go-api get virtualservice go-api-canary -o jsonpath='{.spec.http[0].route}{\"\\n\"}'"
   tips:
-    - "With Istio, 10 requests out of every 100 should hit the canary — test with 200+ requests for a stable sample"
-    - "The fault injection stage adds 500 ms to canary responses — watch p99 latency jump in Grafana"
-    - "mTLS is automatic in sidecar mode — use 'kubectl exec ... pilot-agent request GET stats | grep ssl' to confirm"
-    - "To progressively roll out: edit the VirtualService weights (90/10 → 50/50 → 0/100)"
-    - "Roll back: set canary weight to 0 or remove the VirtualService to restore 100% stable traffic"
+    - "Subsets v1/v2 are selected by the pod label 'version'; the DestinationRule maps them."
+    - "Shift the split by editing spec.http[0].route weights and re-applying — canary promotion."
+    - "The fault-injection stage adds a fixed delay to the v2 subset; mesh-level, no app change."
+    - "STRICT mTLS means plaintext clients without a sidecar are rejected — that is the security win."
+    - "This scenario targets Istio (the default mesh provider); Linkerd uses different CRDs."

@@ -129,30 +129,42 @@ labctl app destroy go-api
 
 Manage platform infrastructure components (ingress, monitoring, etc.).
 
-#### `labctl platform up`
+#### `labctl platform up [category|category/provider]`
 
-Install all platform components based on the configured providers.
-
-```bash
-labctl platform up
-```
-
-Installs components selected by `INGRESS_PROVIDER`, `METRICS_PROVIDER`, etc. in `.env`.
-
-#### `labctl platform down`
-
-Uninstall all platform components.
+Install all platform components based on the configured providers, or a single
+target when one is named. A target is either a **category** (its provider is
+chosen via env var or is the only one) or an explicit **`category/provider`**
+spec for additive categories like `data`.
 
 ```bash
-labctl platform down
+labctl platform up                         # full stack (ingress + monitoring)
+MESH_PROVIDER=istio labctl platform up mesh # a category — provider via env var
+labctl platform up data/kafka              # a specific provider (additive)
+labctl platform up data/postgres
 ```
 
-#### `labctl platform status`
+Installs components selected by `INGRESS_PROVIDER`, `METRICS_PROVIDER`,
+`MESH_PROVIDER`, etc. in `.env`. When a category has more than one provider and
+none is selected, the command lists the choices and the env var to set.
 
-Show the status of all discovered platform components by category.
+#### `labctl platform down [category|category/provider]`
+
+Uninstall all platform components, or a single target when one is named.
+
+```bash
+labctl platform down                       # full stack
+MESH_PROVIDER=istio labctl platform down mesh
+labctl platform down data/kafka
+```
+
+#### `labctl platform status [category|category/provider]`
+
+Show the status of all discovered platform components, or just one target.
 
 ```bash
 labctl platform status
+labctl platform status mesh
+labctl platform status data/postgres
 ```
 
 ---
@@ -240,6 +252,27 @@ pack). Companion commands: `labctl scenario packs` (list installed packs)
 and `labctl scenario uninstall <pack-name>`. See "Scenario Packs" in
 `docs/scenarios.md` — including the security note: packs run scripts on
 your cluster, install only trusted sources.
+
+---
+
+### `labctl pack` — Scenario packs (content add-ons)
+
+First-class commands for versioned scenario packs. A pack may carry a `pack.yaml`
+manifest (`apiVersion: packs.flightdeck.dev/v1`) declaring name, version (SemVer),
+publisher, license, tier, and engine compatibility; the CLI validates it and
+refuses incompatible packs. `labctl scenario install|packs|uninstall` remain as
+aliases. Authoring guide: `docs/authoring/packs.md`.
+
+```bash
+labctl pack add <git-url>[@ref]   # install (flags: --name, --force)
+labctl pack list                  # PACK / VERSION / TIER / SCENARIOS
+labctl pack info <pack-name>      # manifest metadata + provided scenarios
+labctl pack remove <pack-name>    # uninstall (must deactivate its scenarios first)
+```
+
+> Packs run scripts and apply manifests on your cluster — install only trusted
+> sources. OCI distribution + signing (068) and a searchable registry index (069)
+> build on this.
 
 ---
 

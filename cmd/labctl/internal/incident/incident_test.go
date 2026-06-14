@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package incident
 
 import (
@@ -8,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sagars-lab/labctl/internal/checks"
+	"github.com/sagars-lab/labctl/pkg/checks"
 	"github.com/sagars-lab/labctl/internal/executor"
 )
 

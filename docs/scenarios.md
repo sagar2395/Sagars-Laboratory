@@ -163,96 +163,103 @@ You can also use the web UI (`labctl ui`) to activate/deactivate scenarios with 
 
 ---
 
-### Mesh Traffic Management (`mesh-traffic-management`)
+### Autoscaling Under Load (`autoscaling-under-load`)
 
-Istio-powered traffic management on the `go-api` service. **Requires Istio
-installed** (`MESH_PROVIDER=istio make platform-mesh-up`).
+**Category:** scalability
 
-**What it installs:**
-- `go-api-canary` deployment (v2 label, same image for demo) with Istio sidecar
-- `DestinationRule` defining `stable` and `canary` subsets (mTLS enforced)
-- `VirtualService` routing 90% traffic to stable, 10% to canary
-- Stage 2: fault injection — 500 ms latency on canary for header-matched requests
+**What it deploys:**
+- A KEDA `ScaledObject` scaling go-api on Prometheus RPS (threshold ~25 RPS/replica, min 1 / max 6)
+- A Grafana dashboard (replicas vs RPS, p99 latency)
 
 **Prerequisites:**
-- Platform: ingress, mesh/istio
+- Platform: ingress, monitoring/metrics, monitoring/grafana, autoscaling/keda
 - Apps: go-api
 
+**Checks (5):** KEDA operator ready, ScaledObject present, KEDA HPA created,
+go-api scaled up (≥3, post-spike), p99 latency within SLO.
+
 **Explore after activation:**
-- Send 200 requests and count how many hit each version (expect ~180/20 distribution)
-- Add `end-user: canary-tester` header to a request to trigger 500 ms fault
-- View traffic graph in Kiali (if installed): `http://kiali.k3d.local`
-- Simulate progressive rollout: edit VirtualService weights 90/10 → 50/50 → 0/100
+- Drive the spike: `labctl traffic start --profile spike --rps 10`
+- Watch scaling: `kubectl -n go-api get hpa keda-hpa-go-api -w`
+- Verify post-spike: `labctl scenario verify autoscaling-under-load`
+
+Full walkthrough: `docs/runbooks/10-stack-expansion.md` (task 057).
+
+---
+
+### Mesh Traffic Management (`mesh-traffic-management`)
+
+**Category:** networking · **Mesh provider:** Istio (default)
+
+**What it deploys:**
+- Two go-api versions (v1, v2) behind one Service, split **90/10** by an Istio `VirtualService`
+- A `DestinationRule` mapping the `version` label to subsets
+- A **STRICT** `PeerAuthentication` (mTLS) on the canary workload
+- Stage 2: a mesh-level **latency fault** (2s fixed delay on the v2 subset)
+
+**Prerequisites:**
+- Platform: ingress, mesh, monitoring/metrics
+- Apps: go-api
+
+**Checks (5):** istiod ready, go-api-v1 ready, go-api-v2 ready, VirtualService
+present, STRICT PeerAuthentication present.
+
+**Explore after activation:**
+- Observe the split: send requests to `go-api-canary` and group by version
+- Inspect the weighted route: `kubectl -n go-api get virtualservice go-api-canary -o jsonpath='{.spec.http[0].route}'`
+- Confirm mTLS: `kubectl -n go-api get peerauthentication go-api-mtls -o jsonpath='{.spec.mtls.mode}'`
 
 ---
 
 ### Event-Driven Architecture (`event-driven-arch`)
 
-Kafka producer/consumer demo with observable consumer lag. **Requires Kafka**
-(`DATA_KAFKA=1 make platform-data-kafka-up`).
+**Category:** data
 
-**What it installs:**
-- One-shot Job that creates the `lab-events` topic (3 partitions)
-- `kafka-producer` deployment: publishes 1 event/second
-- `kafka-consumer` deployment: consumes from `lab-consumer-group`
+**What it deploys:**
+- An `orders` KafkaTopic (3 partitions) on the Strimzi `lab-kafka` cluster
+- A continuous producer and a consumer group (`order-processors`) using the Apache Kafka console tools
+- Stage 2: ramps producers to 3× to build **consumer lag**
 
 **Prerequisites:**
-- Platform: ingress, data/kafka
+- Platform: data/kafka
 - Apps: go-api
 
+**Checks (4):** Kafka cluster ready, orders topic ready, producer running,
+consumer running.
+
 **Explore after activation:**
-- Scale consumer to 0 replicas — watch lag accumulate (producer still runs)
-- Scale consumer to 3 replicas — watch lag drain rapidly
-- With KEDA installed, attach a Kafka trigger to automate the scale-up
-- Check consumer lag: `kubectl exec -n kafka deploy/kafka-consumer -- kafka-consumer-groups.sh ...`
+- Watch lag: `kubectl -n kafka exec -it lab-kafka-dual-role-0 -- bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group order-processors`
+- Drain it: `kubectl -n kafka scale deployment/orders-consumer --replicas=3` (or add a KEDA Kafka-lag `ScaledObject`)
 
 ---
 
-### Secrets Management (`secrets-management`)
+### Secrets Management & Rotation (`secrets-management`)
 
-Full Vault → ESO → k8s Secret pipeline with live rotation. **Requires Vault and
-ESO** (`SECRETS_VAULT=1 SECRETS_ESO=1 make platform-up`).
+**Category:** security
 
-**What it installs:**
-- ConfigMap documenting the rotation exercise steps
-- A Kubernetes Job that rotates the secret in Vault and waits for ESO to sync
-
-**Prerequisites:**
-- Platform: ingress, secrets/vault, secrets/external-secrets
-- Apps: go-api
-
-**Explore after activation:**
-- Check current value: `kubectl get secret go-api-external-secret -n go-api ...`
-- Rotate in Vault: `vault kv put secret/go-api db_password=new-value`
-- Wait 30 s — ESO syncs automatically; no pod restart required
-- Compare before/after in the Vault UI: `http://vault.k3d.local` (token: root)
-
----
-
-### Autoscaling Under Load (`autoscaling-under-load`)
-
-KEDA-driven autoscaling demo. Scales `go-api` from 1 to ≥3 replicas under
-a traffic spike triggered by the 042 traffic generator. **Requires KEDA**
-(`AUTOSCALING_PROVIDER=keda make platform-autoscaling-up`).
-
-**What it installs:**
-- `ScaledObject` on `go-api` using the Prometheus scaler (threshold: 10 RPS/replica)
+**What it deploys:**
+- A `SecretStore` + `ExternalSecret` syncing Vault `secret/go-api` → k8s Secret `go-api-secrets`
+- Stage 1 seeds a baseline value; stage 2 **rotates** it in Vault
 
 **Prerequisites:**
-- Platform: ingress, monitoring/metrics, autoscaling/keda
+- Platform: secrets/vault, secrets/external-secrets
 - Apps: go-api
 
+**Checks (4):** Vault running, ESO controller ready, ExternalSecret ready,
+**rotation propagated** (script check — the synced Secret equals the rotated value, no redeploy).
+
 **Explore after activation:**
-- Generate spike: `labctl traffic spike --duration=30s --rps=50`
-- Watch replicas: `watch kubectl get hpa -n go-api`
-- View Grafana panel: replicas vs RPS correlation
-- Cooldown: replicas return to 1 within ~2 min after traffic stops
+- Read the synced Secret: `kubectl -n go-api get secret go-api-secrets -o go-template='{{index .data "api-key" | base64decode}}'`
+- Rotate again: `vault kv put secret/go-api api-key=my-new-value` (via the Vault pod) and watch it propagate
+
+> **No secrets in git:** the Vault dev token comes from `VAULT_DEV_ROOT_TOKEN` (default `root`).
 
 ---
 
 ## Scenario YAML Format
 
 ```yaml
+apiVersion: scenario.flightdeck.dev/v2  # schema version (optional; defaults to v2)
 name: my-scenario                    # Must match directory name
 displayName: "My Scenario"           # Shown in UI and CLI
 description: "What this scenario teaches"

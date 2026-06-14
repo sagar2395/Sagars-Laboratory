@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Package incident implements the fault library engine (tasks 045/046):
 // discovery and validation of incidents/<name>/ fault definitions, injection
 // and resolution through their scripts, and resolution detection via the
@@ -18,7 +19,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sagars-lab/labctl/internal/checks"
+	"github.com/sagars-lab/labctl/pkg/checks"
 	"github.com/sagars-lab/labctl/internal/executor"
 )
 

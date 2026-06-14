@@ -1,37 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OPERATOR_NS=external-secrets
-APP_NAMESPACE="${VAULT_APP_NAMESPACE:-go-api}"
+# Remove the ESO wiring (ExternalSecret/SecretStore/synced secret/token) and the
+# operator itself. Idempotent. Does NOT touch Vault.
+
+NAMESPACE="external-secrets"
+TARGET_NS="${SECRETS_NAMESPACE:-go-api}"
 
 echo "Uninstalling External Secrets Operator..."
 
-# Remove ExternalSecret and SecretStore from app namespace first
-if kubectl get namespace "${APP_NAMESPACE}" >/dev/null 2>&1; then
-  kubectl delete externalsecret go-api-secrets -n "${APP_NAMESPACE}" \
-    --ignore-not-found 2>/dev/null || true
-  kubectl delete secretstore vault-backend -n "${APP_NAMESPACE}" \
-    --ignore-not-found 2>/dev/null || true
-  kubectl delete secret vault-token -n "${APP_NAMESPACE}" \
-    --ignore-not-found 2>/dev/null || true
-  kubectl delete secret go-api-external-secret -n "${APP_NAMESPACE}" \
-    --ignore-not-found 2>/dev/null || true
-  echo "Cleaned up resources in namespace ${APP_NAMESPACE}."
+# 1. Remove the sync wiring from the target namespace (leave the namespace — it
+#    is usually the app's own namespace, owned by something else).
+if kubectl get namespace "$TARGET_NS" >/dev/null 2>&1; then
+  kubectl delete externalsecret go-api-secret -n "$TARGET_NS" --ignore-not-found || true
+  kubectl delete secretstore vault-backend -n "$TARGET_NS" --ignore-not-found || true
+  # The ExternalSecret owns go-api-secrets (creationPolicy: Owner); delete in case.
+  kubectl delete secret go-api-secrets -n "$TARGET_NS" --ignore-not-found || true
+  kubectl delete secret vault-token -n "$TARGET_NS" --ignore-not-found || true
 fi
 
-if helm status external-secrets -n "${OPERATOR_NS}" >/dev/null 2>&1; then
-  helm uninstall external-secrets -n "${OPERATOR_NS}"
-  echo "Helm release removed."
+# 2. Remove the operator (Helm release) and its namespace.
+if helm status external-secrets -n "$NAMESPACE" >/dev/null 2>&1; then
+  helm uninstall external-secrets -n "$NAMESPACE"
+fi
+if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+  kubectl delete namespace "$NAMESPACE" --timeout=60s || true
 fi
 
-# Remove CRDs
-for crd in $(kubectl get crd -o name 2>/dev/null | grep 'external-secrets.io'); do
-  kubectl delete "${crd}" 2>/dev/null || true
-done
-
-if kubectl get namespace "${OPERATOR_NS}" >/dev/null 2>&1; then
-  kubectl delete namespace "${OPERATOR_NS}" --timeout=60s || true
-  echo "Namespace '${OPERATOR_NS}' deleted."
-fi
-
+echo ""
 echo "External Secrets Operator uninstalled."

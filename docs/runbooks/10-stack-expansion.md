@@ -1,310 +1,422 @@
 # Runbook 10 — Stack Expansion (M4)
 
-Covers milestone **M4** (tasks 054–058): additional platform categories and
-new scenarios that use them.
+> Goal: install, swap, and remove the new **swappable platform categories** on a
+> single cluster, on identical workloads. This runbook grows one section per M4
+> task. Today it covers the **service mesh** category (task 054): istio and
+> linkerd, selected by `MESH_PROVIDER`.
+
+## Prereqs
+
+- Runbook 00 completed (tools + cluster up). `openssl` on the host (needed for
+  Linkerd's mTLS identity certs — it ships with macOS and every Linux distro).
+- A workload to mesh. Runbook 01 deploys **go-api** into the `go-api` namespace,
+  which is the default `MESH_NAMESPACE`.
+- **k3d memory:** give the cluster at least **4Gi** (6Gi is comfortable with a
+  meshed app running). A mesh control plane plus sidecars is not free.
 
 ---
 
-## Part A — Service Mesh (task 054)
+## Service Mesh (task 054)
 
-Adds `platform/mesh/` with two swappable providers: **istio** and **linkerd**.
+The mesh category lives at `platform/mesh/<provider>/` with the standard
+four-file contract (`install.sh`, `uninstall.sh`, `status.sh`, `values.yaml`)
+and a `_interface.yaml`. Chart versions are pinned in `versions.env`
+(`ISTIO_VERSION`, `LINKERD_CRDS_CHART_VERSION`,
+`LINKERD_CONTROL_PLANE_CHART_VERSION`) and overridable per-install.
 
-### Prerequisites
-
-- A healthy cluster with ingress running (runbooks 00–01).
-- Helm 3.x on PATH.
-- `openssl` on PATH (built-in on macOS and most Linux distros).
-- Minimum memory: Istio needs ~1 GB free in the cluster; Linkerd ~512 MB.
-
-### 1. Install Istio
+### Steps
 
 ```bash
-export MESH_PROVIDER=istio
-make platform-mesh-up
-# or
-MESH_PROVIDER=istio labctl platform up mesh
+# 0. Make sure a workload exists in the namespace you'll mesh
+bin/labctl init && bin/labctl app deploy go-api      # if not already running
+kubectl get pods -n go-api
+
+# 1. Install Istio (sidecar mode) and enrol the go-api namespace
+MESH_PROVIDER=istio bin/labctl platform up mesh
+#   ...or via make:  make platform-mesh-up MESH_PROVIDER=istio
+
+# 2. Confirm the sidecar was injected (two containers: app + istio-proxy)
+kubectl get pod -n go-api \
+  -o jsonpath='{range .items[*]}{.metadata.name}{": "}{.spec.containers[*].name}{"\n"}{end}'
+
+# 3. Health + enrolment at a glance
+MESH_PROVIDER=istio bin/labctl platform status mesh
+
+# 4. Swap to Linkerd on the SAME cluster (uninstall istio first)
+MESH_PROVIDER=istio   bin/labctl platform down mesh
+MESH_PROVIDER=linkerd bin/labctl platform up mesh
+
+# 5. Confirm the linkerd-proxy sidecar is present now
+kubectl get pod -n go-api \
+  -o jsonpath='{range .items[*]}{.metadata.name}{": "}{.spec.containers[*].name}{"\n"}{end}'
+MESH_PROVIDER=linkerd bin/labctl platform status mesh
+
+# 6. Re-running install is a safe no-op (idempotency)
+MESH_PROVIDER=linkerd bin/labctl platform up mesh    # no errors, no duplicates
 ```
 
-**Expected:**
-- `istio-system` namespace created.
-- `istio-base` and `istiod` Helm releases installed.
-- `go-api` namespace labelled `istio-injection=enabled`.
-- Pods in `go-api` restarted with `istio-proxy` sidecar container.
+### Expected
 
-Verify:
+- After step 1, `platform status mesh` shows `istiod` ready, `go-api` listed
+  under *Meshed namespaces*, and each go-api pod with an `istio-proxy` sidecar.
+- After step 4, the istio control plane and the `istio-injection` label are gone;
+  linkerd's control plane is ready and pods carry a `linkerd-proxy` sidecar.
+- `platform up mesh` without `MESH_PROVIDER` set prints the available providers
+  and the env var to choose one (it does not guess).
+- Re-running install changes nothing (idempotent); re-running uninstall on an
+  already-removed mesh is a clean no-op.
+
+### Cleanup
 
 ```bash
-kubectl get pods -n istio-system
-kubectl get pods -n go-api  # each pod should show 2/2 Ready
-make platform-mesh-status MESH_PROVIDER=istio
+MESH_PROVIDER=linkerd bin/labctl platform down mesh   # or istio, whichever is active
+# The go-api namespace keeps running, now mesh-free (sidecars dropped on restart).
 ```
 
-### 2. Swap to Linkerd (provider swap test)
+### Troubleshooting
 
-```bash
-export MESH_PROVIDER=istio
-make platform-mesh-down     # removes label + rolls pods, then removes Helm releases
-
-export MESH_PROVIDER=linkerd
-make platform-mesh-up
-```
-
-**Expected:**
-- `go-api` namespace re-labelled with `linkerd.io/inject=enabled`.
-- `linkerd` namespace created with control plane pods.
-- Pods in `go-api` restarted with `linkerd-proxy` sidecar.
-
-Verify:
-
-```bash
-kubectl get pods -n linkerd
-kubectl get pods -n go-api   # each pod should show 2/2 Ready (app + proxy)
-make platform-mesh-status MESH_PROVIDER=linkerd
-```
-
-Optional (if Linkerd CLI installed):
-
-```bash
-linkerd check
-linkerd viz install | kubectl apply -f -  # optional dashboard
-```
-
-### 3. Uninstall
-
-```bash
-make platform-mesh-down MESH_PROVIDER=linkerd
-# Namespace go-api annotation removed, pods rolled back to 1/1
-```
-
-### 4. `labctl platform` integration
-
-The registry auto-discovers the new providers (scans for `install.sh`):
-
-```bash
-labctl platform status   # shows mesh category if MESH_PROVIDER set
-labctl platform up       # installs mesh if MESH_PROVIDER is set in env
-labctl platform down     # removes mesh if MESH_PROVIDER is set in env
-```
-
-### 5. Custom app namespace
-
-By default the mesh is applied to the `go-api` namespace. Override:
-
-```bash
-MESH_APP_NAMESPACE=my-app MESH_PROVIDER=istio make platform-mesh-up
-```
-
-### Troubleshooting (Mesh)
-
-- **Pods stuck at 0/2** — the sidecar injector webhook may not be ready. Wait
-  30 s and re-run `kubectl rollout restart deployment -n go-api`.
-- **Linkerd cert errors** — re-run `make platform-mesh-down MESH_PROVIDER=linkerd`
-  and `make platform-mesh-up MESH_PROVIDER=linkerd`. Fresh certs are generated
-  each install.
-- **k3d resource limits** — if nodes OOM, reduce limits in `values.yaml`.
-  For Istio, set `pilot.resources.requests.memory: 128Mi`.
+- **Pods stuck `Init` / no sidecar:** the namespace must be enrolled *before* the
+  pod starts. `install.sh` restarts existing deployments for you; if you deployed
+  the app afterwards, just `kubectl rollout restart deployment -n go-api`.
+- **istiod / linkerd pods `Pending` (Insufficient memory):** raise k3d memory (see
+  Prereqs). The `values.yaml` files already request minimal resources.
+- **Linkerd install fails on certs:** ensure `openssl` is on PATH. The installer
+  generates an ECDSA P-256 trust anchor + issuer; on re-install it reuses the
+  certs already stored in the cluster so identity stays stable.
+- **Chart version not found:** pin a different release via the matching env var,
+  e.g. `ISTIO_VERSION=1.24.1 MESH_PROVIDER=istio bin/labctl platform up mesh`.
 
 ---
 
-## Part B — Data Infrastructure (task 055)
+### Acceptance check (task 054)
 
-Adds `platform/data/kafka/` and `platform/data/postgres/`. Both are independent
-and additive (like monitoring/metrics + monitoring/grafana).
-
-### Prerequisites
-
-- A healthy cluster (runbooks 00–01). 4 GB+ free RAM recommended when running
-  both data providers alongside monitoring.
-
-### 6. Install Kafka
-
-```bash
-DATA_KAFKA=1 make platform-data-kafka-up
-# or directly:
-bash platform/data/kafka/install.sh
-```
-
-**Expected:**
-- `kafka` namespace created.
-- Single-pod Kafka cluster (KRaft mode) in `Running` state within ~3 min.
-
-Verify:
-
-```bash
-make platform-data-kafka-status DATA_KAFKA=1
-kubectl get pods -n kafka
-```
-
-Smoke test (produce + consume):
-
-```bash
-# Produce a message
-kubectl run kafka-smoke -it --rm --restart=Never \
-  --image=bitnami/kafka:latest -- \
-  kafka-console-producer.sh \
-    --bootstrap-server kafka.kafka.svc.cluster.local:9092 \
-    --topic test-topic
-# Type a message, press Ctrl+D
-
-# Consume
-kubectl run kafka-consume -it --rm --restart=Never \
-  --image=bitnami/kafka:latest -- \
-  kafka-console-consumer.sh \
-    --bootstrap-server kafka.kafka.svc.cluster.local:9092 \
-    --topic test-topic --from-beginning --max-messages 1
-```
-
-**Expected:** The message you typed appears in the consumer output.
-
-### 7. Install PostgreSQL
-
-```bash
-DATA_POSTGRES=1 make platform-data-postgres-up
-# or directly:
-bash platform/data/postgres/install.sh
-```
-
-**Expected:**
-- `cnpg-system` namespace with the operator.
-- `postgres` namespace with `lab-postgres-1` (primary) and `lab-postgres-2` (replica).
-
-Verify:
-
-```bash
-make platform-data-postgres-status DATA_POSTGRES=1
-kubectl get cluster -n postgres
-```
-
-Connect:
-
-```bash
-PG_PASS=$(kubectl get secret lab-postgres-superuser -n postgres \
-  -o jsonpath='{.data.password}' | base64 -d)
-kubectl run psql-test -it --rm --restart=Never \
-  --image=postgres:16 \
-  --env="PGPASSWORD=${PG_PASS}" -- \
-  psql -h lab-postgres-rw.postgres.svc.cluster.local -U postgres -c "\l"
-```
-
-### 8. Failover drill (PostgreSQL)
-
-```bash
-# Find the primary
-PRIMARY=$(kubectl get cluster lab-postgres -n postgres \
-  -o jsonpath='{.status.currentPrimary}')
-echo "Deleting primary: ${PRIMARY}"
-kubectl delete pod "${PRIMARY}" -n postgres
-
-# Watch the failover — replica promotes in ~30 s
-watch kubectl get pods -n postgres
-```
-
-**Expected:** `lab-postgres-2` (or the surviving replica) transitions to primary.
-`lab-postgres-rw` service follows the new primary automatically.
-
-### 9. Uninstall data components
-
-```bash
-DATA_KAFKA=1     make platform-data-kafka-down
-DATA_POSTGRES=1  make platform-data-postgres-down
-```
-
-### Troubleshooting (Data)
-
-- **Kafka pods Pending** — insufficient cluster resources. Edit
-  `platform/data/kafka/values.yaml`, reduce `controller.resources.requests.memory`
-  to `128Mi`.
-- **CNPG operator webhook timeout** — increase `--wait --timeout` in
-  `platform/data/postgres/install.sh` or re-run install (idempotent).
-- **PostgreSQL PVCs stuck on uninstall** — if the namespace hangs, manually
-  remove the finalizers:
-  `kubectl patch pvc <name> -n postgres -p '{"metadata":{"finalizers":null}}'`
+- [x] `MESH_PROVIDER=istio labctl platform up mesh` meshes go-api (sidecar visible)
+- [x] Swapping to linkerd on the same cluster works after uninstall
+- [x] `status.sh` reports mesh health accurately for both providers
+- [x] Scripts portable + idempotent; versions pinned in `versions.env`
 
 ---
 
-## Part C — Secrets Management (task 056)
+## Data Infrastructure (task 055)
 
-Adds `platform/secrets/vault/` and `platform/secrets/external-secrets/`.
-Install in order: Vault first, then ESO.
+The `data` category holds **additive sub-components** — `data/kafka` (Strimzi)
+and `data/postgres` (CloudNativePG) coexist on one cluster. Each owns its own
+namespace, so you install/remove them independently. Versions are pinned in
+`versions.env` (`STRIMZI_VERSION`, `KAFKA_VERSION`, `CNPG_CHART_VERSION`).
 
-### Prerequisites
-
-- A healthy cluster (runbooks 00–01).
-- Vault requires the ingress to be running for UI access (optional but useful).
-
-### 10. Install Vault (dev mode)
+### Kafka (Strimzi) — install + produce/consume smoke test
 
 ```bash
-SECRETS_VAULT=1 make platform-secrets-vault-up
-# or directly:
-bash platform/secrets/vault/install.sh
+# 1. Install the operator + a 1-broker KRaft Kafka cluster (ephemeral storage)
+bin/labctl platform up data/kafka
+#   ...or:  make platform-data-kafka-up
+
+# 2. Confirm readiness (operator ready + Kafka CR Ready=True)
+bin/labctl platform status data/kafka
+
+# 3. Produce a couple of messages with kcat, then consume them back
+kubectl -n kafka run kcat-prod --rm -i --image=edenhill/kcat:1.7.1 --restart=Never -- \
+  -b lab-kafka-kafka-bootstrap:9092 -t demo -P <<'MSGS'
+hello
+world
+MSGS
+
+kubectl -n kafka run kcat-cons --rm -i --image=edenhill/kcat:1.7.1 --restart=Never -- \
+  -b lab-kafka-kafka-bootstrap:9092 -t demo -C -e -o beginning
+# => prints: hello / world
 ```
 
-**Expected:**
-- `vault` namespace with a single Vault pod (dev mode: auto-unsealed, in-memory).
-- Demo secret seeded: `secret/go-api` with `db_password` and `api_key` keys.
-- UI accessible at `http://vault.k3d.local` (token: `root`).
+**Expected:** `status data/kafka` shows `Ready: True`; the consumer prints the
+two messages the producer sent. Re-running `platform up data/kafka` is a no-op.
 
-Verify:
+### Postgres (CloudNativePG) — install + failover drill
 
 ```bash
-make platform-secrets-vault-status SECRETS_VAULT=1
+# 1. Install the operator + a 2-instance HA Postgres cluster
+bin/labctl platform up data/postgres
+#   ...or:  make platform-data-postgres-up
 
-# Browse secrets via the CLI
-kubectl exec -n vault deploy/vault -- vault kv get secret/go-api
+# 2. Confirm 2/2 ready and note the current primary + per-pod roles
+bin/labctl platform status data/postgres
+
+# 3. Connect with psql (from inside the cluster)
+kubectl -n postgres exec -it lab-postgres-1 -- psql -U postgres -c '\l'
+
+# 4. Failover drill: delete the primary, watch a replica get promoted
+kubectl -n postgres delete pod \
+  "$(kubectl -n postgres get pod -l cnpg.io/instanceRole=primary -o name)"
+kubectl -n postgres get pods -l cnpg.io/cluster=lab-postgres -w   # Ctrl-C when settled
+bin/labctl platform status data/postgres   # currentPrimary now points at the other pod
 ```
 
-### 11. Install External Secrets Operator
+**Expected:** after step 4 the deleted primary is replaced and a former replica
+is promoted (`currentPrimary` changes); the cluster returns to `2/2` ready.
+
+### Cleanup
 
 ```bash
-SECRETS_ESO=1 make platform-secrets-eso-up
-# or directly:
-bash platform/secrets/external-secrets/install.sh
+bin/labctl platform down data/kafka       # removes operator + CR + PVCs + namespace
+bin/labctl platform down data/postgres    # removes operator + Cluster + PVCs + namespaces
 ```
 
-**Expected:**
-- `external-secrets` namespace with operator + webhook pods.
-- `vault-backend` SecretStore created in the `go-api` namespace.
-- `go-api-secrets` ExternalSecret created; syncs within 30 s.
+### Troubleshooting
 
-Verify:
+- **`platform up data` errors "multiple providers":** that's intentional — name
+  the sub-component (`data/kafka` or `data/postgres`), or set `DATA_PROVIDER`.
+- **Kafka CR stuck not-Ready:** check the operator logs
+  (`kubectl logs -n kafka deploy/strimzi-cluster-operator`) and that
+  `KAFKA_VERSION` is supported by the installed `STRIMZI_VERSION`.
+- **Postgres pods `Pending` (storage/memory):** k3d's `local-path` provisioner
+  must be healthy; lower `POSTGRES_INSTANCES` or raise k3d memory if needed.
+- **PVCs left behind:** uninstall deletes PVCs labelled with the cluster; if you
+  changed `*_CLUSTER`, delete leftovers with the matching label selector.
+
+### Acceptance check (task 055)
+
+- [x] `labctl platform up data/kafka` yields a ready Kafka cluster (kcat smoke test)
+- [x] `labctl platform up data/postgres` yields a ready 2-instance cluster; deleting the primary triggers failover
+- [x] Uninstall removes operators + CRs + PVCs cleanly
+- [x] Versions pinned; scripts portable + idempotent
+
+---
+
+## Secrets Management (task 056)
+
+The `secrets` category pairs a **Vault** backend (`secrets/vault`, dev mode) with
+the **External Secrets Operator** (`secrets/external-secrets`) that syncs Vault
+values into native Kubernetes Secrets. ESO prerequires Vault, so install Vault
+first. Versions are pinned in `versions.env` (`VAULT_CHART_VERSION`,
+`ESO_CHART_VERSION`).
+
+> **No secrets in git.** The dev root token comes from `VAULT_DEV_ROOT_TOKEN`
+> (defaults to Vault's well-known dev value `root`). Export your own before
+> installing if you prefer: `export VAULT_DEV_ROOT_TOKEN=...`.
+
+### Install + verify the sync chain
 
 ```bash
-make platform-secrets-eso-status SECRETS_ESO=1
-kubectl get externalsecret -n go-api
-kubectl get secret go-api-external-secret -n go-api
+# 0. (Optional) add the UI host to /etc/hosts so the ingress resolves
+bin/labctl hosts add vault.k3d.local        # or edit /etc/hosts by hand
+
+# 1. Vault (dev): single in-memory pod, seeds secret/go-api, UI via ingress
+bin/labctl platform up secrets/vault
+bin/labctl platform status secrets/vault    # Ready, sealed=false, demo secret present
+#   UI: http://vault.k3d.local  (login: Token = your dev root token)
+
+# 2. External Secrets Operator: wires Vault -> ExternalSecret -> k8s Secret
+bin/labctl platform up secrets/external-secrets
+bin/labctl platform status secrets/external-secrets
+
+# 3. Confirm the secret synced into the go-api namespace
+kubectl -n go-api get secret go-api-secrets \
+  -o go-template='{{index .data "api-key" | base64decode}}{{"\n"}}'
+# => s3cr3t-from-vault-v1   (the seeded value)
 ```
 
-### 12. Secret rotation exercise
+**Expected:** the `ExternalSecret go-api-secret` reports `Ready=True` and the
+`go-api-secrets` Secret exists in `go-api` carrying the value from Vault.
+
+### Rotation exercise (the point of the drill)
 
 ```bash
-# 1. Update the secret in Vault
-kubectl exec -n vault deploy/vault -- \
-  vault kv put secret/go-api db_password=rotated-password-v2
+# 4. Rotate the value in Vault
+kubectl -n vault exec vault-0 -- sh -c \
+  "VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN='${VAULT_DEV_ROOT_TOKEN:-root}' \
+   vault kv put secret/go-api api-key=rotated-v2"
 
-# 2. Wait up to 30 s (ESO refreshInterval)
-sleep 35
-
-# 3. Verify the k8s Secret is updated
-kubectl get secret go-api-external-secret -n go-api \
-  -o jsonpath='{.data.db_password}' | base64 -d
+# 5. Within the 15s refresh interval, ESO propagates it to the k8s Secret
+sleep 20
+kubectl -n go-api get secret go-api-secrets \
+  -o go-template='{{index .data "api-key" | base64decode}}{{"\n"}}'
+# => rotated-v2
 ```
 
-**Expected:** Output is `rotated-password-v2`.
+**Expected:** the synced Secret flips to `rotated-v2` without any manual
+re-apply — that propagation is the deliverable. To feed it to the app, add
+`envFrom: [{secretRef: {name: go-api-secrets}}]` to go-api's Deployment (the app
+then reads `api-key` as an env var; a pod restart picks up the new value).
 
-### 13. Uninstall
+### Cleanup
 
 ```bash
-SECRETS_ESO=1   make platform-secrets-eso-down    # remove ESO first
-SECRETS_VAULT=1 make platform-secrets-vault-down  # then Vault
+bin/labctl platform down secrets/external-secrets   # removes ESO + wiring + synced secret
+bin/labctl platform down secrets/vault              # removes Vault + UI ingress
 ```
 
-### Troubleshooting (Secrets)
+### Troubleshooting
 
-- **Vault ingress 404** — check that Traefik is running and the `vault.k3d.local`
-  entry is in `/etc/hosts` (runbook 00). The Vault UI renders at `/ui/`.
-- **ESO SecretStore shows "Invalid"** — Vault may not be reachable. Check:
-  `kubectl exec -n external-secrets deploy/external-secrets -- wget -qO- http://vault.vault.svc.cluster.local:8200/v1/sys/health`
-- **ExternalSecret stuck "Syncing"** — the token secret may be missing or the
-  KV path may differ. Run:
-  `kubectl describe externalsecret go-api-secrets -n go-api`
+- **`platform up secrets/external-secrets` fails preflight:** install
+  `secrets/vault` first — ESO does not auto-install its backend.
+- **`platform up secrets` errors "multiple providers":** name the provider
+  (`secrets/vault` or `secrets/external-secrets`), or set `SECRETS_PROVIDER`.
+- **ExternalSecret stuck not-Ready:** check that `vault-token` exists in `go-api`
+  and matches your dev root token, and that the SecretStore server URL resolves
+  (`http://vault.vault.svc:8200`). `kubectl describe externalsecret go-api-secret -n go-api`.
+- **UI not reachable:** ensure an ingress controller is installed and
+  `vault.<DOMAIN_SUFFIX>` is in `/etc/hosts` (`labctl hosts add`).
+
+### Acceptance check (task 056)
+
+- [x] Vault installs, demo secret seeded, UI reachable via ingress
+- [x] ESO syncs the demo secret into the go-api namespace
+- [x] Rotating the value in Vault propagates within the ESO refresh interval
+- [x] Uninstall is clean; scripts portable + idempotent; versions pinned
+
+---
+
+## Autoscaling Under Load (task 057)
+
+The `autoscaling` category installs **KEDA**; the `autoscaling-under-load`
+scenario declares a `ScaledObject` that scales **go-api** on its Prometheus
+request rate, plus a Grafana dashboard (replicas vs RPS). Version pinned in
+`versions.env` (`KEDA_CHART_VERSION`).
+
+### Prereqs for this section
+
+- Monitoring stack installed (`make platform-up` — Prometheus + Grafana) and the
+  go-api ServiceMonitor/pod scrape working, so `http_requests_total` is in
+  Prometheus.
+- go-api deployed (runbook 01). Its own HPA is disabled (`autoscaling.enabled:
+  false` in values-dev), so KEDA is the sole scaler.
+
+### Steps — watch it scale
+
+```bash
+# 1. Install KEDA
+AUTOSCALING_PROVIDER=keda bin/labctl platform up autoscaling
+AUTOSCALING_PROVIDER=keda bin/labctl platform status autoscaling   # operator + metrics server ready
+
+# 2. Activate the scenario — applies the ScaledObject + dashboard
+bin/labctl scenario up autoscaling-under-load
+kubectl -n go-api get scaledobject go-api          # KEDA creates keda-hpa-go-api
+kubectl -n go-api get deploy go-api                # baseline: 1 replica
+
+# 3. Drive the spike (baseline 10 RPS, holds ~100 RPS for ~2m)
+bin/labctl traffic start --profile spike --rps 10
+
+# 4. Watch KEDA scale up (in another shell)
+kubectl -n go-api get hpa keda-hpa-go-api -w
+kubectl -n go-api get deploy go-api -w             # climbs toward ~4 replicas (max 6)
+
+# 5. DURING the 2-minute spike hold, verify the scaled-up state
+bin/labctl scenario verify autoscaling-under-load  # all checks pass
+
+# 6. Let the spike end; after ~1m cooldown + recovery, confirm scale-down
+kubectl -n go-api get deploy go-api                # back to 1 replica
+```
+
+### Expected
+
+- KEDA creates `keda-hpa-go-api`; at the 10 RPS baseline go-api holds at **1**
+  replica.
+- Under the ~100 RPS spike, `desiredReplicas = ceil(RPS / 25)` → go-api scales to
+  **≥3** (around 4), and `scenario verify` passes (`go-api-scaled-up` and
+  `latency-within-slo` among the 5 checks).
+- The Grafana **Autoscaling Under Load** dashboard shows the replica line
+  tracking the RPS line with a short lag.
+- After the spike ends, the 60s `cooldownPeriod` elapses and go-api scales back
+  to **1**.
+
+### Cleanup
+
+```bash
+bin/labctl traffic stop
+bin/labctl scenario down autoscaling-under-load    # removes ScaledObject + dashboard
+AUTOSCALING_PROVIDER=keda bin/labctl platform down autoscaling   # removes KEDA + CRDs
+```
+
+### Troubleshooting
+
+- **go-api never scales:** `kubectl -n go-api describe scaledobject go-api` — the
+  Prometheus trigger must reach `prometheus-kube-prometheus-prometheus` in the
+  monitoring namespace, and `sum(rate(http_requests_total{app="go-api"}[1m]))`
+  must return data (confirm go-api is being scraped in Prometheus).
+- **`scenario verify` fails on `go-api-scaled-up`:** run it *during* the spike
+  hold (step 5) — at baseline the check (replicas ≥ 3) is expected to fail.
+- **Scales but `latency-within-slo` fails:** the tiny CPU limit can push p99 up
+  under load; that *is* the SLO story. Raise go-api's CPU limit or lower the spike
+  `--rps` to demonstrate a healthy scale-out.
+- **HPA shows `<unknown>` target:** KEDA's metrics apiserver needs a few polling
+  intervals (15s) after install to report; give it a moment.
+
+### Acceptance check (task 057)
+
+- [x] Spike profile scales go-api from 1 to ≥3 replicas; cooldown returns to 1
+- [x] `labctl scenario verify autoscaling-under-load` passes post-spike
+- [x] Dashboard shows replicas vs RPS correlation
+- [x] Clean uninstall; portable + idempotent; versions pinned
+
+---
+
+## New Stack Scenarios (task 058)
+
+Three v2 scenarios that exercise the M4 categories. Each is `up → verify → down`
+clean and re-activation safe. Install the matching platform category first.
+
+### mesh-traffic-management (Istio canary + fault + mTLS)
+
+```bash
+MESH_PROVIDER=istio bin/labctl platform up mesh        # if not already meshed
+bin/labctl app deploy go-api                            # ensure go-api is running
+bin/labctl scenario up mesh-traffic-management          # v1+v2, 90/10 split, mTLS, then fault
+bin/labctl scenario verify mesh-traffic-management      # 5 checks pass
+
+# Observe the 90/10 split by version
+for i in $(seq 1 20); do
+  kubectl -n go-api exec deploy/go-api-v1 -c go-api -- wget -qO- http://go-api-canary/version 2>/dev/null
+done | sort | uniq -c
+# Confirm STRICT mTLS, then tear down
+kubectl -n go-api get peerauthentication go-api-mtls -o jsonpath='{.spec.mtls.mode}{"\n"}'
+bin/labctl scenario down mesh-traffic-management
+```
+
+**Expected:** istiod + both canary versions ready; the VirtualService routes ~90%
+to v1 / ~10% to v2; the v2 subset carries a 2s injected delay; mTLS mode is
+STRICT. Targets Istio (Linkerd uses different CRDs).
+
+### event-driven-arch (Kafka producer/consumer + lag)
+
+```bash
+bin/labctl platform up data/kafka                       # Strimzi + lab-kafka
+bin/labctl scenario up event-driven-arch                # orders topic + producer + consumer
+bin/labctl scenario verify event-driven-arch            # 4 checks pass
+
+# Watch consumer-group lag build (stage 2 ramps producers to 3x), then drain it
+kubectl -n kafka exec -it lab-kafka-dual-role-0 -- \
+  bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group order-processors
+kubectl -n kafka scale deployment/orders-consumer --replicas=3   # drain
+bin/labctl scenario down event-driven-arch
+```
+
+**Expected:** the `orders` topic and both producer/consumer Deployments are
+ready; with producers ramped to 3× a single consumer falls behind (lag climbs);
+scaling consumers to 3 drains it. (Install `autoscaling/keda` and add a Kafka-lag
+`ScaledObject` to automate the drain.)
+
+### secrets-management (Vault → ESO rotation)
+
+```bash
+bin/labctl platform up secrets/vault
+bin/labctl platform up secrets/external-secrets
+bin/labctl scenario up secrets-management               # wires sync, seeds v1, rotates to v2
+bin/labctl scenario verify secrets-management           # 4 checks incl. rotation-propagated
+
+# The synced Secret should hold the rotated value — no redeploy happened
+kubectl -n go-api get secret go-api-secrets \
+  -o go-template='{{index .data "api-key" | base64decode}}{{"\n"}}'   # => scenario-secret-v2
+bin/labctl scenario down secrets-management
+```
+
+**Expected:** Vault running, ESO ready, the ExternalSecret `Ready=True`, and the
+`rotation-propagated` script check passes because `go-api-secrets` flipped to the
+rotated value within the 10s refresh — proving rotation propagates without a
+redeploy.
+
+### Acceptance check (task 058)
+
+- [x] All three scenarios: up → verify (pass) → down, cleanly, on k3d
+- [x] Canary split observable in mesh telemetry; lag visible via consumer-groups; secret rotation check passes
+- [x] `docs/scenarios.md` updated with all three
+- [x] Each scenario has ≥3 checks and ≥2 stages
+
+**M4 — Stack Expansion is complete.** Next milestone: M5 (Multi-Env & Day-2 Ops).

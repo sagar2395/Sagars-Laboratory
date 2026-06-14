@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package scenario
 
 import (
@@ -12,7 +13,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sagars-lab/labctl/internal/checks"
+	"github.com/sagars-lab/labctl/pkg/checks"
 )
 
 const v2ScenarioYAML = `name: v2-scenario
