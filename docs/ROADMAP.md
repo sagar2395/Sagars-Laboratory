@@ -425,7 +425,7 @@ per-milestone status; `next` points at the recommended pick).
 > "Flightdeck", org `snowops`) with a clean public SDK and a pack ecosystem, then
 > layers entitled premium content/services on the **same engine** — never a fork.
 
-## M7 — OSS & Ecosystem Foundation `[P0]`
+## M7 — OSS & Ecosystem Foundation `[P0 — ✅ complete]`
 
 | Task | Title | Status |
 |------|-------|--------|
@@ -436,7 +436,7 @@ per-milestone status; `next` points at the recommended pick).
 | 069 | Registry index & discovery (`labctl pack search`) | ✅ done |
 | 070 | Entitlement / extension interface | ✅ done |
 | 071 | Module path & brand alignment | ✅ done |
-| 072 | Contributor experience (scaffolds, walkthrough) | todo |
+| 072 | Contributor experience (scaffolds, walkthrough) | ✅ done |
 
 ## M8 — Marketplace `[P2 — deferred, depends on M7]`
 

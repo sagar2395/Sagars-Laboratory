@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"go.flightdeck.dev/labctl/internal/scaffold"
 	"go.flightdeck.dev/labctl/internal/scenario"
 	"go.flightdeck.dev/labctl/pkg/extension"
 	"go.flightdeck.dev/labctl/pkg/pack"
@@ -30,7 +31,31 @@ var (
 
 	packPublishSign      bool
 	packPublishCosignKey string
+
+	packInitDir   string
+	packInitForce bool
 )
+
+var packInitCmd = &cobra.Command{
+	Use:   "init <name>",
+	Short: "Scaffold a new scenario pack (valid + verify-ready)",
+	Long: `Create a pack directory with a valid pack.yaml, a README, and one bundled,
+verify-ready scenario, so you can edit and publish immediately. name may be
+"publisher/name"; the directory is created under --dir (default: current dir).
+
+  labctl pack init acme/kafka-drills
+  cd kafka-drills && labctl scenario verify kafka-drills`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dir, err := scaffold.Pack(packInitDir, args[0], packInitForce)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Created pack scaffold at %s\n", dir)
+		fmt.Printf("\nNext:\n  edit %s/pack.yaml\n  labctl pack publish %s oci://<registry>/<repo>:0.1.0\n", dir, dir)
+		return nil
+	},
+}
 
 var packCmd = &cobra.Command{
 	Use:   "pack",
@@ -370,6 +395,9 @@ func init() {
 	packPublishCmd.Flags().BoolVar(&packPublishSign, "sign", false, "sign the pushed artifact with cosign")
 	packPublishCmd.Flags().StringVar(&packPublishCosignKey, "cosign-key", "", "cosign private key (default: keyless OIDC signing)")
 
-	packCmd.AddCommand(packAddCmd, packSearchCmd, packListCmd, packInfoCmd, packRemoveCmd, packPublishCmd, packValidateIndexCmd)
+	packInitCmd.Flags().StringVar(&packInitDir, "dir", ".", "parent directory to create the pack in")
+	packInitCmd.Flags().BoolVar(&packInitForce, "force", false, "overwrite the pack directory if it already exists")
+
+	packCmd.AddCommand(packInitCmd, packAddCmd, packSearchCmd, packListCmd, packInfoCmd, packRemoveCmd, packPublishCmd, packValidateIndexCmd)
 	rootCmd.AddCommand(packCmd)
 }

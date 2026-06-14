@@ -173,6 +173,16 @@ labctl platform status data/postgres
 
 Manage declarative lab scenarios (observability, security, chaos, etc.).
 
+#### `labctl scenario new <name>`
+
+Scaffold `scenarios/<name>/` with a valid v2 `scenario.yaml` and a passing
+readiness check — green under `scenario verify` immediately. `--force` overwrites.
+See `docs/authoring/first-pack.md`.
+
+```bash
+labctl scenario new my-first-scenario
+```
+
 #### `labctl scenario list`
 
 List all available scenarios with their display names, categories, and activation status.
@@ -264,6 +274,7 @@ refuses incompatible packs. `labctl scenario install|packs|uninstall` remain as
 aliases. Authoring guide: `docs/authoring/packs.md`.
 
 ```bash
+labctl pack init <name>                    # scaffold a new pack (--dir, --force)
 labctl pack search [term]                  # find packs in the registry index
 labctl pack add <name>                     # resolve a name via the index, then install
 labctl pack add <git-url>[@ref]            # install from git (flags: --name, --force)

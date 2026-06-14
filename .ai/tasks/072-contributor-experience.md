@@ -29,10 +29,10 @@ set of issues.
 - JSON Schema references in templates give inline validation in editors.
 
 ## Acceptance Criteria
-- [ ] `labctl pack init` / `labctl scenario new` produce valid, verifiable output
-- [ ] Authoring guide covers the full create→verify→publish loop
-- [ ] JSON Schema validation works in a standard editor
-- [ ] A handful of good-first-issues exist (maintainer seeds these)
+- [x] `labctl pack init` / `labctl scenario new` produce valid, verifiable output
+- [x] Authoring guide covers the full create→verify→publish loop
+- [x] JSON Schema validation works in a standard editor
+- [~] A handful of good-first-issues exist (labels + guidance shipped; maintainer seeds the issues)
 
 ## Testing Instructions
 Scaffold a new pack, run lint + `scenario verify` on it unchanged, publish to a
@@ -40,3 +40,21 @@ local registry; confirm a newcomer can follow the guide end to end.
 
 ## Dependencies
 066, 067
+
+## Progress
+- Done: `internal/scaffold` (single source of truth) generates valid,
+  verify-ready content; `labctl scenario new <name>` → `scenarios/<name>/` and
+  `labctl pack init <name>` → a pack dir with `pack.yaml` + README + one bundled
+  scenario (both with a passing `checks/ready.sh`). E2E verified: scaffold →
+  `scenario verify` green → `pack publish` validates the manifest.
+- Reference templates `sdk/scenario-template/` + `sdk/pack-template/` (with
+  `# yaml-language-server: $schema=…` modelines) for manual copiers.
+- Editor validation: `.vscode/settings.json` maps `sdk/schemas/*` to
+  scenario.yaml / pack.yaml / registry index globs (Red Hat YAML ext); the
+  modelines also validate outside the repo.
+- Guide: `docs/authoring/first-pack.md` (scaffold→edit→verify→publish), wired
+  into the authoring README + cli-reference; `.github/labels.yml` defines
+  `good first issue` / `help wanted` + area/kind labels.
+- Tests: `internal/scaffold` asserts scaffolded scenario + pack parse, validate,
+  preserve publisher/name, and keep the check script executable.
+- Maintainer action (not code): seed a few starter issues under the labels.

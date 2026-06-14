@@ -1,0 +1,14 @@
+{
+  "//": "Inline validation for Flightdeck content (task 072). Requires the Red Hat YAML extension (redhat.vscode-yaml). Maps the SDK JSON Schemas to the files they govern; the templates also carry a yaml-language-server modeline so validation works outside this repo too.",
+  "yaml.schemas": {
+    "./sdk/schemas/scenario.schema.json": ["scenarios/**/scenario.yaml", "**/scenario-template/**/scenario.yaml", "packs/**/scenario.yaml"],
+    "./sdk/schemas/pack.schema.json": ["**/pack.yaml"],
+    "./sdk/schemas/index.schema.json": ["registry/index.json"]
+  },
+  "json.schemas": [
+    {
+      "fileMatch": ["registry/index.json"],
+      "url": "./sdk/schemas/index.schema.json"
+    }
+  ]
+}

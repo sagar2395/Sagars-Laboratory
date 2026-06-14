@@ -3,12 +3,14 @@
 How to create content for Flightdeck — scenarios, packs, platform modules — and
 the stability guarantees you can rely on.
 
-> The end-to-end "write a scenario pack" walkthrough and the `labctl pack init` /
-> `labctl scenario new` scaffolds land with task 072. This index will grow as the
-> SDK (tasks 066–067) lands.
+> New here? Start with [Your First Scenario Pack](first-pack.md) — `labctl
+> scenario new` / `labctl pack init` scaffold valid, verify-ready content in
+> seconds.
 
 ## Contents
 
+- [Your First Scenario Pack](first-pack.md) — the fast path: scaffold → edit →
+  verify → publish, for a first contribution.
 - [Authoring Scenario Packs](packs.md) — `pack.yaml`, the `labctl pack` commands,
   and how content is bundled and distributed.
 - [Publishing Packs (OCI)](publishing.md) — `labctl pack publish`, OCI artifact

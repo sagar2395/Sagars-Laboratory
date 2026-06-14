@@ -46,17 +46,18 @@ boundary.
   platform-engineering simulator with future commercial offerings. Strategy:
   `docs/strategy/OSS-COMMERCIAL-STRATEGY.md`; maintainer-only steps:
   `docs/strategy/MAINTAINER-MANUAL-ACTIONS.md`. Milestones M7 (OSS foundation,
-  P0), M8 (marketplace), M9 (commercial/hosted). **M7 is the top priority.**
-  Done: 065 governance/license, 066 public SDK boundary, 067 pack format, 068
-  OCI pack distribution + cosign signing, 069 registry index + discovery
-  (`labctl pack search`/`add <name>`/`validate-index`), **070 entitlement +
-  extension seams** (`pkg/entitlement` allow-all default + `pkg/extension`
-  resolver chain/no-op hooks; engine routes install/run through them; anti-lock-in,
-  CODEOWNERS-locked), 071 module path + brand alignment (module
-  `go.flightdeck.dev/labctl`; CLI/README/CLAUDE rebranded **Flightdeck**; vanity
-  meta-tag page). Next: 072 (contributor experience — the last M7 task). Maintainer
-  owes: host `go.flightdeck.dev`, org transfer to `snowops/flightdeck`, registry
-  repo + Pages, trademark search (A0/B/C).
+  P0), M8 (marketplace), M9 (commercial/hosted). **M7 is COMPLETE:** 065
+  governance/license, 066 public SDK boundary, 067 pack format, 068 OCI pack
+  distribution + cosign signing, 069 registry index + discovery (`labctl pack
+  search`/`add <name>`/`validate-index`), 070 entitlement + extension seams
+  (`pkg/entitlement` allow-all + `pkg/extension` resolver chain/no-op hooks,
+  CODEOWNERS-locked), 071 module path + brand (`go.flightdeck.dev/labctl`,
+  rebranded **Flightdeck**), 072 contributor experience (`labctl scenario new` /
+  `pack init` scaffolds, `sdk/*-template`, editor schema validation,
+  `docs/authoring/first-pack.md`). Next: **M5 (Multi-Env & Day-2 Ops), task 059**
+  (M8/M9 are deferred P2). Maintainer owes: host `go.flightdeck.dev`, org
+  transfer to `snowops/flightdeck`, registry repo + Pages, CLA app, branch
+  protection, trademark search, seed good-first-issues (A0/B/C).
 
 **The plan of record is `docs/ROADMAP.md` (+ `docs/strategy/` for Part III).
 Live status is `.ai/state.json` — its `next` field points at the recommended
