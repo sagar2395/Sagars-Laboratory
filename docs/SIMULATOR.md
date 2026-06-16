@@ -107,9 +107,12 @@ category without a simulation is dead weight.
 
 ## Multi-environment & day-2 operations
 
-- **Env promotion simulation**: dev → staging → prod as separate k3d clusters
-  (or namespaces), promoted via the existing GitOps stack. Practice real
-  release engineering without cloud spend.
+- **Env promotion simulation** ✅ `env-promotion` scenario + `labctl env`
+  commands: dev → staging → prod as three namespaces in one cluster (default,
+  laptop-friendly) or as separate k3d clusters (flag). `labctl env promote dev
+  staging` updates the declared image-tag ConfigMap — a lightweight stand-in
+  for a GitOps manifest commit. `labctl env list` shows the release train.
+  Full runbook: `docs/runbooks/11-multi-env-day2.md`.
 - **Day-2 drills**: cluster version upgrade, node drain/cordon under load,
   etcd/state backup & restore, certificate rotation — each as a scenario
   with checks proving zero (or measured) downtime.

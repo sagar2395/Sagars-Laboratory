@@ -568,6 +568,51 @@ REST: `GET /api/challenges`, `GET /api/challenges/{name}`,
 
 ---
 
+### `labctl env` — Multi-environment release pipeline
+
+Manage the three simulated environments (`dev`, `staging`, `prod`) deployed by
+the `env-promotion` scenario. Each environment runs in its own namespace with a
+declared image tag tracked in a ConfigMap.
+
+Activate the environments first: `labctl scenario up env-promotion`
+
+#### `labctl env list`
+
+Print a table of environments, their declared image tags, and readiness.
+
+```bash
+labctl env list
+```
+
+Example output:
+
+```
+ENV        APP          TAG          STATUS     PROMOTED_AT
+dev        go-api       v1.2.0       running    never
+staging    go-api       v1.1.0       running    never
+prod       go-api       v1.0.0       running    never
+```
+
+#### `labctl env promote <from-env> <to-env>`
+
+Promote an app's declared image tag from one environment to the next.
+
+```bash
+labctl env promote dev staging      # advance staging to dev's tag
+labctl env promote staging prod     # release to prod
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--app` | string | `go-api` | App to promote |
+
+Promotion is idempotent: if the destination already has the source's tag,
+the command reports "nothing to promote" and exits cleanly.
+
+**Runbook:** `docs/runbooks/11-multi-env-day2.md`
+
+---
+
 ### Web UI
 
 #### `labctl ui`
