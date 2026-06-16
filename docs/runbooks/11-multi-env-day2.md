@@ -149,3 +149,109 @@ labctl scenario down env-promotion
 | `kubectl patch cm env-metadata` | `git commit values/staging.yaml` with new `image.tag` |
 | Deployment label update | ArgoCD detects drift and reconciles the Deployment |
 | `labctl env list` | Checking Argo CD UI / `argocd app list` |
+
+---
+
+# Day-2 Operations Drills (task 060)
+
+Three scenarios rehearse the operations on-call engineers fear, each with checks
+that **grade availability** through the operation rather than guessing at it.
+
+| Drill | Scenario | Grades |
+|-------|----------|--------|
+| Node drain under load | `node-drain-drill` | success rate ≥ 99.5%, PDB held, no cordon left |
+| Rolling cluster upgrade | `cluster-upgrade-drill` | success rate ≥ 99%, all nodes Ready |
+| Namespace backup & restore | `backup-restore-drill` | namespace round-trips, marker intact |
+
+**Shared prerequisites (drains/upgrades):**
+
+```bash
+labctl runtime up                      # k3d defaults to 2 agents (multi-node)
+labctl platform up ingress
+labctl platform up monitoring/metrics  # promql availability checks need Prometheus
+cd apps/go-api && make docker-build && k3d image import go-api:latest -c sagars-cluster && cd ../..
+```
+
+The availability checks read `http_requests_total` from Prometheus, so **start
+traffic before** running a drill and keep it running in another terminal:
+
+```bash
+labctl traffic start --profile steady --rps 20
+```
+
+---
+
+## Drill 1 — Node drain under load (`node-drain-drill`)
+
+```bash
+labctl scenario up node-drain-drill          # applies the PDB
+bash scenarios/node-drain-drill/scripts/drain.sh   # cordon → drain → uncordon
+labctl scenario verify node-drain-drill      # grades success rate + PDB + no cordon
+labctl scenario down node-drain-drill
+```
+
+`drain.sh` scales go-api to 3, picks a worker node, cordons and drains it
+(respecting the PDB), waits for pods to reschedule, then **always uncordons** on
+exit. Watch pods move with `kubectl -n go-api get pods -o wide -w`.
+
+**Expected:** the drain blocks briefly while a replacement go-api pod becomes
+Ready on another node; the `availability-held-during-drain` check passes.
+
+---
+
+## Drill 2 — Rolling cluster upgrade (`cluster-upgrade-drill`)
+
+```bash
+# Optionally pin an older version at cluster creation to upgrade FROM:
+#   K3S_VERSION=v1.28.8-k3s1 AGENTS=2 labctl runtime up
+kubectl get nodes                            # note the current version
+labctl scenario up cluster-upgrade-drill     # applies the PDB
+TARGET_K3S_VERSION=v1.29.4-k3s1 \
+  bash scenarios/cluster-upgrade-drill/scripts/upgrade.sh
+labctl scenario verify cluster-upgrade-drill # grades success rate + node readiness
+labctl scenario down cluster-upgrade-drill
+```
+
+`upgrade.sh` rolls each agent node one at a time: drain → `k3d node delete` →
+`k3d node create` on the target image → wait for go-api. The PDB keeps the app
+available across the roll.
+
+**Honest scope:** k3d can't upgrade a node in place, so this replaces worker
+nodes — a faithful rolling worker upgrade. The control-plane node is untouched
+(managed clusters upgrade it first).
+
+---
+
+## Drill 3 — Namespace backup & restore (`backup-restore-drill`)
+
+Requires `jq` (used to scrub server-managed fields from the archive).
+
+```bash
+labctl scenario up backup-restore-drill              # plants the restore marker
+bash scenarios/backup-restore-drill/scripts/backup.sh go-api
+kubectl -n go-api delete configmap restore-marker    # simulate accidental loss
+labctl scenario verify backup-restore-drill          # marker check now FAILS
+bash scenarios/backup-restore-drill/scripts/restore.sh go-api
+labctl scenario verify backup-restore-drill          # round-trip — checks PASS
+labctl scenario down backup-restore-drill
+```
+
+Archives land in `.labctl/backups/` (gitignored); `go-api-latest.json` points at
+the most recent. Harder variant: `kubectl delete namespace go-api` then restore —
+the archive recreates the namespace and its objects.
+
+**Manifest-level backup:** round-trips Kubernetes objects, **not** PersistentVolume
+data. For stateful data use a volume snapshot or Velero with restic.
+
+---
+
+## Day-2 drills — troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| Drain hangs forever | A pod has no PDB headroom or no other node can host it. `kubectl describe` the pending pod; ensure ≥2 nodes (`kubectl get nodes`). |
+| `only 1 node(s) in the cluster` | Recreate multi-node: `AGENTS=2 labctl runtime up`. |
+| Availability check fails with no traffic | Start `labctl traffic start` first — `rate(http_requests_total[…])` is 0/0 without requests. |
+| `TARGET_K3S_VERSION is required` | Pass a version newer than the current one (see `kubectl get nodes`). |
+| `'jq' is required` (backup) | `brew install jq` / `apt-get install jq`. |
+| Node stuck `SchedulingDisabled` | `kubectl uncordon <node>` — the drill scripts do this automatically on exit. |

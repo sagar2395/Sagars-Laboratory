@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "060-day2-ops-drills",
+  "next": "061-cost-capacity-scenario",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -66,7 +66,8 @@
       ],
       "blocked_by": [
         "M1-scenario-engine-v2"
-      ]
+      ],
+      "note": "059 (env-promotion scenario + labctl env) and 060 (day-2 drills: node-drain-drill, cluster-upgrade-drill, backup-restore-drill — availability graded via promql) done. Remaining: 061 (cost & capacity: opencost provider + right-sizing scenario)."
     },
     "M6-team-mode-runtimes": {
       "priority": "P2",
@@ -132,7 +133,6 @@
     }
   },
   "todo": [
-    "060-day2-ops-drills",
     "061-cost-capacity-scenario",
     "062-auth-rbac",
     "063-team-sessions-shared-deploy",
@@ -148,6 +148,7 @@
   ],
   "in_progress": [],
   "done": [
+    "060-day2-ops-drills",
     "059-env-promotion-simulation",
     "079-comprehensive-test-suite",
     "072-contributor-experience",

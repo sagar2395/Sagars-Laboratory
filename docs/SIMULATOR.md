@@ -113,9 +113,13 @@ category without a simulation is dead weight.
   staging` updates the declared image-tag ConfigMap — a lightweight stand-in
   for a GitOps manifest commit. `labctl env list` shows the release train.
   Full runbook: `docs/runbooks/11-multi-env-day2.md`.
-- **Day-2 drills**: cluster version upgrade, node drain/cordon under load,
-  etcd/state backup & restore, certificate rotation — each as a scenario
-  with checks proving zero (or measured) downtime.
+- **Day-2 drills** ✅ three checked scenarios — `node-drain-drill` (cordon/drain
+  under load, PDB-protected), `cluster-upgrade-drill` (rolling worker upgrade to a
+  newer k3s version), and `backup-restore-drill` (manifest-archive backup, loss
+  simulation, restore round-trip). Each grades **measured availability** (promql
+  success rate through the operation), not guessed downtime. Full runbook:
+  `docs/runbooks/11-multi-env-day2.md`. Certificate rotation is left as a future
+  drill.
 
 ## Team mode (later)
 

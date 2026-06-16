@@ -371,7 +371,7 @@ day-2 operations, locally and for free.
 | Id | Title | Priority |
 |----|-------|----------|
 | 059 | Multi-cluster env promotion: dev → staging → prod via GitOps, as a scenario | P2 | ✅ done |
-| 060 | Day-2 drills: cluster upgrade, node drain under load, backup/restore — as checked scenarios | P2 |
+| 060 | Day-2 drills: cluster upgrade, node drain under load, backup/restore — as checked scenarios | P2 | ✅ done |
 | 061 | Cost & capacity: opencost provider + right-sizing exercise scenario | P2 |
 
 **Exit criterion:** an image promoted dev → prod purely via Git; the upgrade
