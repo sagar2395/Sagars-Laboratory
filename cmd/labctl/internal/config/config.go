@@ -40,6 +40,7 @@ type Config struct {
 	MeshProvider        string
 	DataProvider        string
 	AutoscalingProvider string
+	CostProvider        string
 
 	// App defaults
 	AppName         string
@@ -116,6 +117,7 @@ func Load(projectRoot string) (*Config, error) {
 	cfg.MeshProvider = getEnvOrDefault("MESH_PROVIDER", "")
 	cfg.DataProvider = getEnvOrDefault("DATA_PROVIDER", "")
 	cfg.AutoscalingProvider = getEnvOrDefault("AUTOSCALING_PROVIDER", "")
+	cfg.CostProvider = getEnvOrDefault("COST_PROVIDER", "")
 
 	cfg.AppName = getEnvOrDefault("APP_NAME", "go-api")
 	cfg.HelmReleaseName = getEnvOrDefault("HELM_RELEASE_NAME", "go-api")

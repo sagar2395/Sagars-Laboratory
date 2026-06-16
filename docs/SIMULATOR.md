@@ -100,7 +100,7 @@ New platform categories, same provider contract (`install.sh` /
 | `platform/data` | kafka (strimzi), postgres (cnpg), rabbitmq | Event-driven arch, consumer lag incidents, DB failover |
 | `platform/secrets` | vault, external-secrets | Secret rotation, leaked-secret incident response |
 | `platform/autoscaling` | keda, vpa | Scale-on-queue-depth, load-spike survival challenges |
-| `platform/cost` | opencost | Right-sizing exercises, cost-per-namespace visibility |
+| `platform/cost` | opencost ✅ | Right-sizing exercises, cost-per-namespace visibility |
 
 Each new category ships with **at least one scenario that uses it** — a
 category without a simulation is dead weight.

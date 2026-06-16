@@ -40,11 +40,12 @@ boundary.
   external-secrets), and autoscaling (keda) categories, with four new v2
   scenarios (autoscaling-under-load, mesh-traffic-management, event-driven-arch,
   secrets-management); `platform up/down/status` take a `category` or
-  `category/provider` target. **M5 (Multi-Env & Day-2 Ops) is underway:** 079
+  `category/provider` target. **M5 (Multi-Env & Day-2 Ops) is complete:** 079
   (comprehensive test suite) done; 059 (env-promotion scenario + `labctl env`)
   done; 060 (day-2 drills: `node-drain-drill`, `cluster-upgrade-drill`,
-  `backup-restore-drill`, each grading availability via promql) done. Next: task
-  061 (cost & capacity — opencost provider + right-sizing scenario).
+  `backup-restore-drill`, each grading availability via promql) done; 061
+  (`platform/cost/opencost` provider + `cost-right-sizing` scenario with script
+  checks for Kubernetes quantity comparison, `CostProvider` config field).
 
 - 🧭 **Part III (new direction):** evolve into a community-driven OSS
   platform-engineering simulator with future commercial offerings. Strategy:
@@ -58,7 +59,7 @@ boundary.
   CODEOWNERS-locked), 071 module path + brand (`go.flightdeck.dev/labctl`,
   rebranded **Flightdeck**), 072 contributor experience (`labctl scenario new` /
   `pack init` scaffolds, `sdk/*-template`, editor schema validation,
-  `docs/authoring/first-pack.md`). Next: **M5 (Multi-Env & Day-2 Ops), task 061**
+  `docs/authoring/first-pack.md`). Next: **M6 (Team Mode & Runtimes), task 062**
   (M8/M9 are deferred P2). Maintainer owes: host `go.flightdeck.dev`, org
   transfer to `snowops/flightdeck`, registry repo + Pages, CLA app, branch
   protection, trademark search, seed good-first-issues (A0/B/C).

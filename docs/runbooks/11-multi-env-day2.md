@@ -245,6 +245,44 @@ data. For stateful data use a volume snapshot or Velero with restic.
 
 ---
 
+## Cost & Capacity Right-Sizing (`cost-right-sizing`)
+
+```bash
+# Prerequisites
+labctl platform up monitoring/metrics
+COST_PROVIDER=opencost labctl platform up cost
+
+# Open OpenCost UI (keep running)
+kubectl -n opencost port-forward svc/opencost 9090 &
+
+# Activate the scenario (inflates go-api requests; checks now FAIL)
+labctl scenario up cost-right-sizing
+labctl scenario verify cost-right-sizing   # cpu-request-right-sized and memory-request-right-sized fail
+
+# Observe the cost in the OpenCost UI at http://localhost:9090
+# then right-size:
+kubectl -n go-api set resources deployment go-api --requests=cpu=50m,memory=32Mi --limits=cpu=200m,memory=128Mi
+kubectl -n go-api rollout status deployment go-api
+
+# Verify — all 5 checks pass
+labctl scenario verify cost-right-sizing
+
+# Tear down (restores go-api resources to dev defaults)
+labctl scenario down cost-right-sizing
+COST_PROVIDER=opencost labctl platform down cost
+```
+
+**How it works:** the scenario re-deploys go-api with 4000m CPU and 1Gi memory
+(10×/32× over-provisioned). OpenCost immediately shows inflated namespace cost.
+Two script checks convert Kubernetes quantity strings to integers and compare
+against the right-sized thresholds (CPU ≤ 100m, memory ≤ 256Mi). Those checks
+fail while inflated and pass once you apply the right-sized requests.
+
+**k3d note:** on-prem pricing defaults are used (~$0.048/CPU-hr). At 4000m vs
+50m the cost ratio is ~80×, so the before/after contrast is still meaningful.
+
+---
+
 ## Day-2 drills — troubleshooting
 
 | Symptom | Fix |
@@ -255,3 +293,6 @@ data. For stateful data use a volume snapshot or Velero with restic.
 | `TARGET_K3S_VERSION is required` | Pass a version newer than the current one (see `kubectl get nodes`). |
 | `'jq' is required` (backup) | `brew install jq` / `apt-get install jq`. |
 | Node stuck `SchedulingDisabled` | `kubectl uncordon <node>` — the drill scripts do this automatically on exit. |
+| `cpu-request-right-sized` check fails after right-sizing | The old pod may still be running. Wait for `kubectl -n go-api rollout status deployment go-api` to complete. |
+| OpenCost shows $0 cost | Wait ~1 min for a scrape cycle; OpenCost reads usage from Prometheus on an interval. |
+| OpenCost `prometheus URL unavailable` | Install monitoring/metrics first: `labctl platform up monitoring/metrics`. |

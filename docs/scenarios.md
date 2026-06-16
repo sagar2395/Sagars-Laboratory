@@ -333,6 +333,34 @@ value intact, **backup archive exists** (script).
 
 ---
 
+### Cost & Capacity: Right-Sizing (`cost-right-sizing`)
+
+**Category:** cost
+
+**What it deploys:**
+- go-api re-deployed with 10× over-provisioned CPU (4000m) and 32× memory (1Gi)
+  via a Helm values override — the deliberate "before" state you observe in OpenCost
+
+**Prerequisites:**
+- Platform: cost/opencost, monitoring/metrics, ingress
+- Apps: go-api
+
+**Checks (5):** go-api running, **CPU request ≤ 100m** (script), **memory request
+≤ 256Mi** (script), /health endpoint returns 200, OpenCost running.
+
+**The exercise:**
+
+1. `labctl scenario up cost-right-sizing` — inflates requests; checks **fail**
+2. `kubectl -n opencost port-forward svc/opencost 9090 &` — open the UI
+3. Observe inflated cost in OpenCost (go-api namespace)
+4. Right-size: `kubectl -n go-api set resources deployment go-api --requests=cpu=50m,memory=32Mi`
+5. `labctl scenario verify cost-right-sizing` — all checks **pass**
+
+> **k3d note:** no real billing API — OpenCost uses on-prem pricing defaults
+> (~$0.048/CPU-hr). Cost numbers are relative; the before/after contrast is real.
+
+---
+
 ## Scenario YAML Format
 
 ```yaml
