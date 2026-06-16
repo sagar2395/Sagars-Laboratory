@@ -68,6 +68,22 @@ func TestVerifyPassword_MalformedHashes(t *testing.T) {
 	}
 }
 
+func TestDefaultUsersPath(t *testing.T) {
+	t.Run("default under project root", func(t *testing.T) {
+		t.Setenv("LABCTL_USERS_FILE", "")
+		got := DefaultUsersPath("/proj")
+		if got != filepath.Join("/proj", ".labctl", "users.yaml") {
+			t.Errorf("DefaultUsersPath = %q", got)
+		}
+	})
+	t.Run("env override wins", func(t *testing.T) {
+		t.Setenv("LABCTL_USERS_FILE", "/etc/labctl/users.yaml")
+		if got := DefaultUsersPath("/proj"); got != "/etc/labctl/users.yaml" {
+			t.Errorf("DefaultUsersPath = %q, want override", got)
+		}
+	})
+}
+
 func TestValidRole(t *testing.T) {
 	tests := []struct {
 		role string

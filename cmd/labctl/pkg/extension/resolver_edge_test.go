@@ -49,9 +49,9 @@ func TestDefaultResolver_ChainComposition(t *testing.T) {
 // TestSplitGitRef covers the URL / @ref splitting logic.
 func TestSplitGitRef(t *testing.T) {
 	tests := []struct {
-		src  string
-		url  string
-		ref  string
+		src string
+		url string
+		ref string
 	}{
 		{"https://github.com/x/y@v1.0", "https://github.com/x/y", "v1.0"},
 		{"https://github.com/x/y", "https://github.com/x/y", ""},

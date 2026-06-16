@@ -1,6 +1,6 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "063-team-sessions-shared-deploy",
+  "next": "064-kind-gke-runtimes",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -80,7 +80,7 @@
       "blocked_by": [
         "M3-learning-assessment"
       ],
-      "note": "062 (optional auth + RBAC) done: internal/auth (PBKDF2-HMAC-SHA256 hashes, in-memory sessions, operator/participant policy), api auth middleware + login/logout/me, labctl users add/list/remove, identity flows into results records, UI login flow. Auth OFF by default (LABCTL_AUTH=true). Remaining: 063 (team sessions Helm chart + shared leaderboard), 064 (kind + GKE runtimes)."
+      "note": "062 (auth+RBAC) done. 063 (team sessions) done: leaderboard aggregation (internal/results) + GET /api/leaderboard + UI Leaderboard view; labctl-server Helm chart (delivery/charts/labctl-server) with SA/RBAC, PVC-persisted .labctl, optional users Secret; Dockerfile.labctl-server (repo + helm/kubectl); runtimes/incluster profile; LABCTL_USERS_FILE override; game-day flow in runbook 12. Remaining: 064 (kind + GKE runtimes)."
     },
     "part1-cloud-verification": {
       "priority": "P2",
@@ -134,7 +134,6 @@
     }
   },
   "todo": [
-    "063-team-sessions-shared-deploy",
     "064-kind-gke-runtimes",
     "038-verify-aks-end-to-end",
     "039-verify-eks-end-to-end",
@@ -147,6 +146,7 @@
   ],
   "in_progress": [],
   "done": [
+    "063-team-sessions-shared-deploy",
     "062-auth-rbac",
     "061-cost-capacity-scenario",
     "060-day2-ops-drills",

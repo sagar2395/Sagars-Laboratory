@@ -12,10 +12,11 @@ import { Apps } from './views/Apps'
 import { Learn } from './views/Learn'
 import { Challenges } from './views/Challenges'
 import { Results } from './views/Results'
+import { Leaderboard } from './views/Leaderboard'
 import { api } from './api/client'
 import { completeJob, reconcileJobs, hasTrackedJobs, trackJob } from './lib/jobs'
 
-type Tab = 'dashboard' | 'scenarios' | 'platform' | 'apps' | 'learn' | 'challenges' | 'results'
+type Tab = 'dashboard' | 'scenarios' | 'platform' | 'apps' | 'learn' | 'challenges' | 'results' | 'leaderboard'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'dashboard',  label: 'Dashboard'  },
@@ -25,6 +26,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'learn',      label: 'Learn'      },
   { id: 'challenges', label: 'Challenges' },
   { id: 'results',    label: 'Results'    },
+  { id: 'leaderboard', label: 'Leaderboard' },
 ]
 
 let notifSeq = 0
@@ -287,6 +289,7 @@ function MainApp({ auth, onLogout }: { auth: AuthStatus; onLogout: () => void })
           {tab === 'learn'      && <Learn       notify={notify} refreshTick={refreshTick} />}
           {tab === 'challenges' && <Challenges  notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
           {tab === 'results'    && <Results     notify={notify} refreshTick={refreshTick} />}
+          {tab === 'leaderboard' && <Leaderboard notify={notify} refreshTick={refreshTick} />}
         </ErrorBoundary>
       </main>
 

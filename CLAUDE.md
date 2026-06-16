@@ -51,7 +51,11 @@ boundary.
   operator/participant policy), API auth middleware + `/api/auth/{login,logout,me}`,
   `labctl users add/list/remove`, authenticated identity flows into result
   records, UI login flow. Auth is OFF by default (enable with `LABCTL_AUTH=true`).
-  Next: task 063 (team sessions: server Helm chart + shared leaderboard).
+  063 (team sessions) done — leaderboard aggregation + `GET /api/leaderboard` +
+  UI Leaderboard tab; `labctl-server` Helm chart (`delivery/charts/labctl-server`)
+  with SA/RBAC, PVC-persisted `.labctl`, optional users Secret;
+  `Dockerfile.labctl-server` (repo + helm/kubectl); `runtimes/incluster` profile.
+  Next: task 064 (kind + GKE runtimes).
 
 - 🧭 **Part III (new direction):** evolve into a community-driven OSS
   platform-engineering simulator with future commercial offerings. Strategy:
@@ -65,7 +69,7 @@ boundary.
   CODEOWNERS-locked), 071 module path + brand (`go.flightdeck.dev/labctl`,
   rebranded **Flightdeck**), 072 contributor experience (`labctl scenario new` /
   `pack init` scaffolds, `sdk/*-template`, editor schema validation,
-  `docs/authoring/first-pack.md`). Next: **M6 (Team Mode & Runtimes), task 063**
+  `docs/authoring/first-pack.md`). Next: **M6 (Team Mode & Runtimes), task 064**
   (M8/M9 are deferred P2). Maintainer owes: host `go.flightdeck.dev`, org
   transfer to `snowops/flightdeck`, registry repo + Pages, CLA app, branch
   protection, trademark search, seed good-first-issues (A0/B/C).

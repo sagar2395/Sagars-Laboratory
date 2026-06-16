@@ -121,11 +121,15 @@ category without a simulation is dead weight.
   `docs/runbooks/11-multi-env-day2.md`. Certificate rotation is left as a future
   drill.
 
-## Team mode (later)
+## Team mode
 
-- Optional auth + per-user RBAC on the API/UI; team sessions on a shared
-  remote deployment (labctl server as a Helm chart); shared leaderboards.
-- More runtimes: kind (CI-friendly), GKE (third cloud).
+- ✅ Optional auth + per-user RBAC on the API/UI (`operator` / `participant`),
+  off by default (`LABCTL_AUTH=true`). See `docs/runbooks/12-team-mode.md`.
+- ✅ Team sessions on a shared remote deployment: the `labctl-server` Helm chart
+  (`delivery/charts/labctl-server/`) runs the simulator in-cluster with a
+  PVC-persisted history and a shared **leaderboard** (`GET /api/leaderboard` +
+  UI Leaderboard tab) for game days.
+- 🚧 More runtimes: kind (CI-friendly), GKE (third cloud) — task 064.
 
 ## What stays true (non-negotiable)
 

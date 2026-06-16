@@ -57,6 +57,20 @@ func (s *Server) handleResultsByKind(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, recs)
 }
 
+// GET /api/leaderboard — per-user aggregate ranking for team mode (task 063).
+func (s *Server) handleLeaderboard(w http.ResponseWriter, r *http.Request) {
+	store := resultsStore(s)
+	board, err := store.Leaderboard()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if board == nil {
+		board = []results.LeaderboardEntry{}
+	}
+	respondJSON(w, http.StatusOK, board)
+}
+
 // GET /api/progress — learn module completions grouped by path.
 func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
 	store := resultsStore(s)

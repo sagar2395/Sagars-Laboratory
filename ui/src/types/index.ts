@@ -279,3 +279,16 @@ export interface ResultRecord {
   hintsUsed?: number
   meta?: Record<string, unknown>
 }
+
+// ── Leaderboard ─────────────────────────────────────────────────────────────
+
+export interface LeaderboardEntry {
+  user: string
+  totalScore: number
+  challengesCompleted: number
+  incidentsResolved: number
+  modulesCompleted: number
+  hintsUsed: number
+  avgMttrSeconds: number
+  runs: number
+}

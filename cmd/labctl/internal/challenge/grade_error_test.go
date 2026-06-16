@@ -19,57 +19,57 @@ func TestComputeScore(t *testing.T) {
 		wantExact int
 	}{
 		{
-			name:      "total zero returns 0",
-			c:         &Challenge{},
-			elapsed:   0, hints: 0, passed: 0, total: 0,
+			name:    "total zero returns 0",
+			c:       &Challenge{},
+			elapsed: 0, hints: 0, passed: 0, total: 0,
 			wantExact: 0,
 		},
 		{
-			name:      "passed zero returns 0",
-			c:         &Challenge{},
-			elapsed:   0, hints: 0, passed: 0, total: 5,
+			name:    "passed zero returns 0",
+			c:       &Challenge{},
+			elapsed: 0, hints: 0, passed: 0, total: 5,
 			wantExact: 0,
 		},
 		{
-			name:      "all passed with zero hints gives 100",
-			c:         &Challenge{},
-			elapsed:   0, hints: 0, passed: 3, total: 3,
+			name:    "all passed with zero hints gives 100",
+			c:       &Challenge{},
+			elapsed: 0, hints: 0, passed: 3, total: 3,
 			wantExact: 100,
 		},
 		{
-			name:      "hints deduct penalty",
-			c:         &Challenge{HintPenalty: 10},
-			elapsed:   0, hints: 2, passed: 3, total: 3,
+			name:    "hints deduct penalty",
+			c:       &Challenge{HintPenalty: 10},
+			elapsed: 0, hints: 2, passed: 3, total: 3,
 			wantExact: 80, // 100 - 2*10 = 80
 		},
 		{
-			name:      "default hint penalty is 5",
-			c:         &Challenge{HintPenalty: 0},
-			elapsed:   0, hints: 4, passed: 3, total: 3,
+			name:    "default hint penalty is 5",
+			c:       &Challenge{HintPenalty: 0},
+			elapsed: 0, hints: 4, passed: 3, total: 3,
 			wantExact: 80, // 100 - 4*5 = 80
 		},
 		{
-			name:      "score never goes below 0",
-			c:         &Challenge{HintPenalty: 50},
-			elapsed:   0, hints: 10, passed: 3, total: 3,
+			name:    "score never goes below 0",
+			c:       &Challenge{HintPenalty: 50},
+			elapsed: 0, hints: 10, passed: 3, total: 3,
 			wantExact: 0, // 100 - 10*50 = -400, clamped to 0
 		},
 		{
-			name:      "time penalty capped at 20",
-			c:         &Challenge{ParTime: "5m"},
-			elapsed:   100 * time.Minute, hints: 0, passed: 3, total: 3,
+			name:    "time penalty capped at 20",
+			c:       &Challenge{ParTime: "5m"},
+			elapsed: 100 * time.Minute, hints: 0, passed: 3, total: 3,
 			wantExact: 80, // time penalty capped at 20 → 100-20=80
 		},
 		{
-			name:      "within par time no time penalty",
-			c:         &Challenge{ParTime: "30m"},
-			elapsed:   10 * time.Minute, hints: 0, passed: 3, total: 3,
+			name:    "within par time no time penalty",
+			c:       &Challenge{ParTime: "30m"},
+			elapsed: 10 * time.Minute, hints: 0, passed: 3, total: 3,
 			wantExact: 100,
 		},
 		{
-			name:      "partial passes scale score",
-			c:         &Challenge{},
-			elapsed:   0, hints: 0, passed: 1, total: 2,
+			name:    "partial passes scale score",
+			c:       &Challenge{},
+			elapsed: 0, hints: 0, passed: 1, total: 2,
 			wantExact: 50, // 100 * 1/2 = 50
 		},
 	}

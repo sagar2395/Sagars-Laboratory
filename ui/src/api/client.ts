@@ -14,6 +14,7 @@ import type {
   ChallengeStatus,
   ChallengeRunRecord,
   ResultRecord,
+  LeaderboardEntry,
   AuthStatus,
 } from '../types'
 
@@ -112,6 +113,9 @@ export const api = {
   // ── Results ───────────────────────────────────────────────────────────────
   getResults:      ()             => req<ResultRecord[]>('/results'),
   getResultsByKind:(kind: string) => req<ResultRecord[]>(`/results/${enc(kind)}`),
+
+  // ── Leaderboard ─────────────────────────────────────────────────────────────
+  getLeaderboard:  ()             => req<LeaderboardEntry[]>('/leaderboard'),
 }
 
 function enc(s: string) { return encodeURIComponent(s) }

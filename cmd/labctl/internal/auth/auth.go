@@ -68,9 +68,14 @@ func Enabled() bool {
 	return strings.EqualFold(strings.TrimSpace(os.Getenv("LABCTL_AUTH")), "true")
 }
 
-// DefaultUsersPath returns the conventional users file location under the
-// project's .labctl directory.
+// DefaultUsersPath returns the users file location. LABCTL_USERS_FILE overrides
+// it (the team-mode Helm chart mounts the users Secret at a fixed path separate
+// from the .labctl history PVC); otherwise it falls back to the conventional
+// location under the project's .labctl directory.
 func DefaultUsersPath(projectRoot string) string {
+	if p := os.Getenv("LABCTL_USERS_FILE"); p != "" {
+		return p
+	}
 	return filepath.Join(projectRoot, ".labctl", "users.yaml")
 }
 

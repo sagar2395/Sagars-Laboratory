@@ -139,6 +139,68 @@ curl -s http://localhost:3939/api/status -H "Authorization: Bearer $TOKEN"
 
 ---
 
+## 5. Shared deployment for a game day (task 063)
+
+For a team game day, run ONE simulator everyone shares, deployed into the cluster
+itself via the `labctl-server` Helm chart
+(`delivery/charts/labctl-server/`, full reference in its README).
+
+### Deploy the server in-cluster
+
+```bash
+# Build + push the server image (bundles the repo + helm/kubectl)
+docker build -f Dockerfile.labctl-server -t <registry>/labctl-server:dev .
+docker push <registry>/labctl-server:dev
+
+# Generate user hashes locally, then put them in a values file (see chart README)
+labctl users add alice --role operator   --password 'op-pw'
+labctl users add bob   --role participant --password 'part-pw'
+
+helm install labctl-server delivery/charts/labctl-server \
+  -n labctl --create-namespace -f game-day.yaml
+
+kubectl -n labctl port-forward svc/labctl-server 3939:3939   # or use ingress
+```
+
+In-cluster, `kubectl`/`helm` use the pod's ServiceAccount automatically — the
+server manages its hosting cluster (no k3d). History lives on the PVC.
+
+### Verify history survives a restart (PVC)
+
+```bash
+# Complete a challenge as bob, then bounce the pod:
+kubectl -n labctl rollout restart deploy/labctl-server
+kubectl -n labctl rollout status  deploy/labctl-server
+# The Leaderboard / Results still show bob's run — it was on the PVC.
+```
+
+### Run the game-day flow
+
+1. **Operator (alice)** injects a silent, random incident for everyone to race:
+   ```bash
+   # from the UI (Incidents tab) or API:
+   curl -X POST http://localhost:3939/api/incidents/inject-random?silent=true \
+     -H "Authorization: Bearer $ALICE_TOKEN"
+   ```
+2. **Participants** diagnose and fix the lab. When the detection check passes,
+   the resolution is recorded against whoever's session detected it
+   (MTTR + hints used).
+3. Watch the **Leaderboard** tab (or `GET /api/leaderboard`) update live.
+
+### The leaderboard
+
+`GET /api/leaderboard` aggregates the results store per user and ranks by:
+
+1. **total score** (sum of challenge scores), then
+2. **challenges completed**, then
+3. **lower average incident MTTR** (faster responders win ties).
+
+It also reports incidents resolved, modules completed, hints used, and total
+runs. Two authenticated users who each complete a challenge both appear, ranked
+by the above. The UI's **Leaderboard** tab renders the same data as a table.
+
+---
+
 ## Security notes & future work
 
 - Sessions are in-memory (cleared on restart) and tokens are random 256-bit

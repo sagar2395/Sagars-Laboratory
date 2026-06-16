@@ -390,7 +390,7 @@ drill records measured downtime via checks; opencost shows per-namespace cost.
 | Id | Title | Priority |
 |----|-------|----------|
 | 062 | Optional auth + per-user RBAC on REST API / UI | P2 | ✅ done |
-| 063 | Team sessions: labctl server Helm chart for shared remote deploy + shared leaderboard | P2 |
+| 063 | Team sessions: labctl server Helm chart for shared remote deploy + shared leaderboard | P2 | ✅ done |
 | 064 | New runtimes: kind (CI-friendly) and GKE | P2 |
 
 **Exit criterion:** two users with separate identities use one deployed
