@@ -25,6 +25,12 @@ func TestRequiresOperator(t *testing.T) {
 		{"GET status is read", "GET", "/api/status", false},
 		{"OPTIONS preflight", "OPTIONS", "/api/platform/up", false},
 		{"prefix lookalike not matched", "POST", "/api/platformx/up", false},
+		// Marketplace + credentials (tasks 073-078)
+		{"GET packs is read", "GET", "/api/packs", false},
+		{"POST pack install requires operator", "POST", "/api/packs/kafka/install", true},
+		{"DELETE pack requires operator", "DELETE", "/api/packs/kafka", true},
+		{"GET credentials is read", "GET", "/api/credentials", false},
+		{"POST credential issue requires operator", "POST", "/api/credentials/issue", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

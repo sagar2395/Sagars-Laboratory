@@ -13,20 +13,22 @@ import { Learn } from './views/Learn'
 import { Challenges } from './views/Challenges'
 import { Results } from './views/Results'
 import { Leaderboard } from './views/Leaderboard'
+import { Marketplace } from './views/Marketplace'
 import { api } from './api/client'
 import { completeJob, reconcileJobs, hasTrackedJobs, trackJob } from './lib/jobs'
 
-type Tab = 'dashboard' | 'scenarios' | 'platform' | 'apps' | 'learn' | 'challenges' | 'results' | 'leaderboard'
+type Tab = 'dashboard' | 'scenarios' | 'platform' | 'apps' | 'learn' | 'challenges' | 'results' | 'leaderboard' | 'marketplace'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'dashboard',  label: 'Dashboard'  },
-  { id: 'scenarios',  label: 'Scenarios'  },
-  { id: 'platform',   label: 'Platform'   },
-  { id: 'apps',       label: 'Apps'       },
-  { id: 'learn',      label: 'Learn'      },
-  { id: 'challenges', label: 'Challenges' },
-  { id: 'results',    label: 'Results'    },
+  { id: 'dashboard',   label: 'Dashboard'   },
+  { id: 'scenarios',   label: 'Scenarios'   },
+  { id: 'platform',    label: 'Platform'    },
+  { id: 'apps',        label: 'Apps'        },
+  { id: 'learn',       label: 'Learn'       },
+  { id: 'challenges',  label: 'Challenges'  },
+  { id: 'results',     label: 'Results'     },
   { id: 'leaderboard', label: 'Leaderboard' },
+  { id: 'marketplace', label: 'Marketplace' },
 ]
 
 let notifSeq = 0
@@ -290,6 +292,7 @@ function MainApp({ auth, onLogout }: { auth: AuthStatus; onLogout: () => void })
           {tab === 'challenges' && <Challenges  notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
           {tab === 'results'    && <Results     notify={notify} refreshTick={refreshTick} />}
           {tab === 'leaderboard' && <Leaderboard notify={notify} refreshTick={refreshTick} />}
+          {tab === 'marketplace' && <Marketplace notify={notify} refreshTick={refreshTick} requestConfirm={setConfirm} />}
         </ErrorBoundary>
       </main>
 

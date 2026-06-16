@@ -165,6 +165,23 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/runtimes", s.handleListRuntimes).Methods("GET", "OPTIONS")
 	api.HandleFunc("/runtimes/{name}/activate", s.handleRuntimeActivate).Methods("POST", "OPTIONS")
 	api.HandleFunc("/runtimes/{name}/deactivate", s.handleRuntimeDeactivate).Methods("POST", "OPTIONS")
+
+	// Pack marketplace (tasks 073, 075)
+	api.HandleFunc("/packs", s.handlePackSearch).Methods("GET", "OPTIONS")
+	api.HandleFunc("/packs/installed", s.handlePackListInstalled).Methods("GET", "OPTIONS")
+	api.HandleFunc("/packs/{name}/install", s.handlePackInstall).Methods("POST", "OPTIONS")
+	api.HandleFunc("/packs/{name}", s.handlePackInfo).Methods("GET", "OPTIONS")
+	api.HandleFunc("/packs/{name}", s.handlePackRemove).Methods("DELETE", "OPTIONS")
+
+	// Credentials (task 078)
+	api.HandleFunc("/credentials", s.handleCredentialList).Methods("GET", "OPTIONS")
+	api.HandleFunc("/credentials/issue", s.handleCredentialIssue).Methods("POST", "OPTIONS")
+	api.HandleFunc("/credentials/{id}", s.handleCredentialGet).Methods("GET", "OPTIONS")
+	api.HandleFunc("/credentials/{id}/verify", s.handleCredentialVerify).Methods("POST", "OPTIONS")
+
+	// Edition info (task 076)
+	api.HandleFunc("/edition", s.handleEditionInfo).Methods("GET", "OPTIONS")
+
 	api.HandleFunc("/ws", s.handleWebSocket)
 
 	// Serve UI — use embedded FS if available, fall back to filesystem for dev
@@ -209,7 +226,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		if origin != "" && originAllowed(r) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		}
 		if r.Method == "OPTIONS" {
@@ -220,7 +237,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		// an Origin header to cross-origin POSTs, so a malicious website
 		// can't trigger cluster actions on localhost; CLI clients send no
 		// Origin and are unaffected.
-		if r.Method == "POST" && origin != "" && !originAllowed(r) {
+		if (r.Method == "POST" || r.Method == "DELETE") && origin != "" && !originAllowed(r) {
 			respondError(w, http.StatusForbidden, "forbidden_origin", "cross-origin requests are not allowed")
 			return
 		}

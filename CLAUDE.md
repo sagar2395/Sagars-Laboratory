@@ -59,7 +59,7 @@ boundary.
   `e2e-kind` job runs `scenario verify`) and `runtimes/gke` + `foundation/
   terraform/modules/gke` (verify-once caveat). **M6 COMPLETE.** Remaining work is
   P2: cloud verification (038 AKS, 039 EKS, and the gke first-apply) needs real
-  accounts; M8/M9 are deferred.
+  accounts.
 
 - 🧭 **Part III (new direction):** evolve into a community-driven OSS
   platform-engineering simulator with future commercial offerings. Strategy:
@@ -73,11 +73,21 @@ boundary.
   CODEOWNERS-locked), 071 module path + brand (`go.flightdeck.dev/labctl`,
   rebranded **Flightdeck**), 072 contributor experience (`labctl scenario new` /
   `pack init` scaffolds, `sdk/*-template`, editor schema validation,
-  `docs/authoring/first-pack.md`). M6 complete; next deliberate work is **cloud
-  verification (038 AKS, 039 EKS, gke first-apply)** — needs real accounts
-  (M8/M9 are deferred P2). Maintainer owes: host `go.flightdeck.dev`, org
-  transfer to `snowops/flightdeck`, registry repo + Pages, CLA app, branch
-  protection, trademark search, seed good-first-issues (A0/B/C).
+  `docs/authoring/first-pack.md`). **M8 is COMPLETE:** 073 (hosted catalog API
+  client — `pkg/pack.CatalogClient`, hosted-first / static-index-fallback,
+  `/api/packs` endpoints), 074 (`pkg/entitlement.TokenEntitlement` — premium tier
+  gating behind `TokenVerifier` seam; community always free), 075 (Marketplace UI
+  tab — browse/search/install/remove packs with tier/verified badge). **M9 is
+  COMPLETE:** 076 (`pkg/edition` CE/Pro/Enterprise — `labctl edition`,
+  `GET /api/edition`, CE feature-line guarantee), 077 (SaaS RFC —
+  `docs/strategy/RFC-0002-saas-control-plane.md`, §6 invariant validated), 078
+  (`pkg/credential` certification framework — HMAC-SHA256 Certificate,
+  `labctl credential issue/list/verify`, `/api/credentials` endpoints). Only
+  remaining automatable work is **cloud verification (038 AKS, 039 EKS, gke
+  first-apply)** — needs real accounts. Maintainer owes: host
+  `go.flightdeck.dev`, org transfer to `snowops/flightdeck`, registry repo +
+  Pages, CLA app, branch protection, trademark search, seed good-first-issues
+  (A0/B/C).
 
 **The plan of record is `docs/ROADMAP.md` (+ `docs/strategy/` for Part III).
 Live status is `.ai/state.json` — its `next` field points at the recommended
