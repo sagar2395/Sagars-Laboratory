@@ -134,3 +134,13 @@ func CurrentUser() string {
 	}
 	return "unknown"
 }
+
+// UserOr returns user when it is non-empty, otherwise the OS username from
+// CurrentUser(). Callers pass the authenticated API user (task 062) when known
+// and "" otherwise, so auth-off / CLI behaviour stays byte-identical.
+func UserOr(user string) string {
+	if user != "" {
+		return user
+	}
+	return CurrentUser()
+}

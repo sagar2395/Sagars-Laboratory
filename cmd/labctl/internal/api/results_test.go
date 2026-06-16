@@ -137,3 +137,32 @@ func indexOf(s, substr string) int {
 func init() {
 	_ = os.MkdirAll("/tmp/test-results", 0o755)
 }
+
+func TestHandleLeaderboard(t *testing.T) {
+	s, store := newResultsServer(t)
+
+	// Empty store -> 200 with an empty JSON array.
+	req := httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil)
+	w := httptest.NewRecorder()
+	s.handleLeaderboard(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d", w.Code)
+	}
+	if got := w.Body.String(); indexOf(got, "[") != 0 {
+		t.Errorf("empty leaderboard should be a JSON array, got %q", got)
+	}
+
+	// Two users: alice outranks bob by score.
+	_ = store.Append(results.Record{Kind: results.KindChallenge, User: "alice", Score: 90, Outcome: "passed"})
+	_ = store.Append(results.Record{Kind: results.KindChallenge, User: "bob", Score: 40, Outcome: "passed"})
+
+	w = httptest.NewRecorder()
+	s.handleLeaderboard(w, httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d", w.Code)
+	}
+	body := w.Body.String()
+	if indexOf(body, "alice") > indexOf(body, "bob") {
+		t.Errorf("alice (90) should rank before bob (40): %s", body)
+	}
+}

@@ -1,3 +1,16 @@
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+export type AuthRole = 'operator' | 'participant'
+
+/** GET /api/auth/me (and login) response. When authEnabled is false the UI
+ *  renders normally with no login screen (authenticated is always true). */
+export interface AuthStatus {
+  authEnabled: boolean
+  authenticated: boolean
+  user?: string
+  role?: AuthRole
+}
+
 // ── Cluster & Status ─────────────────────────────────────────────────────────
 
 export interface ClusterInfo {
@@ -265,4 +278,73 @@ export interface ResultRecord {
   outcome: string
   hintsUsed?: number
   meta?: Record<string, unknown>
+}
+
+// ── Leaderboard ─────────────────────────────────────────────────────────────
+
+export interface LeaderboardEntry {
+  user: string
+  totalScore: number
+  challengesCompleted: number
+  incidentsResolved: number
+  modulesCompleted: number
+  hintsUsed: number
+  avgMttrSeconds: number
+  runs: number
+}
+
+// ── Marketplace / Packs (tasks 073, 075) ────────────────────────────────────
+
+/** One pack entry from GET /api/packs or GET /api/packs/installed. */
+export interface PackEntry {
+  name: string
+  version?: string
+  publisher?: string
+  displayName?: string
+  description?: string
+  license?: string
+  tier: string           // community | premium | enterprise
+  verified?: boolean     // publisher identity vetted
+  ref?: string           // installable OCI or git ref
+  digest?: string
+  keywords?: string[]
+  categories?: string[]
+  downloads?: number     // hosted catalog only
+  rating?: number        // 0-5 (hosted catalog only)
+  ratingCount?: number
+  installed?: boolean    // true when already installed locally
+}
+
+// ── Edition info (task 076) ──────────────────────────────────────────────────
+
+export interface EditionInfo {
+  edition: string       // community | professional | enterprise
+  displayName: string
+  summary: string
+  features: Record<string, boolean>
+}
+
+// ── Credentials (task 078) ───────────────────────────────────────────────────
+
+export type CredentialGrade = 'pass' | 'merit' | 'distinction'
+
+export interface CredentialEvidence {
+  kind: string         // challenge | learn | scenario | incident
+  name: string
+  score: number
+  completed: string    // RFC3339
+}
+
+export interface Credential {
+  schema: string
+  id: string
+  subject: string
+  achievement: string
+  grade: CredentialGrade
+  score: number
+  issuedAt: string     // RFC3339
+  expiresAt?: string
+  issuer: string
+  evidence?: CredentialEvidence[]
+  signature?: string
 }

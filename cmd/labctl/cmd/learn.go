@@ -142,7 +142,7 @@ After completing the task, run this again to verify the check and advance.`,
 			runner.ScriptDir = cfg.ProjectRoot
 			res := runner.Run(cmd.Context(), c)
 			if res.Pass {
-				if err := eng.MarkCompleteModule(p, prog, idx); err != nil {
+				if err := eng.MarkCompleteModule(p, prog, idx, ""); err != nil {
 					return err
 				}
 				remaining := learn.NextModuleIdx(p, prog)

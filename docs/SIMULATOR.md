@@ -100,25 +100,38 @@ New platform categories, same provider contract (`install.sh` /
 | `platform/data` | kafka (strimzi), postgres (cnpg), rabbitmq | Event-driven arch, consumer lag incidents, DB failover |
 | `platform/secrets` | vault, external-secrets | Secret rotation, leaked-secret incident response |
 | `platform/autoscaling` | keda, vpa | Scale-on-queue-depth, load-spike survival challenges |
-| `platform/cost` | opencost | Right-sizing exercises, cost-per-namespace visibility |
+| `platform/cost` | opencost ✅ | Right-sizing exercises, cost-per-namespace visibility |
 
 Each new category ships with **at least one scenario that uses it** — a
 category without a simulation is dead weight.
 
 ## Multi-environment & day-2 operations
 
-- **Env promotion simulation**: dev → staging → prod as separate k3d clusters
-  (or namespaces), promoted via the existing GitOps stack. Practice real
-  release engineering without cloud spend.
-- **Day-2 drills**: cluster version upgrade, node drain/cordon under load,
-  etcd/state backup & restore, certificate rotation — each as a scenario
-  with checks proving zero (or measured) downtime.
+- **Env promotion simulation** ✅ `env-promotion` scenario + `labctl env`
+  commands: dev → staging → prod as three namespaces in one cluster (default,
+  laptop-friendly) or as separate k3d clusters (flag). `labctl env promote dev
+  staging` updates the declared image-tag ConfigMap — a lightweight stand-in
+  for a GitOps manifest commit. `labctl env list` shows the release train.
+  Full runbook: `docs/runbooks/11-multi-env-day2.md`.
+- **Day-2 drills** ✅ three checked scenarios — `node-drain-drill` (cordon/drain
+  under load, PDB-protected), `cluster-upgrade-drill` (rolling worker upgrade to a
+  newer k3s version), and `backup-restore-drill` (manifest-archive backup, loss
+  simulation, restore round-trip). Each grades **measured availability** (promql
+  success rate through the operation), not guessed downtime. Full runbook:
+  `docs/runbooks/11-multi-env-day2.md`. Certificate rotation is left as a future
+  drill.
 
-## Team mode (later)
+## Team mode
 
-- Optional auth + per-user RBAC on the API/UI; team sessions on a shared
-  remote deployment (labctl server as a Helm chart); shared leaderboards.
-- More runtimes: kind (CI-friendly), GKE (third cloud).
+- ✅ Optional auth + per-user RBAC on the API/UI (`operator` / `participant`),
+  off by default (`LABCTL_AUTH=true`). See `docs/runbooks/12-team-mode.md`.
+- ✅ Team sessions on a shared remote deployment: the `labctl-server` Helm chart
+  (`delivery/charts/labctl-server/`) runs the simulator in-cluster with a
+  PVC-persisted history and a shared **leaderboard** (`GET /api/leaderboard` +
+  UI Leaderboard tab) for game days.
+- ✅ More runtimes: `kind` (headless, CI-friendly — powers the nightly e2e job)
+  and `gke` (third cloud, Terraform module mirroring aks/eks; verify-once
+  caveat). Profiles live in `runtimes/<profile>/`; see `docs/cloud-runtimes.md`.
 
 ## What stays true (non-negotiable)
 

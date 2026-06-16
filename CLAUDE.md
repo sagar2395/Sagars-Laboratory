@@ -40,8 +40,26 @@ boundary.
   external-secrets), and autoscaling (keda) categories, with four new v2
   scenarios (autoscaling-under-load, mesh-traffic-management, event-driven-arch,
   secrets-management); `platform up/down/status` take a `category` or
-  `category/provider` target. Next: M5 (Multi-Env & Day-2 Ops), task 059.
-  **Before M5 feature work: task 079 (comprehensive test suite) is the current `next`.**
+  `category/provider` target. **M5 (Multi-Env & Day-2 Ops) is complete:** 079
+  (comprehensive test suite) done; 059 (env-promotion scenario + `labctl env`)
+  done; 060 (day-2 drills: `node-drain-drill`, `cluster-upgrade-drill`,
+  `backup-restore-drill`, each grading availability via promql) done; 061
+  (`platform/cost/opencost` provider + `cost-right-sizing` scenario with script
+  checks for Kubernetes quantity comparison, `CostProvider` config field).
+  **M6 (Team Mode & Runtimes) is underway:** 062 (optional auth + RBAC) done —
+  `internal/auth` (PBKDF2-HMAC-SHA256 hashes, in-memory sessions,
+  operator/participant policy), API auth middleware + `/api/auth/{login,logout,me}`,
+  `labctl users add/list/remove`, authenticated identity flows into result
+  records, UI login flow. Auth is OFF by default (enable with `LABCTL_AUTH=true`).
+  063 (team sessions) done — leaderboard aggregation + `GET /api/leaderboard` +
+  UI Leaderboard tab; `labctl-server` Helm chart (`delivery/charts/labctl-server`)
+  with SA/RBAC, PVC-persisted `.labctl`, optional users Secret;
+  `Dockerfile.labctl-server` (repo + helm/kubectl); `runtimes/incluster` profile.
+  064 (new runtimes) done — `runtimes/kind` (headless, CI-friendly; nightly
+  `e2e-kind` job runs `scenario verify`) and `runtimes/gke` + `foundation/
+  terraform/modules/gke` (verify-once caveat). **M6 COMPLETE.** Remaining work is
+  P2: cloud verification (038 AKS, 039 EKS, and the gke first-apply) needs real
+  accounts.
 
 - 🧭 **Part III (new direction):** evolve into a community-driven OSS
   platform-engineering simulator with future commercial offerings. Strategy:
@@ -55,10 +73,21 @@ boundary.
   CODEOWNERS-locked), 071 module path + brand (`go.flightdeck.dev/labctl`,
   rebranded **Flightdeck**), 072 contributor experience (`labctl scenario new` /
   `pack init` scaffolds, `sdk/*-template`, editor schema validation,
-  `docs/authoring/first-pack.md`). Next: **M5 (Multi-Env & Day-2 Ops), task 059**
-  (M8/M9 are deferred P2). Maintainer owes: host `go.flightdeck.dev`, org
-  transfer to `snowops/flightdeck`, registry repo + Pages, CLA app, branch
-  protection, trademark search, seed good-first-issues (A0/B/C).
+  `docs/authoring/first-pack.md`). **M8 is COMPLETE:** 073 (hosted catalog API
+  client — `pkg/pack.CatalogClient`, hosted-first / static-index-fallback,
+  `/api/packs` endpoints), 074 (`pkg/entitlement.TokenEntitlement` — premium tier
+  gating behind `TokenVerifier` seam; community always free), 075 (Marketplace UI
+  tab — browse/search/install/remove packs with tier/verified badge). **M9 is
+  COMPLETE:** 076 (`pkg/edition` CE/Pro/Enterprise — `labctl edition`,
+  `GET /api/edition`, CE feature-line guarantee), 077 (SaaS RFC —
+  `docs/strategy/RFC-0002-saas-control-plane.md`, §6 invariant validated), 078
+  (`pkg/credential` certification framework — HMAC-SHA256 Certificate,
+  `labctl credential issue/list/verify`, `/api/credentials` endpoints). Only
+  remaining automatable work is **cloud verification (038 AKS, 039 EKS, gke
+  first-apply)** — needs real accounts. Maintainer owes: host
+  `go.flightdeck.dev`, org transfer to `snowops/flightdeck`, registry repo +
+  Pages, CLA app, branch protection, trademark search, seed good-first-issues
+  (A0/B/C).
 
 **The plan of record is `docs/ROADMAP.md` (+ `docs/strategy/` for Part III).
 Live status is `.ai/state.json` — its `next` field points at the recommended

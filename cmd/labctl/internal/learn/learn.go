@@ -210,20 +210,22 @@ func (e *Engine) StartPath(name string) (*Progress, error) {
 
 // MarkComplete records module at idx as complete.
 func (e *Engine) MarkComplete(prog *Progress, idx int) error {
-	return e.markComplete(prog, idx, "")
+	return e.markComplete(prog, idx, "", "")
 }
 
 // MarkCompleteModule records module at idx as complete and writes a unified
-// result record naming the module as "<pathName>/<moduleName>".
-func (e *Engine) MarkCompleteModule(p *Path, prog *Progress, idx int) error {
+// result record naming the module as "<pathName>/<moduleName>". user attributes
+// the record to the authenticated API user (task 062); pass "" from the CLI to
+// fall back to the OS username.
+func (e *Engine) MarkCompleteModule(p *Path, prog *Progress, idx int, user string) error {
 	moduleName := ""
 	if idx >= 0 && idx < len(p.Modules) {
 		moduleName = p.Modules[idx].Name
 	}
-	return e.markComplete(prog, idx, p.Name+"/"+moduleName)
+	return e.markComplete(prog, idx, p.Name+"/"+moduleName, user)
 }
 
-func (e *Engine) markComplete(prog *Progress, idx int, recordName string) error {
+func (e *Engine) markComplete(prog *Progress, idx int, recordName, user string) error {
 	for _, c := range prog.CompletedIdxs {
 		if c == idx {
 			return nil
@@ -240,7 +242,7 @@ func (e *Engine) markComplete(prog *Progress, idx int, recordName string) error 
 		r := results.Record{
 			Kind:      results.KindModule,
 			Name:      recordName,
-			User:      results.CurrentUser(),
+			User:      results.UserOr(user),
 			StartedAt: now,
 			EndedAt:   now,
 			Score:     -1,

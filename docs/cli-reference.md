@@ -568,6 +568,51 @@ REST: `GET /api/challenges`, `GET /api/challenges/{name}`,
 
 ---
 
+### `labctl env` — Multi-environment release pipeline
+
+Manage the three simulated environments (`dev`, `staging`, `prod`) deployed by
+the `env-promotion` scenario. Each environment runs in its own namespace with a
+declared image tag tracked in a ConfigMap.
+
+Activate the environments first: `labctl scenario up env-promotion`
+
+#### `labctl env list`
+
+Print a table of environments, their declared image tags, and readiness.
+
+```bash
+labctl env list
+```
+
+Example output:
+
+```
+ENV        APP          TAG          STATUS     PROMOTED_AT
+dev        go-api       v1.2.0       running    never
+staging    go-api       v1.1.0       running    never
+prod       go-api       v1.0.0       running    never
+```
+
+#### `labctl env promote <from-env> <to-env>`
+
+Promote an app's declared image tag from one environment to the next.
+
+```bash
+labctl env promote dev staging      # advance staging to dev's tag
+labctl env promote staging prod     # release to prod
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--app` | string | `go-api` | App to promote |
+
+Promotion is idempotent: if the destination already has the source's tag,
+the command reports "nothing to promote" and exits cleanly.
+
+**Runbook:** `docs/runbooks/11-multi-env-day2.md`
+
+---
+
 ### Web UI
 
 #### `labctl ui`
@@ -589,6 +634,46 @@ The dashboard shows:
 - Applications with deploy/destroy actions
 - Scenarios with activate/deactivate controls
 - Real-time updates via WebSocket
+
+### `labctl users` — Team mode (auth & RBAC)
+
+Manage accounts for the API/UI when authentication is enabled. Authentication is
+**off by default** — the server only enforces it when started with
+`LABCTL_AUTH=true`. These commands edit `.labctl/users.yaml` (PBKDF2-HMAC-SHA256
+password hashes, mode 0600) regardless of whether auth is currently on.
+
+Two roles exist: `operator` (full control) and `participant` (run
+challenges/incidents/learn + read status; cannot mutate
+platform/runtime/lab/apps/services).
+
+```bash
+labctl users add alice --role operator --password 's3cret'
+labctl users add bob   --role participant            # prompts for password
+LABCTL_PASSWORD='pw' labctl users add carol --role participant   # scripted
+labctl users list                                    # NAME / ROLE (never hashes)
+labctl users remove bob
+```
+
+| Command | Flags | Description |
+|---------|-------|-------------|
+| `users add <name>` | `--role` (operator\|participant, default participant), `--password` | Add or update a user. Password precedence: `--password` → `LABCTL_PASSWORD` → stdin prompt. |
+| `users list` | — | List users and roles. |
+| `users remove <name>` | — | Delete a user. |
+
+Enable auth and start the server:
+
+```bash
+LABCTL_AUTH=true labctl ui --port 3939
+```
+
+When enabled, the UI shows a login screen; the API requires a session cookie or
+`Authorization: Bearer <token>` (from `POST /api/auth/login`). Participants get
+**403** on operator-only mutations. Scored runs are attributed to the
+authenticated user in the results store. Full walkthrough:
+`docs/runbooks/12-team-mode.md`.
+
+> OIDC/SSO is out of scope for v1. Serve behind TLS for non-localhost use — the
+> session cookie is `HttpOnly` + `SameSite=Strict` but not `Secure`.
 
 ## Comparison: CLI vs Make
 

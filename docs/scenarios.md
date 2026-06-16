@@ -256,6 +256,111 @@ consumer running.
 
 ---
 
+### Day-2 Drill: Node Drain Under Load (`node-drain-drill`)
+
+**Category:** operations
+
+**What it deploys:**
+- A `PodDisruptionBudget` (`maxUnavailable: 1`) for go-api so a node drain cannot
+  take all replicas down at once
+
+**Prerequisites:**
+- Platform: ingress, monitoring/metrics
+- Apps: go-api
+- A multi-node cluster (k3d defaults to 2 agents; `AGENTS=2 labctl runtime up`)
+
+**Checks (5):** PDB present, PDB protects ≥2 pods, go-api ≥2 ready, **success rate
+≥ 99.5%** through the drain (promql), no node left cordoned (script).
+
+**Run the drill:**
+- Start traffic: `labctl traffic start --profile steady --rps 20`
+- Drain a node: `bash scenarios/node-drain-drill/scripts/drain.sh`
+- Grade it: `labctl scenario verify node-drain-drill`
+
+---
+
+### Day-2 Drill: Rolling Cluster Upgrade Under Load (`cluster-upgrade-drill`)
+
+**Category:** operations
+
+**What it deploys:**
+- A `PodDisruptionBudget` (`maxUnavailable: 1`) for go-api so the node roll keeps
+  the app available
+
+**Prerequisites:**
+- Platform: ingress, monitoring/metrics
+- Apps: go-api
+- Runtime: k3d (multi-node)
+
+**Checks (4):** PDB present, go-api ≥2 ready, all nodes Ready & schedulable
+(script), **success rate ≥ 99%** across the upgrade window (promql).
+
+**Run the drill:**
+- Start traffic: `labctl traffic start --profile steady --rps 20`
+- Roll workers to a newer version:
+  `TARGET_K3S_VERSION=v1.29.4-k3s1 bash scenarios/cluster-upgrade-drill/scripts/upgrade.sh`
+- Grade it: `labctl scenario verify cluster-upgrade-drill`
+
+> **Honest scope:** k3d has no in-place node upgrade. `upgrade.sh` drains and
+> replaces each agent node on the target k3s image — a faithful rolling **worker**
+> upgrade. The control-plane node is left as-is; managed clusters upgrade it first.
+
+---
+
+### Day-2 Drill: Namespace Backup & Restore (`backup-restore-drill`)
+
+**Category:** operations
+
+**What it deploys:**
+- A `restore-marker` ConfigMap in the go-api namespace whose presence and value
+  prove the backup/restore round-trip
+
+**Prerequisites:**
+- Apps: go-api
+- `jq` installed (used to scrub server-managed fields from the manifest archive)
+
+**Checks (5):** namespace exists, go-api running, restore marker present, marker
+value intact, **backup archive exists** (script).
+
+**Run the drill:**
+- Back up: `bash scenarios/backup-restore-drill/scripts/backup.sh go-api`
+- Simulate loss: `kubectl -n go-api delete configmap restore-marker`
+- Restore: `bash scenarios/backup-restore-drill/scripts/restore.sh go-api`
+- Grade it: `labctl scenario verify backup-restore-drill`
+
+> **Manifest-level backup:** archives round-trip Kubernetes objects, not
+> PersistentVolume data. For stateful data use a volume snapshot or Velero.
+
+---
+
+### Cost & Capacity: Right-Sizing (`cost-right-sizing`)
+
+**Category:** cost
+
+**What it deploys:**
+- go-api re-deployed with 10× over-provisioned CPU (4000m) and 32× memory (1Gi)
+  via a Helm values override — the deliberate "before" state you observe in OpenCost
+
+**Prerequisites:**
+- Platform: cost/opencost, monitoring/metrics, ingress
+- Apps: go-api
+
+**Checks (5):** go-api running, **CPU request ≤ 100m** (script), **memory request
+≤ 256Mi** (script), /health endpoint returns 200, OpenCost running.
+
+**The exercise:**
+
+1. `labctl scenario up cost-right-sizing` — inflates requests; checks **fail**
+2. `kubectl -n opencost port-forward svc/opencost 9090 &` — open the UI
+3. Observe inflated cost in OpenCost (go-api namespace)
+4. Right-size: `kubectl -n go-api set resources deployment go-api --requests=cpu=50m,memory=32Mi`
+5. `labctl scenario verify cost-right-sizing` — all checks **pass**
+
+> **k3d note:** no real billing API — OpenCost uses on-prem pricing defaults
+> (~$0.048/CPU-hr). Cost numbers are relative; the before/after contrast is real.
+
+---
+
 ## Scenario YAML Format
 
 ```yaml

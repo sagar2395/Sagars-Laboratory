@@ -198,7 +198,7 @@ func TestComplete_RecordsHistory(t *testing.T) {
 	_, _ = e.Start("test-challenge", false)
 	_ = e.RecordHint()
 
-	rec, err := e.Complete(2, 2, "passed")
+	rec, err := e.Complete(2, 2, "passed", "")
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}

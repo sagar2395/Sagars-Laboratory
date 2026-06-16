@@ -4,13 +4,21 @@ This guide covers deploying the lab to cloud Kubernetes clusters on Azure (AKS) 
 
 ## Overview
 
-The lab supports three runtime profiles:
+The lab supports these runtime profiles:
 
 | Profile | Cluster | Prerequisites | Cost |
 |---------|---------|--------------|------|
 | `k3d` | Local k3d cluster | Docker only | Free |
+| `kind` | Local kind cluster (headless, CI-friendly) | Docker + kind | Free |
 | `aks` | Azure Kubernetes Service | Azure subscription + CLI | Pay-per-use |
 | `eks` | AWS Elastic Kubernetes Service | AWS account + CLI | Pay-per-use |
+| `gke` | Google Kubernetes Engine | GCP project + gcloud | Pay-per-use |
+| `incluster` | The hosting cluster itself (team-mode server) | — | — |
+
+`kind` mirrors k3d's host-port exposure (control-plane `extraPortMappings` for
+80/443 + `ingress-ready` label), so platform scripts don't care which local
+runtime is underneath. It is the runtime used by the nightly e2e CI job
+(`.github/workflows/e2e-kind.yaml`).
 
 Each runtime defines its own environment in `runtimes/<profile>/runtime.env`:
 
@@ -23,6 +31,30 @@ REGISTRY_TYPE=acr
 ```
 
 ## Prerequisites
+
+### Local (kind)
+
+```bash
+# Install docker + kind + kubectl (kind: https://kind.sigs.k8s.io)
+export PROFILE=kind
+labctl runtime up            # creates a control-plane + 1 worker kind cluster
+# Optional knobs (env): AGENTS=2 (workers), KIND_NODE_IMAGE=kindest/node:v1.29.4,
+#                       HTTP_PORT / HTTPS_PORT (host ports for ingress)
+labctl runtime down
+```
+
+### Google (GKE)
+
+```bash
+# Install tools, then authenticate
+make setup-tools PROFILE=gke   # or install gcloud + terraform + kubectl
+gcloud auth login
+gcloud auth application-default login
+
+# Set the project in runtimes/gke/runtime.env (or the env):
+#   GCP_PROJECT=my-project-id
+#   GCP_REGION=us-central1
+```
 
 ### Azure (AKS)
 
@@ -77,6 +109,14 @@ AWS_ECR_ACCOUNT_ID=123456789012
 AWS_ECR_REPO_PREFIX=sagars-lab
 ```
 
+For GCP, add to `.env` (or `runtimes/gke/runtime.env`):
+
+```bash
+GCP_PROJECT=my-project-id
+GCP_REGION=us-central1
+GAR_REPO=sagars-lab
+```
+
 ## Terraform Modules
 
 Infrastructure is defined in `foundation/terraform/`:
@@ -89,6 +129,10 @@ foundation/terraform/
       variables.tf
       outputs.tf
     eks/           # VPC + EKS cluster + node group + ECR
+      main.tf
+      variables.tf
+      outputs.tf
+    gke/           # Regional GKE cluster + node pool + Artifact Registry
       main.tf
       variables.tf
       outputs.tf
@@ -113,6 +157,20 @@ foundation/terraform/
 - IAM roles for cluster and node group
 - EKS cluster + managed node group
 - ECR repositories with lifecycle policies (keep last 10 images)
+
+### GKE Module Resources
+
+- Regional GKE cluster on the REGULAR release channel (default node pool removed)
+- A separately-managed node pool with autoscaling (auto-repair + auto-upgrade)
+- Artifact Registry (Docker) repository for app images (optional)
+
+The root `environments/dev/main.tf` switches on `var.runtime` (`aks` | `eks` |
+`gke`); only the matching module evaluates (the others have `count = 0`), so the
+unused cloud provider is never authenticated.
+
+> **Verify-once caveat (like AKS/EKS tasks 038/039):** the GKE module has not yet
+> been applied against a real GCP project. Provision once, record the cost, then
+> tear down — `gke` is unverified until then.
 
 ### Environment Sizes
 
@@ -160,13 +218,21 @@ The runtime scripts wrap Terraform:
 # EKS
 ./runtimes/eks/up.sh     # aws sts check -> terraform apply -> update-kubeconfig
 ./runtimes/eks/down.sh   # terraform destroy -> kubeconfig cleanup
+
+# GKE
+./runtimes/gke/up.sh     # gcloud auth check -> terraform apply -> get-credentials
+./runtimes/gke/down.sh   # terraform destroy
+
+# kind (local, no Terraform)
+./runtimes/kind/up.sh    # docker check -> kind create cluster (ports + ingress-ready)
+./runtimes/kind/down.sh  # kind delete cluster
 ```
 
 ### Using labctl
 
 ```bash
-export PROFILE=aks
-labctl runtime up      # calls runtimes/aks/up.sh
+export PROFILE=aks       # or kind | eks | gke
+labctl runtime up        # calls runtimes/<profile>/up.sh
 labctl runtime status
 labctl runtime down
 ```

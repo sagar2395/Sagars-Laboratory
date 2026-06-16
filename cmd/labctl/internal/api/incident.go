@@ -97,7 +97,7 @@ func (s *Server) handleIncidentStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
 
-	res, err := s.incidents.Status(ctx, s.incidentRunner())
+	res, err := s.incidents.Status(ctx, s.incidentRunner(), actingUser(r))
 	if errors.Is(err, incident.ErrNoActive) {
 		respondJSON(w, http.StatusOK, map[string]interface{}{"active": nil})
 		return
@@ -155,7 +155,7 @@ func (s *Server) handleIncidentResolve(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid_input", fmt.Sprintf("invalid fault name %q: must match ^[a-zA-Z0-9_-]{1,64}$", name))
 		return
 	}
-	f, err := s.incidents.Resolve(name, s.exec)
+	f, err := s.incidents.Resolve(name, s.exec, actingUser(r))
 	if err != nil {
 		if errors.Is(err, incident.ErrNoActive) {
 			respondError(w, http.StatusConflict, "no_active_incident", err.Error())

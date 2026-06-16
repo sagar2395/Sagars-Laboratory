@@ -370,9 +370,9 @@ day-2 operations, locally and for free.
 
 | Id | Title | Priority |
 |----|-------|----------|
-| 059 | Multi-cluster env promotion: dev → staging → prod via GitOps, as a scenario | P2 |
-| 060 | Day-2 drills: cluster upgrade, node drain under load, backup/restore — as checked scenarios | P2 |
-| 061 | Cost & capacity: opencost provider + right-sizing exercise scenario | P2 |
+| 059 | Multi-cluster env promotion: dev → staging → prod via GitOps, as a scenario | P2 | ✅ done |
+| 060 | Day-2 drills: cluster upgrade, node drain under load, backup/restore — as checked scenarios | P2 | ✅ done |
+| 061 | Cost & capacity: opencost provider + right-sizing exercise scenario | P2 | ✅ done |
 
 **Exit criterion:** an image promoted dev → prod purely via Git; the upgrade
 drill records measured downtime via checks; opencost shows per-namespace cost.
@@ -389,9 +389,9 @@ drill records measured downtime via checks; opencost shows per-namespace cost.
 
 | Id | Title | Priority |
 |----|-------|----------|
-| 062 | Optional auth + per-user RBAC on REST API / UI | P2 |
-| 063 | Team sessions: labctl server Helm chart for shared remote deploy + shared leaderboard | P2 |
-| 064 | New runtimes: kind (CI-friendly) and GKE | P2 |
+| 062 | Optional auth + per-user RBAC on REST API / UI | P2 | ✅ done |
+| 063 | Team sessions: labctl server Helm chart for shared remote deploy + shared leaderboard | P2 | ✅ done |
+| 064 | New runtimes: kind (CI-friendly) and GKE | P2 | ✅ done |
 
 **Exit criterion:** two users with separate identities use one deployed
 simulator; their challenge scores appear on a shared leaderboard; `labctl

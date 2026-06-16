@@ -9,6 +9,13 @@ set -euo pipefail
 CLUSTER_NAME="${1:-${CLUSTER_NAME:-sagars-cluster}}"
 HTTP_PORT="${HTTP_PORT:-80}"
 HTTPS_PORT="${HTTPS_PORT:-443}"
+# Number of agent (worker) nodes. Multi-node by default so day-2 drills
+# (node drain, rolling upgrade — task 060) have somewhere to reschedule pods.
+AGENTS="${AGENTS:-2}"
+# Optional k3s version pin (e.g. K3S_VERSION=v1.28.8-k3s1). Empty = k3d default.
+# The cluster-upgrade-drill creates a cluster pinned to an older version, then
+# rolls the agents to a newer one.
+K3S_VERSION="${K3S_VERSION:-}"
 
 # ---------------------------------------------------------------------------
 # Docker daemon readiness — auto-start Colima on macOS if needed
@@ -56,9 +63,18 @@ fi
 
 # Disable the bundled Traefik so we manage our own install in the traefik namespace.
 # This prevents two competing Traefik instances from causing 404 errors.
-k3d cluster create "$CLUSTER_NAME" --agents 2 \
-  -p "${HTTP_PORT}:80@loadbalancer" \
-  -p "${HTTPS_PORT}:443@loadbalancer" \
+create_args=(
+  "$CLUSTER_NAME"
+  --agents "$AGENTS"
+  -p "${HTTP_PORT}:80@loadbalancer"
+  -p "${HTTPS_PORT}:443@loadbalancer"
   --k3s-arg "--disable=traefik@server:*"
+)
+if [ -n "$K3S_VERSION" ]; then
+  echo "Pinning k3s version to ${K3S_VERSION}"
+  create_args+=(--image "rancher/k3s:${K3S_VERSION}")
+fi
+
+k3d cluster create "${create_args[@]}"
 
 kubectl config use-context "k3d-$CLUSTER_NAME"

@@ -4,6 +4,7 @@ package api
 import (
 	"encoding/json"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
+	"go.flightdeck.dev/labctl/internal/auth"
 	"go.flightdeck.dev/labctl/internal/config"
 	"go.flightdeck.dev/labctl/internal/executor"
 	"go.flightdeck.dev/labctl/internal/incident"
@@ -34,6 +36,13 @@ type Server struct {
 	router    *mux.Router
 	upgrader  websocket.Upgrader
 	uiFS      fs.FS
+
+	// Auth (task 062). authEnabled mirrors LABCTL_AUTH at construction time;
+	// when false, the middleware is a pass-through and behaviour is unchanged.
+	authEnabled bool
+	users       *auth.Store
+	sessions    *auth.SessionStore
+	userLoadErr error
 }
 
 // NewServer creates a new API server. The embeddedUI parameter should be the
@@ -52,6 +61,27 @@ func NewServer(cfg *config.Config, exec *executor.Executor, registry *platform.R
 			CheckOrigin: originAllowed,
 		},
 		uiFS: embeddedUI,
+	}
+	if auth.Enabled() {
+		s.authEnabled = true
+		s.sessions = auth.NewSessionStore(0)
+		// Load users best-effort; an unreadable file leaves an empty store and
+		// the server logs a warning at start rather than refusing to boot.
+		if store, err := auth.LoadStore(auth.DefaultUsersPath(cfg.ProjectRoot)); err == nil {
+			s.users = store
+		} else {
+			s.users = auth.NewStore()
+			s.userLoadErr = err
+		}
+		switch {
+		case s.userLoadErr != nil:
+			slog.Warn("auth enabled but users file failed to load; nobody can log in",
+				"error", s.userLoadErr, "path", auth.DefaultUsersPath(cfg.ProjectRoot))
+		case s.users.Count() == 0:
+			slog.Warn("auth enabled but no users defined; add one with 'labctl users add <name> --role operator'")
+		default:
+			slog.Info("auth enabled", "users", s.users.Count())
+		}
 	}
 	s.setupRoutes()
 	return s
@@ -76,6 +106,15 @@ func (s *Server) setupRoutes() {
 	api := s.router.PathPrefix("/api").Subrouter()
 	api.Use(corsMiddleware)
 	api.Use(jsonMiddleware)
+	// Auth middleware is a pass-through when LABCTL_AUTH is off, so the local
+	// experience is unchanged. When on, it gates every /api route except the
+	// auth endpoints below and enforces operator-only mutations.
+	api.Use(s.authMiddleware)
+
+	// Auth endpoints (always registered; meaningful only when auth is enabled).
+	api.HandleFunc("/auth/me", s.handleAuthMe).Methods("GET", "OPTIONS")
+	api.HandleFunc("/auth/login", s.handleAuthLogin).Methods("POST", "OPTIONS")
+	api.HandleFunc("/auth/logout", s.handleAuthLogout).Methods("POST", "OPTIONS")
 
 	api.HandleFunc("/status", s.handleStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/jobs", s.handleJobs).Methods("GET", "OPTIONS")
@@ -107,6 +146,7 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/lab/snapshots/{name}/restore", s.handleLabRestore).Methods("POST", "OPTIONS")
 	api.HandleFunc("/lab/reset", s.handleLabReset).Methods("POST", "OPTIONS")
 	api.HandleFunc("/results", s.handleResults).Methods("GET", "OPTIONS")
+	api.HandleFunc("/leaderboard", s.handleLeaderboard).Methods("GET", "OPTIONS")
 	api.HandleFunc("/results/{kind}", s.handleResultsByKind).Methods("GET", "OPTIONS")
 	api.HandleFunc("/progress", s.handleProgress).Methods("GET", "OPTIONS")
 	api.HandleFunc("/challenges", s.handleListChallenges).Methods("GET", "OPTIONS")
@@ -125,6 +165,23 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/runtimes", s.handleListRuntimes).Methods("GET", "OPTIONS")
 	api.HandleFunc("/runtimes/{name}/activate", s.handleRuntimeActivate).Methods("POST", "OPTIONS")
 	api.HandleFunc("/runtimes/{name}/deactivate", s.handleRuntimeDeactivate).Methods("POST", "OPTIONS")
+
+	// Pack marketplace (tasks 073, 075)
+	api.HandleFunc("/packs", s.handlePackSearch).Methods("GET", "OPTIONS")
+	api.HandleFunc("/packs/installed", s.handlePackListInstalled).Methods("GET", "OPTIONS")
+	api.HandleFunc("/packs/{name}/install", s.handlePackInstall).Methods("POST", "OPTIONS")
+	api.HandleFunc("/packs/{name}", s.handlePackInfo).Methods("GET", "OPTIONS")
+	api.HandleFunc("/packs/{name}", s.handlePackRemove).Methods("DELETE", "OPTIONS")
+
+	// Credentials (task 078)
+	api.HandleFunc("/credentials", s.handleCredentialList).Methods("GET", "OPTIONS")
+	api.HandleFunc("/credentials/issue", s.handleCredentialIssue).Methods("POST", "OPTIONS")
+	api.HandleFunc("/credentials/{id}", s.handleCredentialGet).Methods("GET", "OPTIONS")
+	api.HandleFunc("/credentials/{id}/verify", s.handleCredentialVerify).Methods("POST", "OPTIONS")
+
+	// Edition info (task 076)
+	api.HandleFunc("/edition", s.handleEditionInfo).Methods("GET", "OPTIONS")
+
 	api.HandleFunc("/ws", s.handleWebSocket)
 
 	// Serve UI — use embedded FS if available, fall back to filesystem for dev
@@ -169,7 +226,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		if origin != "" && originAllowed(r) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		}
 		if r.Method == "OPTIONS" {
@@ -180,7 +237,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		// an Origin header to cross-origin POSTs, so a malicious website
 		// can't trigger cluster actions on localhost; CLI clients send no
 		// Origin and are unaffected.
-		if r.Method == "POST" && origin != "" && !originAllowed(r) {
+		if (r.Method == "POST" || r.Method == "DELETE") && origin != "" && !originAllowed(r) {
 			respondError(w, http.StatusForbidden, "forbidden_origin", "cross-origin requests are not allowed")
 			return
 		}

@@ -1,6 +1,7 @@
 {
   "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "079-comprehensive-test-suite",
+  "next": "038-verify-aks-end-to-end",
+  "_note": "M8 and M9 complete. Only remaining automatable work is cloud verification (038/039/gke) which requires real cloud accounts.",
   "milestones": {
     "M1-scenario-engine-v2": {
       "priority": "P0",
@@ -58,7 +59,7 @@
     },
     "M5-multi-env-day2": {
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "tasks": [
         "059",
         "060",
@@ -66,11 +67,12 @@
       ],
       "blocked_by": [
         "M1-scenario-engine-v2"
-      ]
+      ],
+      "note": "All tasks done: 059 (env-promotion scenario + labctl env), 060 (day-2 drills: node-drain-drill, cluster-upgrade-drill, backup-restore-drill \u2014 availability graded via promql), 061 (platform/cost/opencost provider, cost-right-sizing scenario with script checks for resource quantity comparison, CostProvider in config)."
     },
     "M6-team-mode-runtimes": {
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "tasks": [
         "062",
         "063",
@@ -78,7 +80,8 @@
       ],
       "blocked_by": [
         "M3-learning-assessment"
-      ]
+      ],
+      "note": "COMPLETE. 062 (auth+RBAC), 063 (team sessions: leaderboard + labctl-server Helm chart + incluster runtime), 064 (kind + GKE runtimes): runtimes/kind (headless, CI-friendly, mirrors k3d port exposure + ingress-ready), runtimes/gke (terraform-backed) + foundation/terraform/modules/gke wired into environments/dev (runtime=gke), nightly e2e-kind GitHub Actions job running scenario verify (env-promotion). GKE unverified against a real project (verify-once caveat like 038/039)."
     },
     "part1-cloud-verification": {
       "priority": "P2",
@@ -106,7 +109,7 @@
     },
     "M8-marketplace": {
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "tasks": [
         "073",
         "074",
@@ -115,11 +118,11 @@
       "blocked_by": [
         "M7-oss-ecosystem-foundation"
       ],
-      "note": "Deferred \u2014 build on real pack supply/demand. Premium content + hosted catalog live outside the OSS tree."
+      "note": "COMPLETE: 073 (hosted catalog API client seam \u2014 CatalogClient with TTL cache, hosted-first/static-index-fallback search; GET /api/packs, /api/packs/installed, /api/packs/{name}, /api/packs/{name}/install, DELETE /api/packs/{name}); 074 (TokenEntitlement in pkg/entitlement \u2014 premium tier gating behind TokenVerifier seam; community packs always free); 075 (Marketplace UI tab \u2014 browse/search/install/remove packs, pack detail view with tier/verified badge, installed state, ratings). Premium content and hosted catalog server live outside the OSS tree (private repo). Static registry index remains offline-capable fallback."
     },
     "M9-commercial-hosted": {
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "tasks": [
         "076",
         "077",
@@ -128,28 +131,28 @@
       "blocked_by": [
         "M7-oss-ecosystem-foundation"
       ],
-      "note": "Deferred \u2014 editions, SaaS, certification. Same engine + entitled content/services; never an engine fork."
+      "note": "COMPLETE: 076 (pkg/edition CE/Pro/Enterprise \u2014 Current() reads LABCTL_EDITION, FeatureLine() documents CE-vs-paid boundary, labctl edition command, GET /api/edition); 077 (SaaS RFC \u2014 docs/strategy/RFC-0002-saas-control-plane.md: tenancy model, lab lifecycle, auth seam, billing, engine invariant validated; no OSS engine changes required); 078 (pkg/credential certification framework \u2014 Certificate with HMAC-SHA256 Sign/Verify, GradeForScore, Evidence, Store with Save/All/Get; labctl credential issue/list/verify; GET /api/credentials, POST /api/credentials/issue, GET /api/credentials/{id}, POST /api/credentials/{id}/verify). Exam delivery and certification content live in premium packs (private repo)."
     }
   },
   "todo": [
-    "079-comprehensive-test-suite",
-    "059-env-promotion-simulation",
-    "060-day2-ops-drills",
-    "061-cost-capacity-scenario",
-    "062-auth-rbac",
-    "063-team-sessions-shared-deploy",
-    "064-kind-gke-runtimes",
     "038-verify-aks-end-to-end",
-    "039-verify-eks-end-to-end",
-    "073-hosted-catalog-api",
-    "074-premium-pack-repo-entitlement",
-    "075-marketplace-ui",
-    "076-edition-packaging",
-    "077-saas-control-plane-spike",
-    "078-certification-training-framework"
+    "039-verify-eks-end-to-end"
   ],
   "in_progress": [],
   "done": [
+    "078-certification-training-framework",
+    "077-saas-control-plane-spike",
+    "076-edition-packaging",
+    "075-marketplace-ui",
+    "074-premium-pack-repo-entitlement",
+    "073-hosted-catalog-api",
+    "064-kind-gke-runtimes",
+    "063-team-sessions-shared-deploy",
+    "062-auth-rbac",
+    "061-cost-capacity-scenario",
+    "060-day2-ops-drills",
+    "059-env-promotion-simulation",
+    "079-comprehensive-test-suite",
     "072-contributor-experience",
     "071-module-path-brand-alignment",
     "070-entitlement-extension-interface",

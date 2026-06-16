@@ -107,7 +107,7 @@ func (s *Server) handleChallengeMarkComplete(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	rec, err := eng.Complete(req.Passed, req.Total, "passed")
+	rec, err := eng.Complete(req.Passed, req.Total, "passed", actingUser(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

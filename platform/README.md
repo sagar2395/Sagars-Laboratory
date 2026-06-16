@@ -212,6 +212,32 @@ AUTOSCALING_PROVIDER=keda labctl platform down autoscaling
 
 Version pinned in `versions.env` (`KEDA_CHART_VERSION`), overridable per-install.
 
+### Cost Visibility (`cost/`)
+
+Per-namespace and per-workload cost estimation using Prometheus resource metrics
+and configurable pricing models. Selected by `COST_PROVIDER`. Requires the
+`monitoring/metrics` Prometheus to be installed first.
+
+| Provider | Chart | Description |
+|----------|-------|-------------|
+| **opencost** | `opencost/opencost` | Real-time cost monitoring; UI on port 9090; on-prem pricing defaults for k3d |
+
+```bash
+labctl platform up monitoring/metrics   # OpenCost reads from Prometheus
+COST_PROVIDER=opencost labctl platform up cost
+kubectl -n opencost port-forward svc/opencost 9090 &   # open the UI
+labctl scenario up cost-right-sizing    # inflate go-api requests to demonstrate cost
+labctl scenario verify cost-right-sizing   # fails while over-provisioned
+kubectl -n go-api set resources deployment go-api --requests=cpu=50m,memory=32Mi
+labctl scenario verify cost-right-sizing   # passes after right-sizing
+COST_PROVIDER=opencost labctl platform down cost
+```
+
+> **k3d note:** no real billing API is wired — OpenCost uses on-prem pricing
+> defaults (~$0.048/CPU-hr). Cost numbers are relative, not real invoices.
+
+Version pinned in `versions.env` (`OPENCOST_CHART_VERSION`), overridable per-install.
+
 ## Provider Interface Contracts
 
 Each category has an `_interface.yaml` documenting:

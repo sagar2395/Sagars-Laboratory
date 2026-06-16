@@ -14,6 +14,11 @@ import type {
   ChallengeStatus,
   ChallengeRunRecord,
   ResultRecord,
+  LeaderboardEntry,
+  AuthStatus,
+  PackEntry,
+  EditionInfo,
+  Credential,
 } from '../types'
 
 const BASE = '/api'
@@ -63,6 +68,11 @@ function post(path: string) {
 }
 
 export const api = {
+  // ── Auth ────────────────────────────────────────────────────────────────
+  getAuthStatus: ()                               => req<AuthStatus>('/auth/me'),
+  login:         (username: string, password: string) => req<AuthStatus>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }), headers: { 'Content-Type': 'application/json' } }, POST_TIMEOUT_MS),
+  logout:        ()                               => req<{ ok: boolean }>('/auth/logout', { method: 'POST' }, POST_TIMEOUT_MS),
+
   // ── Status ──────────────────────────────────────────────────────────────
   getStatus:    ()           => req<StatusResponse>('/status'),
   getDashboards: ()          => req<DashboardURL[]>('/dashboards'),
@@ -106,6 +116,27 @@ export const api = {
   // ── Results ───────────────────────────────────────────────────────────────
   getResults:      ()             => req<ResultRecord[]>('/results'),
   getResultsByKind:(kind: string) => req<ResultRecord[]>(`/results/${enc(kind)}`),
+
+  // ── Leaderboard ─────────────────────────────────────────────────────────────
+  getLeaderboard:  ()             => req<LeaderboardEntry[]>('/leaderboard'),
+
+  // ── Marketplace / Packs (tasks 073, 075) ───────────────────────────────────
+  searchPacks:       (q?: string) => req<PackEntry[]>(`/packs${q ? '?q=' + enc(q) : ''}`),
+  listInstalledPacks: ()          => req<PackEntry[]>('/packs/installed'),
+  getPackInfo:       (name: string) => req<PackEntry>(`/packs/${enc(name)}`),
+  installPack:       (name: string) => req<ActionAccepted>(`/packs/${enc(name)}/install`, { method: 'POST' }, POST_TIMEOUT_MS),
+  removePack:        (name: string) => req<ActionAccepted>(`/packs/${enc(name)}`, { method: 'DELETE' }, POST_TIMEOUT_MS),
+
+  // ── Edition (task 076) ──────────────────────────────────────────────────────
+  getEditionInfo:    () => req<EditionInfo>('/edition'),
+
+  // ── Credentials (task 078) ──────────────────────────────────────────────────
+  listCredentials:   () => req<Credential[]>('/credentials'),
+  getCredential:     (id: string) => req<Credential>(`/credentials/${enc(id)}`),
+  issueCredential:   (body: { subject?: string; achievement: string; score: number; issuer?: string }) =>
+    req<Credential>('/credentials/issue', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }, POST_TIMEOUT_MS),
+  verifyCredential:  (id: string) =>
+    req<{ valid: boolean; reason?: string; cert: Credential }>(`/credentials/${enc(id)}/verify`, { method: 'POST' }, POST_TIMEOUT_MS),
 }
 
 function enc(s: string) { return encodeURIComponent(s) }
