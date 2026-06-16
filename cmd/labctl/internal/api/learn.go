@@ -153,7 +153,14 @@ func (s *Server) handleLearnMarkComplete(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "path not started", http.StatusBadRequest)
 		return
 	}
-	if err := eng.MarkComplete(prog, req.ModuleIdx); err != nil {
+	// Load the path so the completion is recorded as "<path>/<module>" and
+	// attributed to the authenticated user (task 062).
+	p, err := eng.LoadPath(name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := eng.MarkCompleteModule(p, prog, req.ModuleIdx, actingUser(r)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

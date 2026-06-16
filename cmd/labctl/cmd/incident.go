@@ -110,7 +110,7 @@ var incidentStatusCmd = &cobra.Command{
 	Short:        "Run the active incident's detection check",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		res, err := incEng.Status(context.Background(), newCheckRunner())
+		res, err := incEng.Status(context.Background(), newCheckRunner(), "")
 		if errors.Is(err, incident.ErrNoActive) {
 			fmt.Println("No incident is active. Inject one with: labctl incident inject --random")
 			return nil
@@ -165,7 +165,7 @@ var incidentResolveCmd = &cobra.Command{
 		if len(args) == 1 {
 			name = args[0]
 		}
-		f, err := incEng.Resolve(name, exec)
+		f, err := incEng.Resolve(name, exec, "")
 		if err != nil {
 			return err
 		}

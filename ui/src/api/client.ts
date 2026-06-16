@@ -14,6 +14,7 @@ import type {
   ChallengeStatus,
   ChallengeRunRecord,
   ResultRecord,
+  AuthStatus,
 } from '../types'
 
 const BASE = '/api'
@@ -63,6 +64,11 @@ function post(path: string) {
 }
 
 export const api = {
+  // ── Auth ────────────────────────────────────────────────────────────────
+  getAuthStatus: ()                               => req<AuthStatus>('/auth/me'),
+  login:         (username: string, password: string) => req<AuthStatus>('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }), headers: { 'Content-Type': 'application/json' } }, POST_TIMEOUT_MS),
+  logout:        ()                               => req<{ ok: boolean }>('/auth/logout', { method: 'POST' }, POST_TIMEOUT_MS),
+
   // ── Status ──────────────────────────────────────────────────────────────
   getStatus:    ()           => req<StatusResponse>('/status'),
   getDashboards: ()          => req<DashboardURL[]>('/dashboards'),

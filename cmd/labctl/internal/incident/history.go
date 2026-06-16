@@ -46,8 +46,10 @@ func (e *Engine) History() ([]Record, error) {
 	return out, nil
 }
 
-// finishRun builds and appends the run record when an incident ends.
-func (e *Engine) finishRun(active *Active, f *Fault, resolvedBy string) {
+// finishRun builds and appends the run record when an incident ends. user
+// attributes the record to the authenticated API user (task 062); "" falls back
+// to the OS username.
+func (e *Engine) finishRun(active *Active, f *Fault, resolvedBy, user string) {
 	now := time.Now().UTC()
 	resolveSeconds := int64(now.Sub(active.InjectedAt).Seconds())
 	var detectSeconds int64
@@ -63,7 +65,7 @@ func (e *Engine) finishRun(active *Active, f *Fault, resolvedBy string) {
 	r := results.Record{
 		Kind:      results.KindIncident,
 		Name:      f.Name,
-		User:      results.CurrentUser(),
+		User:      results.UserOr(user),
 		StartedAt: active.InjectedAt,
 		EndedAt:   now,
 		Elapsed:   resolveSeconds,

@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect, Component, type ReactNode } from 'react'
 import { useWebSocket, type WSStatus } from './hooks/useWebSocket'
-import type { ActionEvent, ClusterInfo, LogEntry, Notification, NotifLevel } from './types'
+import type { ActionEvent, AuthStatus, ClusterInfo, LogEntry, Notification, NotifLevel } from './types'
 import { NotificationList } from './components/Notification'
+import { Login } from './components/Login'
 import { LogPanel } from './components/LogPanel'
 import { ConfirmDialog, type ConfirmRequest } from './components/ConfirmDialog'
 import { Dashboard } from './views/Dashboard'
@@ -52,7 +53,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
-export default function App() {
+function MainApp({ auth, onLogout }: { auth: AuthStatus; onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>('dashboard')
   const [wsStatus, setWsStatus] = useState<WSStatus>('connecting')
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -231,6 +232,16 @@ export default function App() {
             <span className={`dot dot-${connDot}`} aria-hidden="true" />
             <span>{connLabel}</span>
           </div>
+          {auth.authEnabled && (
+            <div className="auth-indicator">
+              {auth.user && (
+                <span className="auth-user">
+                  {auth.user}{auth.role ? ` (${auth.role})` : ''}
+                </span>
+              )}
+              <button className="btn btn-sm" onClick={onLogout}>Log out</button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -283,4 +294,38 @@ export default function App() {
       <LogPanel entries={logEntries} onClear={() => setLogEntries([])} />
     </div>
   )
+}
+
+/** Resolves authentication before mounting MainApp (which uses the WebSocket
+ *  hook), so React hooks never run conditionally. While auth is null we're
+ *  still loading; on a transient error we fall back to a permissive status so
+ *  a hiccup can't lock the user out. */
+export default function App() {
+  const [auth, setAuth] = useState<AuthStatus | null>(null)
+
+  useEffect(() => {
+    api.getAuthStatus()
+      .then(setAuth)
+      .catch(() => setAuth({ authEnabled: false, authenticated: true }))
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    api.logout()
+      .catch(() => { /* clearing the cookie is best-effort */ })
+      .finally(() => setAuth({ authEnabled: true, authenticated: false }))
+  }, [])
+
+  if (auth === null) {
+    return (
+      <div className="login-shell" role="status" aria-live="polite">
+        <div className="login-loading">Loading…</div>
+      </div>
+    )
+  }
+
+  if (auth.authEnabled && !auth.authenticated) {
+    return <Login onLoggedIn={setAuth} />
+  }
+
+  return <MainApp auth={auth} onLogout={handleLogout} />
 }

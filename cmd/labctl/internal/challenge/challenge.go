@@ -228,7 +228,9 @@ func (e *Engine) RecordHint() error {
 
 // Complete records the result and clears active state.
 // passed/total are the check results. outcome is "passed", "failed", or "aborted".
-func (e *Engine) Complete(passed, total int, outcome string) (*RunRecord, error) {
+// user attributes the unified result record to the authenticated API user
+// (task 062); pass "" from the CLI to fall back to the OS username.
+func (e *Engine) Complete(passed, total int, outcome, user string) (*RunRecord, error) {
 	run, err := e.Active()
 	if err != nil {
 		return nil, err
@@ -262,7 +264,7 @@ func (e *Engine) Complete(passed, total int, outcome string) (*RunRecord, error)
 		r := results.Record{
 			Kind:      results.KindChallenge,
 			Name:      rec.ChallengeName,
-			User:      results.CurrentUser(),
+			User:      results.UserOr(user),
 			StartedAt: rec.StartedAt,
 			EndedAt:   rec.FinishedAt,
 			Elapsed:   int64(elapsed.Seconds()),

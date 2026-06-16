@@ -155,7 +155,7 @@ func TestInject_StatusResolutionLoop(t *testing.T) {
 	ctx := context.Background()
 
 	// Nothing active initially.
-	if _, err := e.Status(ctx, testRunner()); err != ErrNoActive {
+	if _, err := e.Status(ctx, testRunner(), ""); err != ErrNoActive {
 		t.Fatalf("expected ErrNoActive, got %v", err)
 	}
 
@@ -168,7 +168,7 @@ func TestInject_StatusResolutionLoop(t *testing.T) {
 	}
 
 	// Status while broken: not resolved, state stays.
-	res, err := e.Status(ctx, testRunner())
+	res, err := e.Status(ctx, testRunner(), "")
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestInject_StatusResolutionLoop(t *testing.T) {
 
 	// "Manually fix" by removing the marker, then Status detects resolution.
 	os.Remove(filepath.Join(root, "incidents", "fault-a", "BROKEN"))
-	res, err = e.Status(ctx, testRunner())
+	res, err = e.Status(ctx, testRunner(), "")
 	if err != nil {
 		t.Fatalf("Status after fix: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestResolve_EscapeHatch(t *testing.T) {
 	if _, err := e.Inject("fault-a", ex, false, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Resolve("", ex); err != nil {
+	if _, err := e.Resolve("", ex, ""); err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 	if active, _ := e.Active(); active != nil {
@@ -244,10 +244,10 @@ func TestResolve_EscapeHatch(t *testing.T) {
 	}
 
 	// No active incident: bare resolve errors, explicit name still works.
-	if _, err := e.Resolve("", ex); err == nil {
+	if _, err := e.Resolve("", ex, ""); err == nil {
 		t.Fatal("expected ErrNoActive")
 	}
-	if _, err := e.Resolve("fault-a", ex); err != nil {
+	if _, err := e.Resolve("fault-a", ex, ""); err != nil {
 		t.Fatalf("explicit resolve must work without active state: %v", err)
 	}
 }

@@ -117,14 +117,14 @@ func TestHistory_ManualResolutionRecordsMTTRAndHints(t *testing.T) {
 	if _, err := e.Inject("fault-a", ex, false, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Status(ctx, testRunner()); err != nil { // first check: sets detect time
+	if _, err := e.Status(ctx, testRunner(), ""); err != nil { // first check: sets detect time
 		t.Fatal(err)
 	}
 	if _, err := e.NextHint(); err != nil {
 		t.Fatal(err)
 	}
 	os.Remove(filepath.Join(root, "incidents", "fault-a", "BROKEN")) // manual fix
-	res, err := e.Status(ctx, testRunner())
+	res, err := e.Status(ctx, testRunner(), "")
 	if err != nil || !res.Resolved {
 		t.Fatalf("expected resolution: %v %+v", err, res)
 	}
@@ -149,7 +149,7 @@ func TestHistory_ManualResolutionRecordsMTTRAndHints(t *testing.T) {
 	if _, err := e2.Inject("fault-a", ex, false, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e2.Resolve("", ex); err != nil { // escape hatch
+	if _, err := e2.Resolve("", ex, ""); err != nil { // escape hatch
 		t.Fatal(err)
 	}
 	recs, _ = e2.History()
@@ -163,7 +163,7 @@ func TestHistory_ManualResolutionRecordsMTTRAndHints(t *testing.T) {
 
 func TestHistory_ExplicitResolveWithoutActiveRecordsNothing(t *testing.T) {
 	e, root := testEngine(t, "fault-a")
-	if _, err := e.Resolve("fault-a", executor.New(root)); err != nil {
+	if _, err := e.Resolve("fault-a", executor.New(root), ""); err != nil {
 		t.Fatal(err)
 	}
 	recs, _ := e.History()

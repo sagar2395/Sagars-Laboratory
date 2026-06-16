@@ -101,3 +101,24 @@ func TestEnvListCmd_Help(t *testing.T) {
 		t.Error("expected non-empty --help output for 'env list'")
 	}
 }
+
+func TestUsersCmd_Help(t *testing.T) {
+	out := executeHelp(t, "users", "--help")
+	if out == "" {
+		t.Error("expected non-empty --help output for 'users'")
+	}
+	for _, want := range []string{"operator", "participant"} {
+		if !strings.Contains(strings.ToLower(out), want) {
+			t.Errorf("help output should mention %q: %q", want, out)
+		}
+	}
+}
+
+func TestUsersSubcommands_Help(t *testing.T) {
+	for _, sub := range []string{"add", "list", "remove"} {
+		out := executeHelp(t, "users", sub, "--help")
+		if out == "" {
+			t.Errorf("expected non-empty --help output for 'users %s'", sub)
+		}
+	}
+}

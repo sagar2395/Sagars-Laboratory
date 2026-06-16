@@ -245,7 +245,7 @@ func challengeSubmitCmd() *cobra.Command {
 				outcome = "passed"
 			}
 
-			rec, err := eng.Complete(passed, total, outcome)
+			rec, err := eng.Complete(passed, total, outcome, "")
 			if err != nil {
 				return err
 			}
@@ -281,7 +281,7 @@ func challengeAbortCmd() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "Warning: cleanup failed: %v\n", err)
 			}
 
-			if _, err := eng.Complete(0, 0, "aborted"); err != nil {
+			if _, err := eng.Complete(0, 0, "aborted", ""); err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Challenge aborted: %s\n", active.ChallengeName)
@@ -339,7 +339,7 @@ func runChallengeSetup(_ context.Context, c *challenge.Challenge, ex *executor.E
 func runChallengeCleanup(_ context.Context, c *challenge.Challenge, ex *executor.Executor) error {
 	switch c.Setup.Type {
 	case "incident":
-		_, err := incEng.Resolve(c.Setup.Ref, ex)
+		_, err := incEng.Resolve(c.Setup.Ref, ex, "")
 		return err
 	case "scenario":
 		return scenes.Down(c.Setup.Ref, ex)

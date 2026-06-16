@@ -125,7 +125,7 @@ func TestStatus_ReportsAlertState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := e.Status(context.Background(), testRunner())
+	res, err := e.Status(context.Background(), testRunner(), "")
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestStatus_NoExpectAlertSkipsQuery(t *testing.T) {
 	if _, err := e.Inject("fault-a", executor.New(root), false, false); err != nil {
 		t.Fatal(err)
 	}
-	res, err := e.Status(context.Background(), testRunner())
+	res, err := e.Status(context.Background(), testRunner(), "")
 	if err != nil {
 		t.Fatal(err)
 	}

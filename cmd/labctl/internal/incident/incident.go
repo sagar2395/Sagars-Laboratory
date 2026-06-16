@@ -374,7 +374,9 @@ type StatusResult struct {
 
 // Status runs the active fault's detection check. When it passes, the
 // incident is marked resolved and the active state cleared.
-func (e *Engine) Status(ctx context.Context, runner *checks.Runner) (*StatusResult, error) {
+// user attributes an auto-detected resolution record to the authenticated API
+// user (task 062); pass "" from the CLI to fall back to the OS username.
+func (e *Engine) Status(ctx context.Context, runner *checks.Runner, user string) (*StatusResult, error) {
 	active, err := e.Active()
 	if err != nil {
 		return nil, err
@@ -406,7 +408,7 @@ func (e *Engine) Status(ctx context.Context, runner *checks.Runner) (*StatusResu
 		res.Alert = queryAlert(ctx, runner.HTTPClient, e.AlertmanagerURL, f.ExpectAlert)
 	}
 	if result.Pass {
-		e.finishRun(active, f, "manual")
+		e.finishRun(active, f, "manual", user)
 		e.clearActive()
 	}
 	return res, nil
@@ -415,7 +417,7 @@ func (e *Engine) Status(ctx context.Context, runner *checks.Runner) (*StatusResu
 // Resolve runs resolve.sh — the escape hatch. With an empty name it
 // resolves the active incident; an explicit name works even if the active
 // state was lost.
-func (e *Engine) Resolve(name string, exec *executor.Executor) (*Fault, error) {
+func (e *Engine) Resolve(name string, exec *executor.Executor, user string) (*Fault, error) {
 	if name == "" {
 		active, err := e.Active()
 		if err != nil {
@@ -435,7 +437,7 @@ func (e *Engine) Resolve(name string, exec *executor.Executor) (*Fault, error) {
 	}
 	if active, _ := e.Active(); active != nil && active.Fault == f.Name {
 		// The escape hatch resolves the lab but scores as a non-completion.
-		e.finishRun(active, f, "auto")
+		e.finishRun(active, f, "auto", user)
 		e.clearActive()
 	}
 	return f, nil

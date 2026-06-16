@@ -1,3 +1,16 @@
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+export type AuthRole = 'operator' | 'participant'
+
+/** GET /api/auth/me (and login) response. When authEnabled is false the UI
+ *  renders normally with no login screen (authenticated is always true). */
+export interface AuthStatus {
+  authEnabled: boolean
+  authenticated: boolean
+  user?: string
+  role?: AuthRole
+}
+
 // ── Cluster & Status ─────────────────────────────────────────────────────────
 
 export interface ClusterInfo {
