@@ -13,6 +13,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.30"
     }
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
   }
 }
 
@@ -28,13 +32,21 @@ provider "aws" {
   region = var.aws_region
 }
 
+# The google provider authenticates from Application Default Credentials
+# (gcloud auth application-default login). project/region are taken from vars so
+# the provider is inert when var.runtime != "gke" (the module has count = 0).
+provider "google" {
+  project = var.gcp_project != "" ? var.gcp_project : null
+  region  = var.gcp_region
+}
+
 variable "runtime" {
-  description = "Which cloud runtime to provision: aks or eks"
+  description = "Which cloud runtime to provision: aks, eks, or gke"
   type        = string
 
   validation {
-    condition     = contains(["aks", "eks"], var.runtime)
-    error_message = "runtime must be 'aks' or 'eks'"
+    condition     = contains(["aks", "eks", "gke"], var.runtime)
+    error_message = "runtime must be 'aks', 'eks', or 'gke'"
   }
 }
 
@@ -62,6 +74,19 @@ variable "aws_region" {
   description = "AWS region (EKS only)"
   type        = string
   default     = "us-east-1"
+}
+
+# GKE-specific variables
+variable "gcp_project" {
+  description = "GCP project ID (GKE only)"
+  type        = string
+  default     = ""
+}
+
+variable "gcp_region" {
+  description = "GCP region (GKE only)"
+  type        = string
+  default     = "us-central1"
 }
 
 # Shared variables
@@ -116,13 +141,33 @@ module "eks" {
   tags               = var.tags
 }
 
+# GKE module
+module "gke" {
+  source = "../modules/gke"
+  count  = var.runtime == "gke" ? 1 : 0
+
+  cluster_name = var.cluster_name
+  gcp_project  = var.gcp_project
+  gcp_region   = var.gcp_region
+  node_count   = var.node_count
+  machine_type = "e2-standard-2"
+  create_gar   = true
+  tags         = var.tags
+}
+
 # Outputs — runtime-agnostic
 output "cluster_name" {
-  value = var.runtime == "aks" ? module.aks[0].cluster_name : module.eks[0].cluster_name
+  value = (
+    var.runtime == "aks" ? module.aks[0].cluster_name :
+    var.runtime == "eks" ? module.eks[0].cluster_name :
+    module.gke[0].cluster_name
+  )
 }
 
 output "registry_url" {
-  value = var.runtime == "aks" ? module.aks[0].acr_login_server : (
-    length(module.eks) > 0 ? join(",", [for k, v in module.eks[0].ecr_repository_urls : v]) : ""
+  value = (
+    var.runtime == "aks" ? module.aks[0].acr_login_server :
+    var.runtime == "eks" ? (length(module.eks) > 0 ? join(",", [for k, v in module.eks[0].ecr_repository_urls : v]) : "") :
+    module.gke[0].gar_repository_url
   )
 }

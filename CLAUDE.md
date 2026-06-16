@@ -55,7 +55,11 @@ boundary.
   UI Leaderboard tab; `labctl-server` Helm chart (`delivery/charts/labctl-server`)
   with SA/RBAC, PVC-persisted `.labctl`, optional users Secret;
   `Dockerfile.labctl-server` (repo + helm/kubectl); `runtimes/incluster` profile.
-  Next: task 064 (kind + GKE runtimes).
+  064 (new runtimes) done — `runtimes/kind` (headless, CI-friendly; nightly
+  `e2e-kind` job runs `scenario verify`) and `runtimes/gke` + `foundation/
+  terraform/modules/gke` (verify-once caveat). **M6 COMPLETE.** Remaining work is
+  P2: cloud verification (038 AKS, 039 EKS, and the gke first-apply) needs real
+  accounts; M8/M9 are deferred.
 
 - 🧭 **Part III (new direction):** evolve into a community-driven OSS
   platform-engineering simulator with future commercial offerings. Strategy:
@@ -69,7 +73,8 @@ boundary.
   CODEOWNERS-locked), 071 module path + brand (`go.flightdeck.dev/labctl`,
   rebranded **Flightdeck**), 072 contributor experience (`labctl scenario new` /
   `pack init` scaffolds, `sdk/*-template`, editor schema validation,
-  `docs/authoring/first-pack.md`). Next: **M6 (Team Mode & Runtimes), task 064**
+  `docs/authoring/first-pack.md`). M6 complete; next deliberate work is **cloud
+  verification (038 AKS, 039 EKS, gke first-apply)** — needs real accounts
   (M8/M9 are deferred P2). Maintainer owes: host `go.flightdeck.dev`, org
   transfer to `snowops/flightdeck`, registry repo + Pages, CLA app, branch
   protection, trademark search, seed good-first-issues (A0/B/C).

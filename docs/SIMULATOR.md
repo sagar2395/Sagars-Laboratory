@@ -129,7 +129,9 @@ category without a simulation is dead weight.
   (`delivery/charts/labctl-server/`) runs the simulator in-cluster with a
   PVC-persisted history and a shared **leaderboard** (`GET /api/leaderboard` +
   UI Leaderboard tab) for game days.
-- 🚧 More runtimes: kind (CI-friendly), GKE (third cloud) — task 064.
+- ✅ More runtimes: `kind` (headless, CI-friendly — powers the nightly e2e job)
+  and `gke` (third cloud, Terraform module mirroring aks/eks; verify-once
+  caveat). Profiles live in `runtimes/<profile>/`; see `docs/cloud-runtimes.md`.
 
 ## What stays true (non-negotiable)
 
