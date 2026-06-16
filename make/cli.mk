@@ -49,3 +49,9 @@ cli-clean:
 	@rm -f $(CLI_BIN)
 	@rm -rf dist/
 	@rm -f $(CLI_UI_DEST)/index.html
+
+.PHONY: test-coverage
+test-coverage: ## Run tests with HTML coverage report
+	cd $(CLI_DIR) && go test -coverprofile=../../coverage.out ./... && \
+	  go tool cover -html=../../coverage.out -o ../../coverage.html
+	@echo "Coverage report: coverage.html"
