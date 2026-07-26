@@ -21,7 +21,7 @@ CREATE TABLE runs (
     queued_at   INTEGER NOT NULL,
     started_at  INTEGER,
     ended_at    INTEGER,
-    duration_ms INTEGER,                        -- measured monotonically while running
+    duration_us INTEGER,                        -- measured monotonically while running
     exit_code   INTEGER,
     error       TEXT    NOT NULL DEFAULT '',
 

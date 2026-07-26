@@ -9,6 +9,7 @@
 #     entry is deleted. Exceptions cannot outlive their justification.
 #   - An entry naming a package with no recorded coverage is STALE and fails.
 #   - Anything not listed must reach 80%. New packages get no exception.
+
 #
 # Every entry below exists because the package is scheduled for replacement in a
 # named wave. Writing tests today for code that W1–W6 deletes is waste; the
@@ -19,9 +20,11 @@ go.flightdeck.dev/flightdeck/internal/executor    79.6   W1  superseded by the d
 go.flightdeck.dev/flightdeck/internal/k8s          0.0   W1  becomes internal/toolchain's kubectl adapter, which ships with a fake
 
 # Thin adapters today; logic moves to internal/service and they get contract
-# tests in W5 (ADR-0005, ADR-0006).
-go.flightdeck.dev/flightdeck/cmd/labctl            0.0   W5  entrypoint only — one func, covered by CLI contract tests
-go.flightdeck.dev/flightdeck/internal/cli         10.5   W5  rebuilt as thin adapters with golden-file output tests
+# tests in W5 (ADR-0005, ADR-0006). cmd/labctl is permanently an entrypoint —
+# internal/cli/root_test.go asserts main() stays a single statement, so its 0%
+# stays honest rather than hiding logic.
+go.flightdeck.dev/flightdeck/cmd/labctl            0.0   W5  entrypoint only — one statement, guarded by TestMainStaysTrivial
+go.flightdeck.dev/flightdeck/internal/cli         19.5   W5  rebuilt as thin adapters with golden-file output tests
 go.flightdeck.dev/flightdeck/internal/httpapi     43.6   W5  rebuilt as /api/v2 with a full contract suite
 
 # Domain packages that become internal/service/* as their wave lands.

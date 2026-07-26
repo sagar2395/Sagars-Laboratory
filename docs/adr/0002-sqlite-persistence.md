@@ -43,3 +43,8 @@ best-effort read.
   hermetic and parallel-safe.
 - Log retention needs a policy; unbounded `run_logs` growth is a real risk on a
   long-lived server. Retention/pruning ships in W1.
+- **The driver sets the minimum Go version.** `modernc.org/sqlite` is a
+  transpiled C library and tracks new Go releases closely: its recent versions
+  require Go 1.25. We pin `v1.38.0`, the newest release that still builds on Go
+  1.24, so contributors are not forced onto a toolchain released weeks ago.
+  Revisit when Go 1.25 is widely available in distributions and CI images.

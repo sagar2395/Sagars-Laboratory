@@ -49,8 +49,8 @@ Runbooks are written as their wave is implemented.
 | ID | Runbook | Wave | Status |
 |---|---|---|---|
 | R00 | [Environment & build](R00-environment-and-build.md) | W0 | **ready** |
-| R01 | Run engine & cancellation | W1 | planned |
-| R02 | Doctor & preflight | W1 | planned |
+| R01 | [Run engine & cancellation](R01-run-engine-and-cancellation.md) | W1 | **ready** |
+| R02 | [Doctor & preflight](R02-doctor-and-preflight.md) | W1 | **ready** |
 | R03 | Content authoring & validation | W2 | planned |
 | R04 | Lab lifecycle | W3 | planned |
 | R05 | Platform components | W3 | planned |

@@ -139,18 +139,20 @@ func (s *Store) FinishRun(ctx context.Context, id string, status Status, exitCod
 	if exitCode != nil {
 		code = sql.NullInt64{Int64: int64(*exitCode), Valid: true}
 	}
-	var durMs sql.NullInt64
+	// Microseconds, not milliseconds: a fast script that finishes in under a
+	// millisecond must not be recorded as having taken no time at all.
+	var durUs sql.NullInt64
 	if dur > 0 {
-		durMs = sql.NullInt64{Int64: dur.Milliseconds(), Valid: true}
+		durUs = sql.NullInt64{Int64: dur.Microseconds(), Valid: true}
 	}
 
 	// Only a non-terminal run may be finished: a cancellation racing with a
 	// natural exit must not overwrite the outcome that already landed.
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE runs
-		   SET status = ?, exit_code = ?, error = ?, ended_at = ?, duration_ms = ?
+		   SET status = ?, exit_code = ?, error = ?, ended_at = ?, duration_us = ?
 		 WHERE id = ? AND status IN (?, ?)`,
-		string(status), code, runErr, at.UnixMicro(), durMs,
+		string(status), code, runErr, at.UnixMicro(), durUs,
 		id, StatusQueued, StatusRunning)
 	if err != nil {
 		return fmt.Errorf("finishing run %s: %w", id, err)
@@ -314,7 +316,7 @@ func (s *Store) PruneRuns(ctx context.Context, before time.Time) (int64, error) 
 
 const selectRunColumns = `
 	SELECT id, kind, target, lock_key, status, actor, argv, script, timeout_ms,
-	       queued_at, started_at, ended_at, duration_ms, exit_code, error
+	       queued_at, started_at, ended_at, duration_us, exit_code, error
 	  FROM runs`
 
 // scanner covers both *sql.Row and *sql.Rows.
@@ -329,11 +331,11 @@ func scanRun(sc scanner) (Run, error) {
 		queuedAt  int64
 		started   sql.NullInt64
 		ended     sql.NullInt64
-		durMs     sql.NullInt64
+		durUs     sql.NullInt64
 		exitCode  sql.NullInt64
 	)
 	if err := sc.Scan(&r.ID, &r.Kind, &r.Target, &r.LockKey, &status, &r.Actor,
-		&argv, &r.Script, &timeoutMs, &queuedAt, &started, &ended, &durMs,
+		&argv, &r.Script, &timeoutMs, &queuedAt, &started, &ended, &durUs,
 		&exitCode, &r.Error); err != nil {
 		return Run{}, err
 	}
@@ -343,8 +345,8 @@ func scanRun(sc scanner) (Run, error) {
 	r.QueuedAt = time.UnixMicro(queuedAt).UTC()
 	r.StartedAt = fromMicro(started)
 	r.EndedAt = fromMicro(ended)
-	if durMs.Valid {
-		r.Duration = time.Duration(durMs.Int64) * time.Millisecond
+	if durUs.Valid {
+		r.Duration = time.Duration(durUs.Int64) * time.Microsecond
 	}
 	if exitCode.Valid {
 		code := int(exitCode.Int64)

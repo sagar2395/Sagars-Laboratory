@@ -35,8 +35,11 @@ var rootCmd = &cobra.Command{
 	Short: "Flightdeck — platform engineering simulator control plane",
 	Long:  `labctl is the CLI, web UI, and API for Flightdeck, a Kubernetes platform engineering simulator.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Skip init for completion and help commands
-		if cmd.Name() == "completion" || cmd.Name() == "help" {
+		// Skip init for commands that must work when the environment is
+		// broken. doctor in particular exists to diagnose exactly the
+		// situations that would make this initialisation fail.
+		switch cmd.Name() {
+		case "completion", "help", "doctor", "runs", "list", "logs", "cancel":
 			return nil
 		}
 

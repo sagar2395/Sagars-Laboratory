@@ -3,8 +3,8 @@
   "schemaVersion": 2,
   "plan": "docs/ROADMAP.md",
   "updated": "2026-07-26",
-  "currentWave": "W0",
-  "next": "W1-T01",
+  "currentWave": "W1",
+  "next": "W2-T01",
   "taskStatuses": [
     "todo",
     "in_progress",
@@ -75,7 +75,7 @@
     "W1": {
       "title": "Durable core: store, run engine, toolchain",
       "goal": "Every operation Flightdeck performs is cancellable, time-bounded, serialised against conflicts, and durably recorded.",
-      "status": "ready",
+      "status": "awaiting-runbook",
       "dependsOn": [
         "W0"
       ],
@@ -93,54 +93,55 @@
       "tasks": {
         "W1-T01": {
           "title": "internal/store: SQLite open/migrate/close, embedded forward-only migrations, schema-version guard",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T02": {
           "title": "Store repositories: runs, run_logs, run_steps, audit with transactional writes",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T03": {
           "title": "internal/toolchain: bash/kubectl/helm/k3d/kind adapters, argv-only, containment-checked script resolution",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T04": {
           "title": "Toolchain preflight (min versions, actionable errors) + labctl doctor",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T05": {
           "title": "toolchain.Fake for hermetic tests across all layers",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T06": {
           "title": "internal/run: submit/queue/worker pool, exclusive lock keys, 409-on-conflict",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T07": {
           "title": "Cancellation: process groups, SIGTERM to grace to SIGKILL, graceful server shutdown",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T08": {
           "title": "Timeouts per run kind; timed_out terminal state",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T09": {
           "title": "Durable log capture with monotonic sequence + cursor replay API",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T10": {
           "title": "Step marker parsing to structured step timeline",
-          "status": "todo"
+          "status": "done"
         },
         "W1-T11": {
           "title": "labctl runs list/logs/cancel",
-          "status": "todo"
+          "status": "done"
         }
-      }
+      },
+      "note": "All W1 tasks implemented. internal/store 84.3%, internal/toolchain 95.0%, internal/run 87.0% \u2014 all race-clean and hermetic. The wave is not complete until R01 and R02 have been run by the maintainer on real hardware; the process-group cancellation behaviour in particular is OS-specific and must be exercised on macOS as well as Linux."
     },
     "W2": {
       "title": "Content model & check engine v2",
       "goal": "All declarative content is schema-validated, cross-referenced and verifiable, and checks report why they failed.",
-      "status": "todo",
+      "status": "ready",
       "dependsOn": [
         "W1"
       ],
