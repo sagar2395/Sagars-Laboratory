@@ -13,7 +13,7 @@ verifies it does not run.
 
 | Requirement | Check | If missing |
 |---|---|---|
-| Go 1.24+ | `go version` | https://go.dev/dl/ |
+| Go 1.25+ | `go version` | https://go.dev/dl/ |
 | Node 22+ | `node --version` | https://nodejs.org or `brew install node` |
 | bats | `bats --version` | `brew install bats-core` (macOS) / `npm install -g bats` |
 | shellcheck | `shellcheck --version` | `brew install shellcheck` / `apt install shellcheck` |

@@ -48,7 +48,7 @@ is the signal you would see in production.
 
 - Docker running
 - `kubectl`, `helm` 3, and `k3d`
-- Go 1.24+ and Node 22+ to build from source
+- Go 1.25+ and Node 22+ to build from source
 
 ```bash
 make setup-tools              # installs tools for PROFILE (default: k3d)
