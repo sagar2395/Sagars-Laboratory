@@ -7,7 +7,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-CLUSTER_NAME="${1:-${CLUSTER_NAME:-sagars-cluster}}"
+CLUSTER_NAME="${1:-${CLUSTER_NAME:-flightdeck}}"
 
 echo -e "${YELLOW}Shutting down k3d cluster '${CLUSTER_NAME}'...${NC}"
 

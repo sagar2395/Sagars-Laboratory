@@ -96,7 +96,7 @@ func Load(projectRoot string) (*Config, error) {
 
 	// Populate config from environment
 	cfg.Profile = profile
-	cfg.ClusterName = getEnvOrDefault("CLUSTER_NAME", "sagars-cluster")
+	cfg.ClusterName = getEnvOrDefault("CLUSTER_NAME", "flightdeck")
 	cfg.HTTPPort = getEnvOrDefault("HTTP_PORT", "80")
 	cfg.HTTPSPort = getEnvOrDefault("HTTPS_PORT", "443")
 

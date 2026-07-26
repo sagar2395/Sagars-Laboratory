@@ -12,13 +12,13 @@ set -euo pipefail
 # scenario tips and docs/runbooks/11-multi-env-day2.md.
 #
 # Env:
-#   CLUSTER_NAME        k3d cluster name (default: sagars-cluster)
+#   CLUSTER_NAME        k3d cluster name (default: flightdeck)
 #   TARGET_K3S_VERSION  k3s image tag to upgrade agents to (REQUIRED,
 #                       e.g. v1.29.4-k3s1)
 #   APP_NAMESPACE       go-api namespace (default: go-api)
 #   DRAIN_TIMEOUT       per-node drain timeout (default: 120s)
 
-CLUSTER_NAME="${CLUSTER_NAME:-sagars-cluster}"
+CLUSTER_NAME="${CLUSTER_NAME:-flightdeck}"
 APP_NAMESPACE="${APP_NAMESPACE:-go-api}"
 DRAIN_TIMEOUT="${DRAIN_TIMEOUT:-120s}"
 

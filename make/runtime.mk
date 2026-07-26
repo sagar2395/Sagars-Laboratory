@@ -1,5 +1,5 @@
 # Runtime management — dispatches to the correct runtime based on PROFILE
-# Supported profiles: k3d (local), aks (Azure), eks (AWS)
+# Supported profiles: k3d (local), kind (headless/CI), incluster (shared server)
 
 runtime-up:
 	@echo "Creating $(PROFILE) cluster '$(CLUSTER_NAME)'..."

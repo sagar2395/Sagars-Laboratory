@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
 )
 
 // TestDefaultResolver_ChainComposition verifies that DefaultResolver returns a

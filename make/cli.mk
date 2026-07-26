@@ -1,57 +1,62 @@
-CLI_DIR     := cmd/labctl
+# Building the labctl binary (module root is the repo root — ADR-0005).
+#
+# The SPA is built first and embedded, so a release is one self-contained
+# artifact with no separate frontend deploy.
+
 CLI_BIN     := bin/labctl
-CLI_MODULE  := github.com/sagars-lab/labctl
+CLI_PKG     := ./cmd/labctl
 CLI_UI_SRC  := ui/dist
-CLI_UI_DEST := $(CLI_DIR)/ui/dist
+CLI_UI_DEST := internal/webui/dist
 
-.PHONY: cli-build cli-build-all cli-install cli-tidy cli-clean
+# Release targets. Every one is cgo-free (ADR-0002) so cross-compilation is a
+# plain GOOS/GOARCH change.
+CLI_TARGETS := darwin/arm64 darwin/amd64 linux/amd64 linux/arm64
 
-cli-build:
-	@echo "Building UI (SPA)..."
-	@if command -v npm >/dev/null 2>&1; then \
-		cd ui && npm ci --prefer-offline && npm run build && cd ..; \
-	else \
-		echo "Warning: npm not found — using pre-built UI assets in $(CLI_UI_SRC). Run 'npm ci && npm run build' in ui/ to refresh."; \
-	fi
-	@echo "Copying UI assets into embed target..."
-	@cp -r $(CLI_UI_SRC)/* $(CLI_UI_DEST)/ 2>/dev/null || true
-	@echo "Building labctl for host ($(shell go env GOOS)/$(shell go env GOARCH))..."
-	@cd $(CLI_DIR) && go build -o ../../$(CLI_BIN) .
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -s -w -X main.version=$(VERSION)
+
+.PHONY: cli-build cli-build-all cli-install cli-clean ui-build ui-deps
+
+## ui-deps: install SPA dependencies (reproducible; uses the lockfile)
+ui-deps:
+	@cd ui && npm ci --prefer-offline --no-audit --fund=false
+
+## ui-build: typecheck and bundle the SPA into ui/dist
+ui-build: ui-deps
+	@echo "==> Building UI"
+	@cd ui && npm run build
+
+## cli-build: build labctl for the host platform with the UI embedded
+cli-build: ui-build
+	@echo "==> Embedding UI assets"
+	@mkdir -p $(CLI_UI_DEST)
+	@cp -R $(CLI_UI_SRC)/. $(CLI_UI_DEST)/
+	@echo "==> Building labctl $(VERSION) for $$(go env GOOS)/$$(go env GOARCH)"
+	@mkdir -p bin
+	@CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o $(CLI_BIN) $(CLI_PKG)
 	@echo "Binary: $(CLI_BIN)"
 
-# Cross-compile for all release targets. Outputs land in dist/.
-cli-build-all:
-	@echo "Building UI (SPA)..."
-	@if command -v npm >/dev/null 2>&1; then \
-		cd ui && npm ci --prefer-offline && npm run build && cd ..; \
-	else \
-		echo "Warning: npm not found — using pre-built UI assets."; \
-	fi
-	@echo "Copying UI assets..."
-	@cp -r $(CLI_UI_SRC)/* $(CLI_UI_DEST)/ 2>/dev/null || true
-	@mkdir -p dist
-	@for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do \
-		goos=$${target%/*}; goarch=$${target#*/}; \
-		out="dist/labctl-$${goos}-$${goarch}"; \
-		echo "  Building $${out}..."; \
-		cd $(CLI_DIR) && GOOS=$$goos GOARCH=$$goarch go build -o ../../$$out . && cd ../..; \
+## cli-build-all: cross-compile every release target into dist/
+cli-build-all: ui-build
+	@mkdir -p $(CLI_UI_DEST) dist
+	@cp -R $(CLI_UI_SRC)/. $(CLI_UI_DEST)/
+	@for target in $(CLI_TARGETS); do \
+	  goos=$${target%/*}; goarch=$${target#*/}; \
+	  out="dist/labctl-$${goos}-$${goarch}"; \
+	  echo "  $${out}"; \
+	  CGO_ENABLED=0 GOOS=$$goos GOARCH=$$goarch \
+	    go build -trimpath -ldflags '$(LDFLAGS)' -o $$out $(CLI_PKG) || exit 1; \
 	done
 	@echo "Cross-compiled binaries in dist/"
 
-cli-tidy:
-	@cd $(CLI_DIR) && go mod tidy
-
+## cli-install: build and copy labctl onto PATH
 cli-install: cli-build
-	@cp $(CLI_BIN) $(GOPATH)/bin/labctl 2>/dev/null || cp $(CLI_BIN) /usr/local/bin/labctl
-	@echo "Installed labctl to PATH"
+	@dest="$${GOBIN:-$$(go env GOPATH)/bin}"; \
+	  mkdir -p "$$dest" && cp $(CLI_BIN) "$$dest/labctl" && \
+	  echo "Installed $$dest/labctl"
 
 cli-clean:
-	@rm -f $(CLI_BIN)
-	@rm -rf dist/
-	@rm -f $(CLI_UI_DEST)/index.html
-
-.PHONY: test-coverage
-test-coverage: ## Run tests with HTML coverage report
-	cd $(CLI_DIR) && go test -coverprofile=../../coverage.out ./... && \
-	  go tool cover -html=../../coverage.out -o ../../coverage.html
-	@echo "Coverage report: coverage.html"
+	@rm -f $(CLI_BIN) coverage.out coverage.html
+	@rm -rf dist/ ui/dist ui/coverage ui/test-results ui/playwright-report
+	@rm -rf $(CLI_UI_DEST)/assets
+	@find $(CLI_UI_DEST) -name 'index.html' -delete 2>/dev/null || true

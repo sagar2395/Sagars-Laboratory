@@ -58,7 +58,7 @@ func TestList_K3dCurrentContext(t *testing.T) {
 	rtDir := filepath.Join(root, "runtimes")
 	makeRuntime(t, rtDir, "k3d", nil)
 
-	clusterName := "sagars-cluster"
+	clusterName := "flightdeck"
 	expectedCtx := "k3d-" + clusterName
 	m := newTestManager(t, rtDir, clusterName, expectedCtx, []string{expectedCtx})
 
@@ -83,7 +83,7 @@ func TestList_K3dContextExistsButNotCurrent(t *testing.T) {
 	rtDir := filepath.Join(root, "runtimes")
 	makeRuntime(t, rtDir, "k3d", nil)
 
-	clusterName := "sagars-cluster"
+	clusterName := "flightdeck"
 	expectedCtx := "k3d-" + clusterName
 	// current context is something else
 	m := newTestManager(t, rtDir, clusterName, "other-context", []string{expectedCtx})
@@ -123,7 +123,7 @@ func TestList_CloudRuntimeWithExplicitContext(t *testing.T) {
 		"KUBECONFIG_CONTEXT=my-kind-cluster",
 	})
 
-	m := newTestManager(t, rtDir, "sagars-cluster", "my-kind-cluster", []string{"my-kind-cluster"})
+	m := newTestManager(t, rtDir, "flightdeck", "my-kind-cluster", []string{"my-kind-cluster"})
 
 	list := m.List()
 	r := list[0]
@@ -146,7 +146,7 @@ func TestList_CloudRuntimeNoContextConfig(t *testing.T) {
 
 	// Even if some context named "kind" happens to be in kubeconfig, it must
 	// NOT be treated as active — we cannot reliably guess the context name.
-	m := newTestManager(t, rtDir, "sagars-cluster", "kind", []string{"kind"})
+	m := newTestManager(t, rtDir, "flightdeck", "kind", []string{"kind"})
 
 	list := m.List()
 	r := list[0]
@@ -164,7 +164,7 @@ func TestList_MultipleRuntimes(t *testing.T) {
 	makeRuntime(t, rtDir, "k3d", nil)
 	makeRuntime(t, rtDir, "kind", []string{"INGRESS_CLASS=nginx"}) // no KUBECONFIG_CONTEXT
 
-	m := newTestManager(t, rtDir, "sagars-cluster", "k3d-sagars-cluster", []string{"k3d-sagars-cluster"})
+	m := newTestManager(t, rtDir, "flightdeck", "k3d-flightdeck", []string{"k3d-flightdeck"})
 
 	byName := map[string]RuntimeInfo{}
 	for _, r := range m.List() {

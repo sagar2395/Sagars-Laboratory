@@ -6,7 +6,7 @@ set -euo pipefail
 # hostnames resolve to localhost and traffic reaches the load-balancer pod.
 # Values come from .env (via labctl config) or environment variables.
 
-CLUSTER_NAME="${1:-${CLUSTER_NAME:-sagars-cluster}}"
+CLUSTER_NAME="${1:-${CLUSTER_NAME:-flightdeck}}"
 HTTP_PORT="${HTTP_PORT:-80}"
 HTTPS_PORT="${HTTPS_PORT:-443}"
 # Number of agent (worker) nodes. Multi-node by default so day-2 drills

@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Delete a kind cluster. Idempotent.
 
-CLUSTER_NAME="${1:-${CLUSTER_NAME:-sagars-cluster}}"
+CLUSTER_NAME="${1:-${CLUSTER_NAME:-flightdeck}}"
 
 if ! command -v kind >/dev/null 2>&1; then
     echo "ERROR: 'kind' is required but not installed." >&2

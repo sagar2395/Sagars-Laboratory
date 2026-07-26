@@ -215,8 +215,8 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.Profile != "k3d" {
 		t.Errorf("Profile: got %q, want %q", cfg.Profile, "k3d")
 	}
-	if cfg.ClusterName != "sagars-cluster" {
-		t.Errorf("ClusterName: got %q, want %q", cfg.ClusterName, "sagars-cluster")
+	if cfg.ClusterName != "flightdeck" {
+		t.Errorf("ClusterName: got %q, want %q", cfg.ClusterName, "flightdeck")
 	}
 	if cfg.DomainSuffix != "k3d.local" {
 		t.Errorf("DomainSuffix: got %q, want %q", cfg.DomainSuffix, "k3d.local")

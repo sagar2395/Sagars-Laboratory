@@ -4,15 +4,14 @@ ifneq (,$(wildcard .env))
 endif
 
 PROFILE ?= k3d
-CLUSTER_NAME ?= sagars-cluster
+CLUSTER_NAME ?= flightdeck
 APP_NAME ?= go-api
 HELM_RELEASE_NAME ?= go-api
-HELM_VALUES ?= values-dev.yaml # 
+HELM_VALUES ?= values-dev.yaml
 
-# default values are read from .env if present; individual commands may
-# override them by passing VAR=val on the make command line.
+# Defaults are read from .env if present; any command may override them by
+# passing VAR=val on the make command line.
 
-# Include domain targets
 include make/vars.mk
 include make/bootstrap.mk
 include make/runtime.mk
@@ -21,14 +20,14 @@ include make/platform.mk
 include make/check.mk
 include make/cli.mk
 include make/services.mk
-include make/terraform.mk
+include make/test.mk
 
-.PHONY: help setup-tools runtime-up runtime-down runtime-status build run deploy \
-        destroy-app lint validate deploy-all destroy-all-apps \
-        init teardown reset check-tools check-cluster check-ingress platform-up platform-down platform-status \
-        terraform-init terraform-plan terraform-apply terraform-destroy terraform-output terraform-status
+.DEFAULT_GOAL := help
 
-# lifecycle helpers
+.PHONY: help init teardown reset run
+
+# ── Lifecycle ────────────────────────────────────────────────────────────────
+
 init:
 	@$(MAKE) setup-tools PROFILE=$(PROFILE)
 	@$(MAKE) runtime-up
@@ -44,72 +43,67 @@ reset: teardown init
 run:
 	@$(MAKE) local-run APP_NAME=$(APP_NAME)
 
+# ── Help ─────────────────────────────────────────────────────────────────────
+
 help:
-	@echo "Available targets:"
+	@echo "Flightdeck — Kubernetes platform-engineering simulator"
 	@echo ""
-	@echo "  Setup & Environment:"
-	@echo "    make setup-tools         Install required CLI tools (PROFILES: k3d, aks, eks, common)"
-	@echo "                             Default profile: $(PROFILE)"
-	@echo "    make check-tools         Verify required binaries are in PATH"
-	@echo ""
-	@echo "  Cluster Management (PROFILE=$(PROFILE)):"
-	@echo "    make runtime-up          Create cluster (k3d local, AKS via Terraform, EKS via Terraform)"
-	@echo "    make runtime-down        Destroy the current cluster"
-	@echo "    make runtime-status      Show cluster info and nodes"
+	@echo "  Quick start:"
+	@echo "    make cli-build           Build bin/labctl (UI embedded)"
 	@echo "    make init                setup-tools + runtime-up + platform-up"
-	@echo "    make teardown            destroy-apps + platform-down + runtime-down"
-	@echo "    make reset               Run teardown then init (recreate from scratch)"
-	@echo "    make check-cluster       Ensure current kubecontext can reach the cluster"
-	@echo "    make check-ingress       Confirm platform ingress controller is ready"
+	@echo "    make teardown            Remove apps, platform and cluster"
+	@echo "    make reset               teardown then init"
 	@echo ""
-	@echo "  Application tasks:"
-	@echo "    make build APP_NAME=<name>       Run the build strategy defined in apps/<name>/app.env"
-	@echo "    make run  APP_NAME=<name>        Execute the application locally (if supported)"
-	@echo "    make deploy APP_NAME=<name>      Run the deploy strategy (helm, lambda, etc.)"
-	@echo "    make destroy-app APP_NAME=<name> Remove the deployed application"
-	@echo "    make lint  APP_NAME=<name>       Run strategy-specific lint/validation"
-	@echo "    make validate APP_NAME=<name>    Preview manifests or perform dry-run"
-	@echo ""
-	@echo "  Bulk operations:"
-	@echo "    make deploy-all       Deploy every app in the apps/ directory"
-	@echo "    make destroy-all-apps Uninstall every deployed app"
+	@echo "  Test & quality (all four layers are mandatory — docs/TESTING.md):"
+	@echo "    make test                Go unit + shell tests, race detector, coverage gate"
+	@echo "    make test-go             Go unit + contract tests (>= $(COVERAGE_MIN)% per package)"
+	@echo "    make test-shell          bats suites with kubectl/helm stubbed"
+	@echo "    make test-api            HTTP contract suite only"
+	@echo "    make test-ui             vitest component tests with coverage"
+	@echo "    make test-e2e            playwright journeys"
+	@echo "    make test-cluster        nightly real-cluster e2e on kind (slow)"
+	@echo "    make test-coverage       HTML coverage report -> coverage.html"
+	@echo "    make fuzz                short fuzz run over every parser"
+	@echo "    make lint                every static-analysis gate"
+	@echo "    make fmt                 gofmt the tree"
 	@echo ""
 	@echo "  CLI (labctl):"
-	@echo "    make cli-build        Build the labctl Go binary to bin/labctl"
-	@echo "    make cli-install      Build and install labctl to PATH"
-	@echo "    make cli-tidy         Run go mod tidy for the CLI module"
-	@echo "    make cli-clean        Remove the labctl binary"
+	@echo "    make cli-build           Build for the host platform"
+	@echo "    make cli-build-all       Cross-compile every release target into dist/"
+	@echo "    make cli-install         Build and install onto PATH"
+	@echo "    make cli-clean           Remove build outputs"
 	@echo ""
-	@echo "  Platform Components:"
-	@echo "    make platform-up         Install ingress + monitoring (uses provider vars)"
-	@echo "    make platform-down       Remove ingress + monitoring"
-	@echo "    make platform-status     Show status of configured providers"
-	@echo "    Provider variables (set in .env or on command line):"
+	@echo "  Cluster (PROFILE=$(PROFILE) — k3d | kind | incluster):"
+	@echo "    make runtime-up          Create cluster '$(CLUSTER_NAME)'"
+	@echo "    make runtime-down        Destroy the current cluster"
+	@echo "    make runtime-status      Show cluster info and nodes"
+	@echo "    make check-tools         Verify required binaries are on PATH"
+	@echo "    make check-cluster       Ensure the current context reaches the cluster"
+	@echo "    make check-ingress       Confirm the ingress controller is ready"
+	@echo ""
+	@echo "  Platform components:"
+	@echo "    make platform-up         Install the configured providers"
+	@echo "    make platform-down       Remove them"
+	@echo "    make platform-status     Show provider status"
+	@echo "    Provider variables (set in .env or on the command line):"
 	@echo "      INGRESS_PROVIDER=traefik|nginx          (default: traefik)"
-	@echo "      METRICS_PROVIDER=prometheus|...         (default: prometheus)"
+	@echo "      METRICS_PROVIDER=prometheus             (default: prometheus)"
 	@echo "      LOGGING_PROVIDER=loki                   (unset = disabled)"
 	@echo "      TRACING_PROVIDER=tempo                  (unset = disabled)"
-	@echo "    Examples:"
-	@echo "      make platform-up INGRESS_PROVIDER=nginx"
-	@echo "      make platform-status METRICS_PROVIDER=prometheus"
 	@echo ""
-	@echo "  Shared Services:"
-	@echo "    make service-list                List available shared services"
-	@echo "    make service-up SERVICE=<name>   Install a shared service (e.g. redis)"
-	@echo "    make service-down SERVICE=<name> Uninstall a shared service"
-	@echo "    make service-status              Show status of all services"
-	@echo "    make service-status SERVICE=<name> Show status of a specific service"
+	@echo "  Applications:"
+	@echo "    make build APP_NAME=<name>       Run the app's build strategy"
+	@echo "    make run APP_NAME=<name>         Run it locally"
+	@echo "    make deploy APP_NAME=<name>      Run its deploy strategy"
+	@echo "    make destroy-app APP_NAME=<name> Remove it"
+	@echo "    make deploy-all / destroy-all-apps"
 	@echo ""
-	@echo "  Terraform (cloud runtimes: TF_ENV=dev|staging, PROFILE=aks|eks):"
-	@echo "    make terraform-init              Initialize Terraform working directory"
-	@echo "    make terraform-plan              Preview infrastructure changes"
-	@echo "    make terraform-apply             Apply infrastructure changes"
-	@echo "    make terraform-destroy           Destroy cloud infrastructure"
-	@echo "    make terraform-output            Show Terraform outputs"
-	@echo "    make terraform-status            Show current Terraform state"
+	@echo "  Shared services:"
+	@echo "    make service-list                List available services"
+	@echo "    make service-up SERVICE=<name>   Install one (e.g. redis)"
+	@echo "    make service-down SERVICE=<name> Uninstall one"
+	@echo "    make service-status              Show status"
 	@echo ""
-	@echo "Usage notes: configuration for each app lives in apps/<name>/app.env"
-	@echo "Variables such as BUILD_STRATEGY, DEPLOY_STRATEGY, HELM_VALUES, etc. are set there."
-	@echo "Most variables may also be overridden on the command line:"
+	@echo "Per-app configuration lives in apps/<name>/app.env (BUILD_STRATEGY,"
+	@echo "DEPLOY_STRATEGY, HELM_VALUES). Override on the command line:"
 	@echo "  make build APP_NAME=foo BUILD_STRATEGY=golang"
-

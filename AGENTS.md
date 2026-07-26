@@ -2,83 +2,97 @@
 
 > This file is read automatically by most AI coding tools (Claude Code, Codex,
 > Cursor, Windsurf, Cline, …). It defines a **simple, tool-agnostic** workflow.
-> For project context and rules, read `CLAUDE.md` first.
-
-The old version of this file defined an elaborate 5-role agent protocol
-(Architect / Feature / Bug / DevOps / Reviewer) with worktrees and inter-agent
-file messaging. **That has been removed** in favour of the lighter loop below.
-Any AI tool — or you — can run it.
+> For project context and the golden rules, read `CLAUDE.md` first.
 
 ---
 
 ## The loop
 
+Work ships in **waves** (W0–W8). Each wave is an independently mergeable
+increment that leaves `main` working.
+
 ```
-1. PICK    a task from .ai/state.json "todo" (respect phase order in docs/ROADMAP.md)
-2. CLAIM   move its id from "todo" -> "in_progress" in .ai/state.json
-3. READ    the task file .ai/tasks/NNN-*.md (scope, files, acceptance criteria)
-4. BUILD   implement only what the task asks; follow CLAUDE.md golden rules
-5. VERIFY  run the tests named in the task; do the manual runbook in docs/runbooks/
-6. RECORD  update the runbook if behaviour changed; move id -> "done"
-7. COMMIT  conventional message (feat:/fix:/ci:/docs:/chore:)
+1. PICK    the task named by "next" in .ai/state.json
+2. CLAIM   set its status to "in_progress"
+3. READ    its wave's goal and exit criteria in docs/ROADMAP.md
+4. BUILD   implement only what the task asks; follow the CLAUDE.md golden rules
+5. TEST    every applicable layer (see below) — not just the one that's easy
+6. VERIFY  update or write the wave's runbook so a human can check it by hand
+7. RECORD  set status "done", advance "next", keep the wave's status in sync
+8. COMMIT  feat(W1/T06): <what changed>
 ```
 
 One task per change. Keep diffs small and reviewable.
 
-## Task files
-
-- Location: `.ai/tasks/NNN-kebab-title.md`
-- Template: `.ai/task-template.md`
-- Every task states: **scope**, **files to touch**, **acceptance criteria**,
-  **how to test**, **dependencies**.
-- Found a new problem? Don't expand the current task — write a new task file and
-  add its id to `.ai/state.json` `todo`.
+**Do not start a new wave** until the previous wave's exit criteria all hold and
+its runbooks have been signed off by the maintainer.
 
 ## State
 
-`.ai/state.json` is the single source of truth for progress:
+`.ai/state.json` is the single source of truth. Shape:
 
 ```json
 {
-  "todo":        ["007-fix-echo-server-readiness-probe"],
-  "in_progress": [],
-  "done":        ["001-fix-platform-category-resolution-and-status"],
-  "blocked":     []
+  "currentWave": "W1",
+  "next": "W1-T03",
+  "waves": {
+    "W1": {
+      "title": "...", "goal": "...", "status": "in_progress",
+      "exitCriteria": ["..."],
+      "tasks": { "W1-T03": { "title": "...", "status": "todo" } }
+    }
+  }
 }
 ```
 
-`docs/ROADMAP.md` groups these task ids into phases and defines exit criteria.
+`docs/ROADMAP.md` holds each wave's goal, task list and exit criteria. The v1
+state file and its 79 task descriptions are archived under `.ai/archive/`.
 
-## Running tasks in parallel (optional)
-
-If you want multiple AI sessions working at once, give each its own git worktree
-so they don't collide:
-
-```bash
-git worktree add ../lab-phase1 -b work/phase-1
-git worktree add ../lab-ui     -b work/ui
-```
-
-Then point one tool at each worktree. Merge via normal PRs. No special protocol —
-just keep tasks independent (the phase grouping in ROADMAP is designed for that).
-
-## Roles are now just hints, not gates
-
-You don't need separate "agents." A task file may carry a `Type` hint
-(feature / bug / infra / review) so you know what kind of change it is, but any
-session may implement any task. The only hard rules are the golden rules in
-`CLAUDE.md`.
+Found a new problem mid-task? **Don't expand the current task.** Add a task to
+the wave in `.ai/state.json` and `docs/ROADMAP.md`, and carry on.
 
 ## Definition of done
 
-- [ ] Acceptance criteria in the task file are met.
-- [ ] `cd cmd/labctl && go test ./...` passes with zero failures.
-- [ ] New or modified packages have ≥ 75% statement coverage (`go test -cover`).
-      Run `make test-coverage` and check the HTML report before committing.
-- [ ] Tests follow quality rules (CLAUDE.md golden rule 10):
-      - Table-driven tests for cases that share the same shape.
-      - At least one error/edge path per public function.
-      - Hermetic: `t.TempDir()` for disk I/O; no live cluster or network calls.
-- [ ] The change is portable (macOS + Linux) per CLAUDE.md rule 1.
-- [ ] The matching `docs/runbooks/` file exists and is accurate.
-- [ ] `.ai/state.json` updated and a conventional commit made.
+A task is done only when every applicable box is ticked. There are no
+exceptions, and "the wave is running late" is not one.
+
+- [ ] The code implements the task and nothing beyond it.
+- [ ] **Go tests** — table-driven where cases share a shape; hermetic
+      (`t.TempDir()`, `toolchain.Fake`, never a live cluster or network); happy
+      path, ≥2 error/edge cases per exported function, and cancellation +
+      deadline cases wherever a `context.Context` is accepted.
+- [ ] **`make test-go` passes**, including the race detector and the
+      per-package coverage gate (≥80%; `.coverage-exceptions` is a ratchet, not
+      an escape hatch — read its header before touching it).
+- [ ] **Shell tests** — any script with branching logic has bats coverage using
+      `test/shell/helpers/stub.bash`, asserting idempotency and failure
+      propagation. `make test-shell` passes.
+- [ ] **Contract tests** — any new endpoint or CLI command is tested including
+      its error envelope.
+- [ ] **UI tests** — any new component has Vitest coverage; any new journey has
+      a Playwright test. `make test-ui` and `make test-e2e` pass.
+- [ ] **`make lint` passes** — gofmt, golangci-lint, gosec, govulncheck,
+      shellcheck, shfmt, the portability gate, TypeScript strict.
+- [ ] **Portable** (macOS + Linux, no cgo) per golden rule 1.
+- [ ] **Docs updated in the same commit** — reference docs, plus
+      `docs/PRODUCT.md` or `docs/architecture/` if behaviour changed, plus an
+      **ADR** in `docs/adr/` if you made a decision a future maintainer would
+      otherwise have to reverse-engineer.
+- [ ] **Runbook** written or updated in `docs/runbooks/`.
+- [ ] **`.ai/state.json` updated** and a conventional commit made.
+
+## Running work in parallel (optional)
+
+Give each session its own git worktree so they don't collide:
+
+```bash
+git worktree add ../flightdeck-w2 -b work/w2
+```
+
+Tasks within a wave are usually independent; tasks across waves are not — the
+wave order encodes real dependencies.
+
+## Roles are hints, not gates
+
+There is no multi-agent protocol. Any session may implement any task. The only
+hard rules are the golden rules in `CLAUDE.md` and the Definition of Done above.

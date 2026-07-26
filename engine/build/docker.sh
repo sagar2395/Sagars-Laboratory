@@ -12,7 +12,7 @@ if [ -f "apps/${APP_NAME}/app.env" ]; then
     set -a; . "apps/${APP_NAME}/app.env"; set +a
 fi
 
-CLUSTER_NAME="${CLUSTER_NAME:-sagars-cluster}"
+CLUSTER_NAME="${CLUSTER_NAME:-flightdeck}"
 PROFILE="${PROFILE:-k3d}"
 
 echo "Building Docker image for ${APP_NAME}..."

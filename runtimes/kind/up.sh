@@ -8,13 +8,13 @@ set -euo pipefail
 # platform scripts runtime-agnostic.
 #
 # Config (env, with defaults — scripts never source .env themselves):
-#   CLUSTER_NAME     cluster name (default: sagars-cluster)
+#   CLUSTER_NAME     cluster name (default: flightdeck)
 #   HTTP_PORT        host port mapped to node :80 (default: 80)
 #   HTTPS_PORT       host port mapped to node :443 (default: 443)
 #   AGENTS           number of worker nodes (default: 1)
 #   KIND_NODE_IMAGE  pin the node image, e.g. kindest/node:v1.29.4 (default: kind's)
 
-CLUSTER_NAME="${1:-${CLUSTER_NAME:-sagars-cluster}}"
+CLUSTER_NAME="${1:-${CLUSTER_NAME:-flightdeck}}"
 HTTP_PORT="${HTTP_PORT:-80}"
 HTTPS_PORT="${HTTPS_PORT:-443}"
 AGENTS="${AGENTS:-1}"

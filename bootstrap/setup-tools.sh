@@ -318,95 +318,34 @@ install_docker() {
 }
 
 # ---------------------------------------------------------------------------
-# Cloud CLI tools
+# kind (headless local cluster — powers CI and the nightly e2e job)
 # ---------------------------------------------------------------------------
 
-install_az_cli() {
-    echo -e "${YELLOW}Installing Azure CLI (v${AZ_CLI_VERSION})...${NC}"
+install_kind() {
+    echo -e "${YELLOW}Installing kind (v${KIND_VERSION})...${NC}"
 
-    if command -v az &>/dev/null; then
-        current_version=$(az --version 2>/dev/null | head -1 | awk '{print $NF}')
-        if [ "$current_version" = "${AZ_CLI_VERSION}" ]; then
-            echo -e "${GREEN}Azure CLI v${AZ_CLI_VERSION} already installed${NC}"
+    if command -v kind &>/dev/null; then
+        current_version=$(kind version 2>/dev/null \
+            | sed 's/.*kind v\([^ ]*\).*/\1/')
+        if [ "$current_version" = "${KIND_VERSION}" ]; then
+            echo -e "${GREEN}kind v${KIND_VERSION} already installed${NC}"
             return 0
         fi
-        echo -e "${YELLOW}Azure CLI v${current_version} installed (want v${AZ_CLI_VERSION})${NC}"
-    fi
-
-    if [ "$OS" = "darwin" ]; then
-        _install_homebrew
-        brew install azure-cli
-    else
-        curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-    fi
-
-    installed=$(az --version 2>/dev/null | head -1 | awk '{print $NF}')
-    echo -e "${GREEN}Azure CLI v${installed} installed${NC}"
-}
-
-install_aws_cli() {
-    echo -e "${YELLOW}Installing AWS CLI (v${AWS_CLI_VERSION:-2})...${NC}"
-
-    if command -v aws &>/dev/null; then
-        current_version=$(aws --version 2>/dev/null | awk '{print $1}' | cut -d/ -f2)
-        echo -e "${GREEN}AWS CLI v${current_version} already installed${NC}"
-        return 0
-    fi
-
-    local aws_tmp
-    aws_tmp="$(mktemp -d)"
-
-    if [ "$OS" = "darwin" ]; then
-        echo "Downloading AWS CLI v2 for macOS..."
-        curl -fsSLo "${aws_tmp}/AWSCLIV2.pkg" "https://awscli.amazonaws.com/AWSCLIV2.pkg"
-        sudo installer -pkg "${aws_tmp}/AWSCLIV2.pkg" -target /
-    else
-        local aws_arch="x86_64"
-        [ "$ARCH" = "arm64" ] && aws_arch="aarch64"
-        echo "Downloading AWS CLI v2 for Linux/${aws_arch}..."
-        curl -fsSLo "${aws_tmp}/awscliv2.zip" \
-            "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip"
-        unzip -qo "${aws_tmp}/awscliv2.zip" -d "${aws_tmp}"
-        sudo "${aws_tmp}/aws/install" --update
-    fi
-
-    rm -rf "${aws_tmp}"
-    installed=$(aws --version 2>/dev/null | awk '{print $1}' | cut -d/ -f2)
-    echo -e "${GREEN}AWS CLI v${installed} installed${NC}"
-}
-
-install_terraform() {
-    local tf_version="${TERRAFORM_VERSION:-1.7.0}"
-    echo -e "${YELLOW}Installing Terraform (v${tf_version})...${NC}"
-
-    if command -v terraform &>/dev/null; then
-        current_version=$(terraform version -json 2>/dev/null \
-            | grep '"terraform_version"' \
-            | sed 's/.*"terraform_version":[[:space:]]*"\([^"]*\)".*/\1/')
-        if [ "$current_version" = "$tf_version" ]; then
-            echo -e "${GREEN}Terraform v${tf_version} already installed${NC}"
-            return 0
-        fi
-        echo -e "${YELLOW}Terraform v${current_version} installed (want v${tf_version})${NC}"
+        echo -e "${YELLOW}kind version mismatch (have v${current_version}, want v${KIND_VERSION})${NC}"
     fi
 
     ensure_install_dir
-    echo "Downloading Terraform v${tf_version} for ${OS}/${ARCH}..."
-    local tf_tmp
-    tf_tmp="$(mktemp -d)"
-    curl -fsSLo "${tf_tmp}/terraform.zip" \
-        "https://releases.hashicorp.com/terraform/${tf_version}/terraform_${tf_version}_${OS}_${ARCH}.zip"
-    unzip -qo "${tf_tmp}/terraform.zip" -d "${tf_tmp}"
-    sudo mv "${tf_tmp}/terraform" "${INSTALL_DIR}/terraform"
-    rm -rf "${tf_tmp}"
+    echo "Downloading kind v${KIND_VERSION} for ${OS}-${ARCH}..."
+    curl -fsSLo /tmp/kind \
+        "https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-${OS}-${ARCH}"
+    chmod +x /tmp/kind
+    sudo mv /tmp/kind "${INSTALL_DIR}/kind"
 
-    installed=$(terraform version -json 2>/dev/null \
-        | grep '"terraform_version"' \
-        | sed 's/.*"terraform_version":[[:space:]]*"\([^"]*\)".*/\1/')
-    if [ "$installed" = "$tf_version" ]; then
-        echo -e "${GREEN}Terraform v${tf_version} installed and verified${NC}"
+    installed=$(kind version 2>/dev/null | sed 's/.*kind v\([^ ]*\).*/\1/')
+    if [ "$installed" = "${KIND_VERSION}" ]; then
+        echo -e "${GREEN}kind v${KIND_VERSION} installed and verified${NC}"
     else
-        echo -e "${RED}ERROR: Terraform version mismatch after install (got v${installed})${NC}" >&2
+        echo -e "${RED}ERROR: kind version mismatch after install (got v${installed})${NC}" >&2
         exit 1
     fi
 }
@@ -433,22 +372,13 @@ install_k3d_profile() {
     echo -e "${GREEN}========== K3D Profile Complete ==========${NC}\n"
 }
 
-install_aks_profile() {
-    echo -e "${GREEN}========== Installing AKS Profile ==========${NC}"
+install_kind_profile() {
+    echo -e "${GREEN}========== Installing kind Profile ==========${NC}"
     install_common
+    install_docker   # Colima on macOS; Docker Engine on Linux
+    install_kind
     install_helm
-    install_terraform
-    install_az_cli
-    echo -e "${GREEN}========== AKS Profile Complete ==========${NC}\n"
-}
-
-install_eks_profile() {
-    echo -e "${GREEN}========== Installing EKS Profile ==========${NC}"
-    install_common
-    install_helm
-    install_terraform
-    install_aws_cli
-    echo -e "${GREEN}========== EKS Profile Complete ==========${NC}\n"
+    echo -e "${GREEN}========== kind Profile Complete ==========${NC}\n"
 }
 
 # ---------------------------------------------------------------------------
@@ -462,9 +392,8 @@ Usage: setup-tools.sh [PROFILE]
 Detected: OS=${OS}, ARCH=${ARCH}
 
 Profiles:
-  k3d     kubectl + colima/docker + k3d + helm   (local cluster)
-  aks     kubectl + helm + terraform + az         (Azure AKS)
-  eks     kubectl + helm + terraform + aws        (AWS EKS)
+  k3d     kubectl + colima/docker + k3d + helm    (local cluster — the golden path)
+  kind    kubectl + colima/docker + kind + helm   (headless; used by CI)
   common  kubectl only
   all     all of the above
 
@@ -474,7 +403,7 @@ Container runtime installed per OS:
 
 Examples:
   ./setup-tools.sh k3d
-  ./setup-tools.sh aks
+  ./setup-tools.sh kind
   make setup-tools PROFILE=k3d
 EOF
 }
@@ -488,13 +417,11 @@ main() {
 
     case "$profile" in
         k3d)    install_k3d_profile ;;
-        aks)    install_aks_profile ;;
-        eks)    install_eks_profile ;;
+        kind)   install_kind_profile ;;
         common) install_common ;;
         all)
             install_k3d_profile
-            install_aks_profile
-            install_eks_profile
+            install_kind_profile
             ;;
         help|--help|-h)
             show_help
