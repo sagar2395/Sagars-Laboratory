@@ -30,9 +30,10 @@ first-party platform modules/scenarios in this repository.
 Out of scope: vulnerabilities in the third-party tools Flightdeck orchestrates
 (kubectl, helm, Istio, Vault, Prometheus, etc.) — report those upstream. Also out
 of scope: issues that require a pre-compromised cluster or that are inherent to
-running attacker-supplied scenario packs (packs run scripts on your cluster by
-design — only install packs you trust; see the pack-verification model in the
-strategy docs).
+running attacker-supplied content. Scenarios and incidents run shell scripts
+against your cluster by design, so content loaded from an external root
+(`FLIGHTDECK_CONTENT_PATH`) is trusted code — only point it at sources you
+trust. See `docs/adr/0008-content-extensibility-seam.md`.
 
 ## Supported versions
 

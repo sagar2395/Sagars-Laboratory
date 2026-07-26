@@ -12,8 +12,7 @@ prerequisites:
     - go-api
 runtimes:
   - k3d
-  - aks
-  - eks
+  - kind
 
 objectives:
   - "Route traffic 90/10 across two go-api versions with an Istio VirtualService"

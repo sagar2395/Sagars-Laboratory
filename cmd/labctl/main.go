@@ -2,9 +2,9 @@
 package main
 
 import (
-	"go.flightdeck.dev/labctl/cmd"
+	"go.flightdeck.dev/flightdeck/internal/cli"
 )
 
 func main() {
-	cmd.Execute()
+	cli.Execute()
 }

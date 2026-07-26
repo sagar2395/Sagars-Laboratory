@@ -11,8 +11,7 @@ prerequisites:
     - go-api
 runtimes:
   - k3d
-  - aks
-  - eks
+  - kind
 
 objectives:
   - "Aggregate application logs in Loki and query them from Grafana"

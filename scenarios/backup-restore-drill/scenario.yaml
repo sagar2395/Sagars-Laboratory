@@ -8,8 +8,7 @@ prerequisites:
     - go-api
 runtimes:
   - k3d
-  - aks
-  - eks
+  - kind
 
 objectives:
   - "Capture a namespace's resources into a restorable manifest archive"

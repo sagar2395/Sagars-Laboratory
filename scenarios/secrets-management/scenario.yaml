@@ -11,8 +11,7 @@ prerequisites:
     - go-api
 runtimes:
   - k3d
-  - aks
-  - eks
+  - kind
 
 objectives:
   - "Sync a Vault KV secret into a Kubernetes Secret via External Secrets"

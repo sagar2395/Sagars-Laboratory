@@ -1,7 +1,7 @@
 # Repository labels for Flightdeck (task 072). Apply with a label-sync action
 # (e.g. micnncim/action-label-syncer) or create them by hand in the GitHub UI.
 # The contributor-onboarding labels (good first issue / help wanted) are what
-# `docs/authoring/first-pack.md` points newcomers at; a maintainer seeds a few
+# `docs/authoring/` points newcomers at; a maintainer seeds a few
 # starter issues under them (manual action).
 
 - name: "good first issue"
@@ -14,7 +14,7 @@
 
 - name: "area/scenario"
   color: "0e8a16"
-  description: "Scenario content (scenarios/, packs/)."
+  description: "Simulator content (scenarios/, incidents/, learn/, challenges/)."
 
 - name: "area/platform"
   color: "1d76db"

@@ -8,8 +8,7 @@ prerequisites:
   apps: []
 runtimes:
   - k3d
-  - aks
-  - eks
+  - kind
 components:
   - name: argocd
     type: helm
