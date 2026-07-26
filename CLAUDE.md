@@ -1,209 +1,146 @@
 # CLAUDE.md — Project Context for AI Sessions
 
-> Read this file first in every session. It is the lean entry point.
-> Anything deeper lives in `docs/` — only open those when the task needs them.
-> Last updated: 2026-06-14
+> Read this first in every session. It is the lean entry point.
+> Anything deeper lives in `docs/` — open those only when the task needs them.
+> Last updated: 2026-07-26
 
 ---
 
 ## What this project is
 
-**Flightdeck** (this repo; historically "Sagars-Laboratory") is a Kubernetes
-**Platform Engineering Simulator**: a toolkit where DevOps/SRE/platform teams
-replicate real-world production scenarios across swappable tech stacks — for
-learning, PoCs, experimentation, and skills assessment. The product name is
-**Flightdeck**; the Go SDK module path is `go.flightdeck.dev/labctl`. A single Go
-binary (`labctl`) plus a web UI wraps shell scripts and declarative YAML to:
+**Flightdeck** is a Kubernetes **platform-engineering simulator**: it stands up a
+realistic production-shaped cluster on your laptop in minutes, breaks it in
+realistic ways, and grades you on how you fix it. Built for engineers learning
+platform skills, teams evaluating stacks, SREs running game days, and leads
+assessing incident-response ability.
 
-- spin up a cluster (k3d locally; AKS/EKS in the cloud),
-- install **swappable** platform components (ingress, monitoring, logging,
-  tracing, GitOps, security, chaos; mesh/data/secrets/autoscaling planned),
-- activate declarative **scenarios** with verifiable `checks`,
-- inject **incidents**, run **learning paths** and graded **challenges**,
-- and tear it all down in minutes.
+A single Go binary (`labctl`) plus an embedded web UI wraps shell scripts and
+declarative YAML to spin up a cluster, install swappable platform components,
+activate scenarios with verifiable `checks`, inject incidents, run learning
+paths and graded challenges, and tear it all down.
 
-Vision & feature catalog: `docs/SIMULATOR.md`. The core idea: **the CLI
-orchestrates, shell scripts and YAML do the work.** `labctl` never reimplements
-`helm`/`kubectl` logic — it calls scripts and streams their output. Keep that
-boundary.
+**The core boundary: Go orchestrates, records and grades. Shell scripts and YAML
+do the domain work.** `labctl` never reimplements `helm`/`kubectl` logic.
 
-## Current status (read before planning work)
+## Current status — read before planning work
 
-- ✅ Homelab hardening (ROADMAP **Part I**) is done: CLI, SPA UI, CI, and all
-  four original scenarios work on macOS + Linux with k3d.
-- ❌ Cloud runtimes (AKS/EKS) never verified against real accounts (tasks 038/039).
-- 🚧 Simulator era (ROADMAP **Part II**, milestones M1–M6) is underway:
-  **M1, M2, and M3 are complete** (scenario engine v2; incident engine incl.
-  hints, MTTR, on-call drill; learning paths, challenge mode, unified results
-  store, and UI Learn/Challenges/Results views). **M4 is complete:** service-mesh
-  (istio + linkerd), data (kafka/strimzi + postgres/cnpg), secrets (vault +
-  external-secrets), and autoscaling (keda) categories, with four new v2
-  scenarios (autoscaling-under-load, mesh-traffic-management, event-driven-arch,
-  secrets-management); `platform up/down/status` take a `category` or
-  `category/provider` target. **M5 (Multi-Env & Day-2 Ops) is complete:** 079
-  (comprehensive test suite) done; 059 (env-promotion scenario + `labctl env`)
-  done; 060 (day-2 drills: `node-drain-drill`, `cluster-upgrade-drill`,
-  `backup-restore-drill`, each grading availability via promql) done; 061
-  (`platform/cost/opencost` provider + `cost-right-sizing` scenario with script
-  checks for Kubernetes quantity comparison, `CostProvider` config field).
-  **M6 (Team Mode & Runtimes) is underway:** 062 (optional auth + RBAC) done —
-  `internal/auth` (PBKDF2-HMAC-SHA256 hashes, in-memory sessions,
-  operator/participant policy), API auth middleware + `/api/auth/{login,logout,me}`,
-  `labctl users add/list/remove`, authenticated identity flows into result
-  records, UI login flow. Auth is OFF by default (enable with `LABCTL_AUTH=true`).
-  063 (team sessions) done — leaderboard aggregation + `GET /api/leaderboard` +
-  UI Leaderboard tab; `labctl-server` Helm chart (`delivery/charts/labctl-server`)
-  with SA/RBAC, PVC-persisted `.labctl`, optional users Secret;
-  `Dockerfile.labctl-server` (repo + helm/kubectl); `runtimes/incluster` profile.
-  064 (new runtimes) done — `runtimes/kind` (headless, CI-friendly; nightly
-  `e2e-kind` job runs `scenario verify`) and `runtimes/gke` + `foundation/
-  terraform/modules/gke` (verify-once caveat). **M6 COMPLETE.** Remaining work is
-  P2: cloud verification (038 AKS, 039 EKS, and the gke first-apply) needs real
-  accounts.
+The project is in a **v2 redesign**. v1 shipped a broad feature set (79 tasks,
+9 milestones) but with a weak core: no cancellation, no durable state, zero
+shell tests, zero UI tests, and cloud runtimes that were never verified.
 
-- 🧭 **Part III (new direction):** evolve into a community-driven OSS
-  platform-engineering simulator with future commercial offerings. Strategy:
-  `docs/strategy/OSS-COMMERCIAL-STRATEGY.md`; maintainer-only steps:
-  `docs/strategy/MAINTAINER-MANUAL-ACTIONS.md`. Milestones M7 (OSS foundation,
-  P0), M8 (marketplace), M9 (commercial/hosted). **M7 is COMPLETE:** 065
-  governance/license, 066 public SDK boundary, 067 pack format, 068 OCI pack
-  distribution + cosign signing, 069 registry index + discovery (`labctl pack
-  search`/`add <name>`/`validate-index`), 070 entitlement + extension seams
-  (`pkg/entitlement` allow-all + `pkg/extension` resolver chain/no-op hooks,
-  CODEOWNERS-locked), 071 module path + brand (`go.flightdeck.dev/labctl`,
-  rebranded **Flightdeck**), 072 contributor experience (`labctl scenario new` /
-  `pack init` scaffolds, `sdk/*-template`, editor schema validation,
-  `docs/authoring/first-pack.md`). **M8 is COMPLETE:** 073 (hosted catalog API
-  client — `pkg/pack.CatalogClient`, hosted-first / static-index-fallback,
-  `/api/packs` endpoints), 074 (`pkg/entitlement.TokenEntitlement` — premium tier
-  gating behind `TokenVerifier` seam; community always free), 075 (Marketplace UI
-  tab — browse/search/install/remove packs with tier/verified badge). **M9 is
-  COMPLETE:** 076 (`pkg/edition` CE/Pro/Enterprise — `labctl edition`,
-  `GET /api/edition`, CE feature-line guarantee), 077 (SaaS RFC —
-  `docs/strategy/RFC-0002-saas-control-plane.md`, §6 invariant validated), 078
-  (`pkg/credential` certification framework — HMAC-SHA256 Certificate,
-  `labctl credential issue/list/verify`, `/api/credentials` endpoints). Only
-  remaining automatable work is **cloud verification (038 AKS, 039 EKS, gke
-  first-apply)** — needs real accounts. Maintainer owes: host
-  `go.flightdeck.dev`, org transfer to `snowops/flightdeck`, registry repo +
-  Pages, CLA app, branch protection, trademark search, seed good-first-issues
-  (A0/B/C).
+v2 cuts scope hard and rebuilds the core to production standard.
 
-**The plan of record is `docs/ROADMAP.md` (+ `docs/strategy/` for Part III).
-Live status is `.ai/state.json` — its `next` field points at the recommended
-next task.**
+- **Plan of record: `docs/ROADMAP.md`** — nine waves, W0 through W8.
+- **Live state: `.ai/state.json`** — its `next` field names the task to pick up.
+- **Product rationale: `docs/PRODUCT.md`. Target design:
+  `docs/architecture/ARCHITECTURE.md`. Decisions: `docs/adr/`.**
+- **Test policy: `docs/TESTING.md`** — four mandatory layers.
+- v1 plan, runbooks, strategy docs and task files: `docs/archive/`, `.ai/archive/`.
+
+**Cut in v2:** cloud runtimes (AKS/EKS/GKE) and Terraform; the pack marketplace,
+entitlement tiers, editions and certificate framework. See ADR-0001.
+
+**Currently:** the v2 plan is written; implementation starts at wave W0.
 
 ## The golden rules (do not violate)
 
-1. **Cross-platform.** This must run on macOS (Apple Silicon + Intel) and any
-   modern Linux. No GNU-only flags in shell scripts (`grep -oP`, `sed -i` w/o
-   backup, `readlink -f`, `date -d`). No hardcoded `linux/amd64`. Detect OS/arch.
-2. **CLI wraps scripts.** Don't move script logic into Go. Add a script, register it.
+1. **Cross-platform.** macOS (Apple Silicon + Intel) and modern Linux. No
+   GNU-only flags (`grep -oP`, `sed -i` without a backup suffix, `readlink -f`,
+   `date -d`). No hardcoded `linux/amd64`. **No cgo** — it breaks
+   cross-compilation.
+2. **Go orchestrates, scripts do the work.** Don't move script logic into Go.
+   Add a script, register it.
 3. **Config flows through the environment.** Scripts read `${VAR:-default}` from
-   the executor's env. They must NOT source `.env`/`.active-runtime.env` themselves.
-4. **No hardcoded domains.** Always use `${DOMAIN_SUFFIX:-k3d.local}`.
-5. **Idempotent everything.** `helm upgrade --install`, `kubectl apply`, "skip if
-   exists" cluster creation, scenario re-activation safe.
-6. **Never commit build artifacts.** No binaries in git (`bin/` is gitignored),
-   no runtime state (`.labctl/`).
-7. **Every feature ships with a runbook.** If you add/fix a feature, add or update
-   the matching file in `docs/runbooks/` so a human can verify it by hand.
-8. **Docs and state are part of the change — mandatory.** Every change must, in
-   the same commit/PR: update the relevant doc in `docs/` (and `docs/SIMULATOR.md`
-   / `docs/ROADMAP.md` if the plan or feature set changed), update the task's
-   status + the `next` pointer in `.ai/state.json`, and keep this file's
-   "Current status" truthful. An undocumented change is an unfinished change.
-9. **Simulator content is declarative.** Scenarios, faults, learning paths,
-   challenges, and checks are YAML + scripts. Never bake their logic into Go.
-10. **Every new feature ships with thorough tests — no exceptions.**
-    - New or modified Go packages must include tests covering: the happy path,
-      at least two error/edge cases per public function, and cancellation/timeout
-      where the function accepts a `context.Context`.
-    - Use **table-driven tests** (`tests := []struct{...}{...}`) when two or more
-      cases share the same shape. Never write `TestFoo_CaseA` + `TestFoo_CaseB`
-      as separate top-level functions for the same behaviour.
-    - Tests must be **hermetic**: use `t.TempDir()` for disk I/O; mock or stub
-      external calls (cluster, network, shell scripts). Never depend on a live
-      cluster or real cloud credentials in unit tests.
-    - Target **≥ 75% statement coverage** for any package you add or significantly
-      modify, verified with `go test -cover ./...`. Run `make test-coverage` to
-      confirm before committing.
-    - Shell scripts that contain logic (not just `helm install`) need a matching
-      `bats` or inline `bash -c 'source ...; assert ...'` test in the same PR.
+   the executor's env. They must NOT source `.env` themselves.
+4. **No hardcoded domains.** Always `${DOMAIN_SUFFIX:-k3d.local}`.
+5. **Idempotent everything.** `helm upgrade --install`, `kubectl apply`,
+   skip-if-exists cluster creation, safe re-activation. Interrupting an
+   operation and re-running it must converge.
+6. **Never commit build artifacts.** No binaries, no runtime state.
+7. **Every operation is cancellable and durable.** Anything that shells out goes
+   through `internal/run` with a context, a timeout, a lock key and persisted
+   logs. Never call `exec.Command(...).Run()` directly.
+8. **Simulator content is declarative.** Scenarios, faults, paths, challenges and
+   checks are YAML + scripts. Never bake their logic into Go.
+9. **Docs, runbook and state are part of the change — mandatory.** Every change
+   updates the relevant doc, adds or updates a runbook, writes an ADR if a
+   decision was made, and updates `.ai/state.json`. An undocumented change is an
+   unfinished change.
+10. **Every feature ships with tests at every applicable layer — no exceptions.**
+    Go unit (table-driven, hermetic, ≥80%, cancellation covered), bats for
+    scripts with logic, contract tests for endpoints and CLI commands, Vitest +
+    Playwright for UI. Full policy: `docs/TESTING.md`.
 
-## Repository map
+## Repository map (v2 target)
 
 ```
-labctl CLI ............ cmd/labctl/              Go: Cobra CLI + REST/WS API + embedded UI
-web UI source ......... ui/                      Frontend (being rebuilt as SPA)
-apps .................. apps/<name>/             Source + app.env + deploy/helm/
-platform components ... platform/<category>/<provider>/   install.sh/uninstall.sh/status.sh/values.yaml
-scenarios ............. scenarios/<name>/        scenario.yaml + manifests/values/dashboards
-incidents ............. incidents/<name>/        fault.yaml + inject/resolve.sh + hints/solution
-runtimes .............. runtimes/<profile>/      up.sh/down.sh/runtime.env  (k3d|aks|eks)
-build/deploy engine ... engine/                  strategy dispatch (docker|acr|ecr; helm)
-services .............. services/<name>/         shared deps (redis)
-IaC ................... foundation/terraform/    modules/{aks,eks} + environments/{dev,staging}
-make includes ......... make/                    modular *.mk
-config ................ .env(.example), versions.env, apps/*/app.env, runtimes/*/runtime.env
-tasks / backlog ....... .ai/tasks/, .ai/state.json
+go.mod ................ repo root — module go.flightdeck.dev/flightdeck
+cmd/labctl/ ........... entrypoint only
+internal/cli/ ......... cobra commands — thin adapters
+internal/httpapi/ ..... REST/WS/SSE — thin adapters
+internal/service/ ..... use-cases and invariants (the only place logic lives)
+internal/run/ ......... durable run engine: queue, locks, cancel, logs
+internal/store/ ....... SQLite persistence + migrations
+internal/catalog/ ..... declarative content loading + validation
+internal/toolchain/ ... bash/kubectl/helm/k3d adapters + fakes
+pkg/checks/ ........... public: the check engine
+pkg/scenario/ ......... public: content types + schema
+pkg/extension/ ........ public: third-party seam
+ui/ ................... React SPA, embedded into the binary
+platform/<cat>/<prov>/  install.sh/uninstall.sh/status.sh/values.yaml
+scenarios/ incidents/ learn/ challenges/    declarative content
+runtimes/<profile>/ ... k3d | kind | incluster
+apps/<name>/ .......... sample workloads (own Go module)
+docs/ ................. PRODUCT, ROADMAP, TESTING, architecture/, adr/, runbooks/
+.ai/state.json ........ wave + task state
 ```
 
 ## Where to look for what (don't load everything)
 
 | You need to… | Open |
 |---|---|
-| Understand the plan / what to build next | `docs/ROADMAP.md` + `.ai/state.json` |
-| Simulator vision / why a feature exists | `docs/SIMULATOR.md` |
-| Verify a feature by hand / test manually | `docs/runbooks/` |
+| Know what to build next | `.ai/state.json` → `docs/ROADMAP.md` |
+| Understand why a feature exists | `docs/PRODUCT.md` |
+| Understand how the system fits together | `docs/architecture/ARCHITECTURE.md` |
+| Know why something was built this way | `docs/adr/` |
+| Know the test bar | `docs/TESTING.md` |
+| Verify a feature by hand | `docs/runbooks/` |
 | Know a `labctl` command | `docs/cli-reference.md` |
-| Deep architecture / patterns | `docs/architecture.md` (large — skim, don't load whole) |
-| Scenario format & authoring | `docs/scenarios.md` |
-| Cloud (AKS/EKS) setup | `docs/cloud-runtimes.md` |
-| CI/CD workflows | `docs/ci-cd.md` |
-| How tasks/agents work | `AGENTS.md` |
+| Scenario format & authoring | `docs/scenarios.md`, `docs/authoring/` |
 
 ## Conventions cheat-sheet
 
-- **Shell:** `#!/usr/bin/env bash`, `set -euo pipefail`, idempotent, portable (rule 1).
-- **Platform provider** = a dir with `install.sh`, `uninstall.sh`, `status.sh`, `values.yaml`.
-  Selected by env var (`INGRESS_PROVIDER`, `METRICS_PROVIDER`, …); registry routes to it.
-- **App contract** = `apps/<name>/app.env` (`BUILD_STRATEGY`, `DEPLOY_STRATEGY`, `HELM_VALUES`).
-- **Helm values** = `values-{dev,prod-like,cloud,test}.yaml`.
-- **Commit prefixes:** `feat:`, `fix:`, `ci:`, `docs:`, `chore:`. Conventional commits.
-- **Tasks** live in `.ai/tasks/NNN-kebab-title.md`; status in `.ai/state.json`.
+- **Shell:** `#!/usr/bin/env bash`, `set -euo pipefail`, idempotent, portable,
+  handles `SIGTERM`, emits `##flightdeck:step:<name>` markers for progress.
+- **Platform provider** = a dir with `install.sh`, `uninstall.sh`, `status.sh`,
+  `values.yaml`, selected by env var (`INGRESS_PROVIDER`, …).
+- **Go:** every exported function that can block takes `context.Context` first.
+  Errors wrap with `%w`. No `panic` outside `main`.
+- **Commit prefixes:** `feat:`, `fix:`, `test:`, `ci:`, `docs:`, `chore:`,
+  scoped by wave/task — `feat(W1/T06): run queue with exclusive lock keys`.
 
-## Build & test (do this to verify your changes)
+## Build & test
 
 ```bash
-# Build the CLI for the current OS/arch (no committed binary)
-cd cmd/labctl && go build -o ../../bin/labctl . && cd ../..
-
-# Or via make
-make cli-build
-
-# Run CLI tests (must pass before every commit)
-cd cmd/labctl && go test ./... && cd ../..
-
-# Run tests with coverage report (HTML output → coverage.html)
-make test-coverage
-
-# App tests
-cd apps/go-api && go test ./... ; cd ../..
+go build ./...          # from the repo root
+make test               # layers 1-3, race detector, coverage gate
+make test-shell         # bats
+make test-ui            # vitest
+make test-e2e           # playwright
+make lint               # every static analysis gate
+make test-coverage      # HTML report
 ```
-
-**Test coverage is not optional.** If `go test -cover ./...` shows a package you
-touched dropped below 75%, add tests before committing (golden rule 10).
-
-`make help` lists all targets. `bin/labctl --help` lists all commands.
 
 ## Working agreement for AI sessions
 
-- Pick the task named by `next` in `.ai/state.json` (or the lowest-numbered
-  unblocked task of the highest-priority milestone). One task at a time.
-- Keep changes scoped to the task. Don't redesign the API surface unless the task says so.
-- After implementing: run the relevant tests, then update the task's status in
-  `.ai/state.json` and the matching runbook in `docs/runbooks/`.
-- If you discover a new bug, add a task file rather than silently expanding scope.
-- This is a tool-agnostic repo: Claude, Codex, Cursor, etc. all read `CLAUDE.md` +
+- Work is delivered in **waves**. Pick the task named by `next` in
+  `.ai/state.json`. One task at a time; finish it completely before starting
+  another.
+- **A task is not done until the Definition of Done in `docs/ROADMAP.md` is
+  satisfied** — code, tests at every applicable layer, docs, runbook, state.
+- Keep changes scoped to the task. If you discover a new problem, add it to the
+  wave's task list rather than silently expanding scope.
+- Do not start a new wave until the previous wave's exit criteria hold and its
+  runbooks have been signed off by the maintainer.
+- This repo is tool-agnostic: Claude, Codex, Cursor all read `CLAUDE.md` +
   `AGENTS.md`. Keep instructions tool-neutral.
