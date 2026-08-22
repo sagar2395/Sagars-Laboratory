@@ -9,4 +9,4 @@ labctl scenario verify <name>   # green out of the box
 
 Copy this directory manually if you prefer. The `# yaml-language-server` modeline
 gives inline validation in editors (see `.vscode/settings.json`). Authoring guide:
-`docs/authoring/first-pack.md`.
+`docs/authoring/first-scenario.md`.

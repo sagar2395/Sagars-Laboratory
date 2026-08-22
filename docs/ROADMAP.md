@@ -1,457 +1,369 @@
-# ROADMAP — Path to the Desired State
+# Flightdeck v2 — Delivery Roadmap
 
-> The single plan of record. **Part I** (phases 0–7) is the original homelab
-> hardening plan — nearly complete. **Part II** (milestones M1–M6) is the
-> Platform Engineering Simulator era — the long-term build-out. Vision and
-> feature rationale: `docs/SIMULATOR.md`. Status of each task lives in
-> `.ai/state.json`; details in `.ai/tasks/`.
-> Last updated: 2026-06-11
+> The plan of record. Product rationale: `docs/PRODUCT.md`. Target design:
+> `docs/architecture/ARCHITECTURE.md`. Live status: `.ai/state.json`.
+> The v1 plan is archived at `docs/archive/ROADMAP-v1.md`.
+> Last updated: 2026-07-26
 
 ---
 
-# Part I — Homelab hardening (phases 0–7)
+## How this plan works
 
-## Desired end state
+Work ships in **waves**. A wave is a self-contained, independently mergeable
+increment that leaves `main` in a working state. Each wave has:
 
-A platform-engineering homelab that a single person can run on **a MacBook (Apple
-Silicon or Intel) or any modern Linux box**, with the *option* to push the same
-workloads to **AKS/EKS** in the cloud:
+- a **goal** — one sentence,
+- **tasks** with IDs (`W3-T02`), tracked in `.ai/state.json`,
+- **exit criteria** — objective, checkable statements,
+- **runbooks** — the manual validation the maintainer performs before merging.
 
-- `make init` (or `labctl init`) brings up a local k3d cluster + platform stack on
-  a clean machine, regardless of OS.
-- `labctl` and the **web UI** drive everything: deploy apps, install/swap platform
-  components, activate scenarios, watch live status.
-- Four scenarios (observability, GitOps, security, chaos) activate and explore
-  cleanly, each with a documented manual runbook.
-- AKS/EKS provisioning via Terraform is verified against real accounts at least once.
-- CI/CD validates lint, tests, image build, Helm, and shell portability on every PR.
+Waves are sequential; tasks within a wave may be parallel. The wave is not done
+until every exit criterion holds *and* its runbooks pass on real hardware.
 
-## How the plan is organized
+### Definition of Done (applies to every task, no exceptions)
 
-Each phase has a **goal**, a **task list** (ids map to `.ai/tasks/NNN-*.md`), an
-**exit criterion** (objective, testable), and a **runbook** to verify it by hand.
-Phases 1–2 are sequential (stability first). Phases 3–6 only depend on Phase 2 and
-can be parallelized across worktrees/AI tools.
+A task is done when all of these are true:
 
-```
-Phase 0  Cross-Platform Foundation   ─┐ (must be first)
-Phase 1  Core Stability (P0)          │ sequential
-Phase 2  Reliability & Correctness   ─┘
-                │
-   ┌────────────┼────────────┬───────────────┐
-Phase 3      Phase 4       Phase 5         Phase 6
-Web UI       Apps &        CI/CD &         Cloud
-(SPA)        Observability Supply Chain    (AKS/EKS)
-   └────────────┴────────────┴───────────────┘
-                │
-            Phase 7  Polish & Release
-```
+1. **Code** implements the task and nothing beyond it.
+2. **Go tests** — table-driven, hermetic (`t.TempDir()`, `toolchain.Fake`, no
+   live cluster), covering the happy path, ≥2 error/edge cases per exported
+   function, and context cancellation wherever a `context.Context` is accepted.
+   Package statement coverage **≥ 80%**. Race detector clean.
+3. **Shell tests** — any script with branching logic has `bats` coverage with
+   `kubectl`/`helm` stubbed on `PATH`.
+4. **API/contract tests** — any new endpoint or CLI command has an integration
+   test against a fake toolchain, including its error envelope.
+5. **UI tests** — any new component has Vitest + Testing Library coverage; any
+   new user journey has a Playwright test against a mocked API.
+6. **Docs** updated in the same commit — reference docs, `docs/PRODUCT.md` or
+   `docs/architecture/` if behaviour changed, and an ADR if a decision was made.
+7. **Runbook** written or updated so a human can verify the feature by hand.
+8. **State** updated — task status and the `next` pointer in `.ai/state.json`.
+
+Full detail on the four test layers and CI gates: `docs/TESTING.md`.
 
 ---
 
-## Phase 0 — Cross-Platform Foundation `[macOS + Linux]`
+## What v2 changes from v1
 
-**Goal:** the toolkit installs and runs identically on macOS (arm64/amd64) and
-Linux. This is the gate for everything else — the project was authored on WSL and
-carries Linux-only assumptions.
+| Decision | v1 | v2 |
+|---|---|---|
+| Focus | 79 tasks across 9 milestones incl. marketplace, editions, certificates | Rock-solid core simulator; commercial surfaces removed |
+| Execution | `cmd.Run()`, no context, in-memory job map (cap 100), dropped log lines | Durable run engine: cancellation, timeouts, locking, persisted replayable logs |
+| Persistence | JSON files under `.labctl/` | SQLite (pure Go), migrated, transactional |
+| Runtimes | k3d, kind, incluster, **aks, eks, gke** (never verified) | k3d, kind, incluster only |
+| UI | Hand-rolled SPA, no router, no tests | Full rebuild: router, query layer, design system, tested at two layers |
+| Module root | `cmd/labctl/go.mod` | repo root |
+| Shell tests | none (128 scripts) | bats required for all scripts with logic |
+| Content | 13 scenarios, none e2e-verified | Curated verified set, proven in CI on kind; rest marked unverified |
 
-**Tasks**
+**Cut in v2:** `pkg/pack`, `pkg/entitlement`, `pkg/edition`, `pkg/credential`,
+marketplace API + UI, `registry/`, `packs/`, `sdk/pack-template`,
+`runtimes/{aks,eks,gke}`, `foundation/terraform`, ACR/ECR build strategies,
+`docs/cloud-runtimes.md`, `docs/strategy/`, and the associated CI workflows.
 
-| Id | Title |
-|----|-------|
-| 030 | Make `bootstrap/setup-tools.sh` OS/arch-aware (detect `uname -s/-m`, pick correct download URLs, replace `grep -oP` with portable parsing) |
-| 031 | Remove committed `bin/labctl`; make `make cli-build` build for host OS/arch and document cross-compilation |
-| 032 | Add `/etc/hosts` helper for `*.k3d.local` (a `labctl hosts add/remove` command or documented `make hosts`) |
-| 033 | Support macOS container runtimes (Docker Desktop / Colima / OrbStack detection) in k3d up + preflight `check` |
-| 034 | Portability sweep: audit all `*.sh` for GNU-only constructs; add a CI lint that fails on them (folds into Phase 5 CI) |
-
-**Exit criterion:** on a clean macOS machine and a clean Linux machine,
-`make setup-tools PROFILE=k3d` then `make init` produces a healthy cluster, and
-`bin/labctl status` reports it. No manual edits required.
-
-**Runbook:** `docs/runbooks/00-cross-platform-setup.md`
-
----
-
-## Phase 1 — Core Stability (P0) `[local k3d]`
-
-**Goal:** the everyday local loop — init, deploy an app, hit it, see status — is
-correct and safe. These are the P0 bugs.
-
-**Tasks**
-
-| Id | Title |
-|----|-------|
-| 002 | Add scenario preflight validation |
-| 007 | Fix echo-server readiness probe |
-| 008 | Add request timeout + input validation to API handlers (security) |
-| 015 | Fix Kubernetes version parsing in k8s client |
-| 016 | Add echo-server request body size limit |
-
-(001 — platform category resolution — already done.)
-
-**Exit criterion:** `labctl init && labctl app deploy go-api && curl …/health`
-succeeds; `labctl status` shows correct k8s version; API rejects malformed input
-with 400 and times out long subprocesses with 504. All Phase-1 tests green.
-
-**Runbook:** `docs/runbooks/01-local-cluster-and-apps.md`
+**No migration tooling is provided** — there are no production users, and the
+migration guide would cost more than it saves.
 
 ---
 
-## Phase 2 — Reliability & Correctness (P1) `[local k3d]`
+## Wave 0 — Ground clearing & foundations
 
-**Goal:** remove the rough edges that make the tool feel flaky — status parsing,
-idempotency, provider-awareness, structured errors.
+**Goal:** A clean, correctly-structured repository with CI that enforces the new
+quality bar, before any feature work begins.
 
-**Tasks**
+| ID | Task |
+|---|---|
+| W0-T01 | Delete cloud runtimes, Terraform, and cloud build strategies |
+| W0-T02 | Delete marketplace/entitlement/edition/credential surfaces; keep `pkg/extension` seam |
+| W0-T03 | Move Go module to repo root; restructure into `internal/{cli,httpapi,service,...}` |
+| W0-T04 | Rebuild `Makefile` + `make/*.mk` for the v2 target set |
+| W0-T05 | CI pipeline: golangci-lint, gosec, govulncheck, shellcheck, shfmt, race tests, coverage gate |
+| W0-T06 | Test harness scaffolding: bats runner + kubectl/helm stubs, Vitest + MSW, Playwright |
+| W0-T07 | Rewrite `.ai/state.json` to wave-based v2 schema; archive v1 tasks |
+| W0-T08 | Rewrite `CLAUDE.md`, `README.md`, `CONTRIBUTING.md` for v2 |
 
-| Id | Title |
-|----|-------|
-| 003 | Stream action events for all API operations |
-| 004 | Improve runtime detection and status reporting |
-| 005 | Make platform make-targets provider-aware |
-| 009 | Add Helm pre-deploy lint + post-deploy readiness wait |
-| 010 | Add `uninstall.sh` for kubernetes-dashboard |
-| 012 | Fix engine strategy script existence validation |
-| 017 | Return job id from async API actions |
-| 019 | Add scenario `up` idempotency check |
-| 020 | Fix kubectl pod output parsing (use JSON) |
-| 022 | Add structured error responses to API handlers |
-| 025 | Fix ArgoCD values hardcoded `k3d.local` domain |
-| 029 | Validate PROFILE and APP_NAME before use |
+**Exit criteria**
+- `go build ./...` and `go test -race ./...` pass from the repo root.
+- CI fails a PR that drops any package below 80% coverage.
+- CI fails a PR with a lint, `shellcheck`, `gosec` or `govulncheck` finding.
+- No reference to AKS/EKS/GKE/marketplace remains outside `docs/archive/`.
+- `bats`, `vitest` and `playwright` each run (with placeholder tests) in CI.
 
-**Exit criterion:** every `labctl … status` command returns accurate state from
-JSON (not text scraping); re-running `scenario up` / `platform up` is a no-op;
-API actions return a job id and structured errors. Phase-2 tests green.
-
-**Runbook:** `docs/runbooks/02-platform-and-status.md`
+**Runbooks:** `R00-environment-and-build`
 
 ---
 
-## Phase 3 — Web UI Rebuild (SPA) `[depends on Phase 2]`
+## Wave 1 — Durable core: store, run engine, toolchain
 
-**Goal:** replace the single hand-written `ui/dist/index.html` with a real
-single-page app, embedded into the binary via `go:embed`, talking to the existing
-REST + WebSocket API.
+**Goal:** Every operation Flightdeck performs is cancellable, time-bounded,
+serialised against conflicts, and durably recorded.
 
-**Tasks**
+| ID | Task |
+|---|---|
+| W1-T01 | `internal/store`: SQLite open/migrate/close, embedded forward-only migrations, schema-version guard |
+| W1-T02 | Store repositories: runs, run_logs, run_steps, audit — with transactional writes |
+| W1-T03 | `internal/toolchain`: bash/kubectl/helm/k3d/kind adapters, argv-only, containment-checked script resolution |
+| W1-T04 | Toolchain preflight (min versions, actionable errors) + `labctl doctor` |
+| W1-T05 | `toolchain.Fake` for hermetic tests across all layers |
+| W1-T06 | `internal/run`: submit/queue/worker pool, exclusive lock keys, 409-on-conflict |
+| W1-T07 | Cancellation: process groups, SIGTERM → grace → SIGKILL, graceful server shutdown |
+| W1-T08 | Timeouts per run kind; `timed_out` terminal state |
+| W1-T09 | Durable log capture with monotonic sequence + cursor replay API |
+| W1-T10 | Step marker parsing → structured step timeline |
+| W1-T11 | `labctl runs list/logs/cancel` |
 
-| Id | Title |
-|----|-------|
-| 035 | Scaffold SPA (Vite + React or Svelte + TypeScript) in `ui/`, wired to the API; dev proxy to `labctl ui` |
-| 036 | Build the four views: Dashboard (cluster/platform/apps), Scenarios, Platform (swap providers), Apps (deploy/logs); live updates over WebSocket |
-| 037 | Production build → `ui/dist`, copied & embedded by `make cli-build`; server serves embedded assets with filesystem fallback for dev |
+**Exit criteria**
+- A run cancelled mid-`helm install` leaves no orphaned child processes
+  (verified by process-group assertion in test and by runbook on real hardware).
+- Killing the server mid-run and restarting shows the run as `cancelled` with
+  its partial log intact and readable.
+- A second run with a conflicting lock key is rejected in <100ms naming the
+  holder.
+- Reconnecting a log stream with `?after=<seq>` returns zero gaps and zero
+  duplicates — asserted by a test that drops the connection mid-stream.
+- `labctl doctor` detects a missing binary, an outdated binary and an
+  unreachable cluster, with a distinct actionable message for each.
 
-**Exit criterion:** `make cli-build && bin/labctl ui` serves the SPA at
-`localhost:3939`; all four views render real data; activating a scenario from the
-UI streams progress live; the single binary contains the UI (no external files).
-
-**Runbook:** `docs/runbooks/03-web-ui.md`
-
----
-
-## Phase 4 — Apps & Observability `[depends on Phase 2]`
-
-**Goal:** make the apps and the observability scenario genuinely demonstrable.
-
-**Tasks**
-
-| Id | Title |
-|----|-------|
-| 013 | Add `/version` endpoint to go-api and echo-server |
-| 014 | Wire `--verbose` flag to the structured logger |
-| 018 | Make observability namespace configurable |
-| 021 | Add Redis cache TTL configuration to echo-server |
-| 028 | Add Loki log retention policy |
-| 024 | Add Kyverno ClusterPolicy manifests (shared by security scenario) |
-
-**Exit criterion:** `labctl scenario up observability-sre` produces queryable logs
-(Loki) and traces (Tempo) in Grafana for both apps; `/version` reflects the built
-image; `--verbose` changes log level. Phase-4 tests green.
-
-**Runbook:** `docs/runbooks/04-observability-scenario.md`
+**Runbooks:** `R01-run-engine-and-cancellation`, `R02-doctor-and-preflight`
 
 ---
 
-## Phase 5 — CI/CD & Supply Chain `[depends on Phase 2]`
+## Wave 2 — Content model & check engine v2
 
-**Goal:** PRs are validated automatically and images are scanned.
+**Goal:** All declarative content is schema-validated, cross-referenced and
+verifiable, and checks report *why* they failed.
 
-**Tasks**
+| ID | Task |
+|---|---|
+| W2-T01 | v2 YAML schemas for scenario, incident, path, challenge (`sdk/schemas/`) |
+| W2-T02 | `internal/catalog`: load, validate, index, atomic hot-reload |
+| W2-T03 | Cross-reference integrity checking (path→scenario, challenge→incident, check→namespace) |
+| W2-T04 | Typed template resolution; unknown key is an error |
+| W2-T05 | `pkg/checks` v2: `eventually` with backoff + deadline, per-check timeout, independent execution |
+| W2-T06 | Check results carry observed vs expected and a human-readable explanation |
+| W2-T07 | `labctl validate` + CI gate; fuzz tests on all YAML parsers |
+| W2-T08 | Migrate existing content to v2 schemas |
+| W2-T09 | `FLIGHTDECK_CONTENT_PATH` external content roots |
 
-| Id | Title |
-|----|-------|
-| 006 | Expand CI validation for infra + shell assets (incl. portability lint from Phase 0) |
-| 011 | Add container image security scanning to CI |
-| 023 | Enable ArgoCD sync step in CD pipeline |
+**Exit criteria**
+- Every file under `scenarios/`, `incidents/`, `learn/`, `challenges/` passes
+  `labctl validate`; CI fails otherwise.
+- A path referencing a missing scenario fails at load with the file, line and
+  the missing reference named.
+- A failing check prints observed and expected values, not just `FAIL`.
+- Fuzz corpus runs clean — no panic on malformed, truncated or adversarial YAML.
+- An external content root is discovered and usable without forking the repo.
 
-**Exit criterion:** CI runs lint + unit tests + Helm lint + shell portability +
-image scan on PRs; CD builds/pushes images and (in GitOps scenario) ArgoCD syncs.
-
-**Runbook:** `docs/runbooks/05-ci-cd.md`
-
----
-
-## Phase 6 — Cloud Runtimes (AKS/EKS) `[depends on Phase 2]`
-
-**Goal:** make cloud deployment real, not theoretical. Requires cloud accounts and
-incurs spend — do this deliberately.
-
-**Tasks**
-
-| Id | Title |
-|----|-------|
-| 027 | Configure Terraform remote state backend |
-| 026 | Fix Chaos-Mesh hardcoded containerd socket path (make runtime-aware for cloud) |
-| 038 | Provision AKS dev env via Terraform; run go-api + one scenario; tear down |
-| 039 | Provision EKS dev env via Terraform; run go-api + one scenario; tear down |
-
-**Exit criterion:** `labctl runtime up --profile aks` (and `eks`) provisions a
-cluster, an app deploys with the cloud Helm profile, at least one scenario runs,
-and `runtime down` removes all billable resources. Verified once, cost recorded.
-
-**Runbook:** `docs/runbooks/06-cloud-runtimes.md`
+**Runbooks:** `R03-content-authoring-and-validation`
 
 ---
 
-## Phase 7 — Polish & Release
+## Wave 3 — Lab & platform lifecycle on the new engine
 
-**Goal:** the repo is something a stranger can clone and succeed with.
+**Goal:** Cluster and platform-component lifecycle runs entirely through the
+durable engine, with exact teardown and instant status.
 
-- Refresh `README.md` to match reality (quickstart that actually works on macOS).
-- Ensure every runbook in `docs/runbooks/` is complete and accurate.
-- Trim `docs/architecture.md` to the essentials; move long history out.
-- Tag a `v0.1.0` release with cross-platform build instructions.
-- Final portability pass; final `go test ./...` + `make help` sanity.
+| ID | Task |
+|---|---|
+| W3-T01 | `internal/service/lab`: up/down/status/snapshot/reset on the run engine |
+| W3-T02 | Runtime profiles reduced to k3d, kind, incluster; profile contract documented |
+| W3-T03 | `internal/service/platform`: install/uninstall/status per category and provider |
+| W3-T04 | Component state recorded in the store; `down` uninstalls exactly what was installed |
+| W3-T05 | Idempotency + partial-failure recovery (resume a half-installed stack) |
+| W3-T06 | bats coverage for every `platform/*/*/{install,uninstall,status}.sh` with stubbed helm/kubectl |
+| W3-T07 | bats coverage for `runtimes/*` and `bootstrap/` scripts |
+| W3-T08 | `labctl lab`/`labctl platform` CLI with golden-file output tests |
 
-**Exit criterion:** clone → follow README → working lab on a fresh Mac, with no
-tribal knowledge required.
+**Exit criteria**
+- `platform up` interrupted at any point, then re-run, converges — proven by a
+  fault-injection test that kills the run at each step boundary.
+- `lab down` removes every recorded component and reports anything it could not
+  remove, rather than exiting 0 silently.
+- `lab status` answers in <200ms from the store, with a `--live` flag for a
+  real cluster query.
+- Every shell script with branching logic has a bats test; `make test-shell`
+  passes.
 
----
-
-## Task ↔ phase index (Part I)
-
-| Phase | Task ids |
-|-------|----------|
-| 0 | 030, 031, 032, 033, 034 |
-| 1 | 002, 007, 008, 015, 016 |
-| 2 | 003, 004, 005, 009, 010, 012, 017, 019, 020, 022, 025, 029 |
-| 3 | 035, 036, 037 |
-| 4 | 013, 014, 018, 021, 024, 028 |
-| 5 | 006, 011, 023 |
-| 6 | 026, 027, 038, 039 |
-| 7 | (docs/release — no numbered tasks) |
-| done | 001 |
-
----
-
-# Part II — Platform Engineering Simulator (milestones M1–M6)
-
-> Vision and feature rationale: `docs/SIMULATOR.md`. Read it once before
-> working any Part II task. Milestones are ordered by priority; **M1 is the
-> foundation everything else builds on** (the `checks` primitive). M2–M3 are
-> the core simulator value. M4–M6 expand breadth and can be parallelized once
-> M1 is done.
-
-```
-M1  Scenario Engine v2 (checks, traffic, snapshot, catalog)   P0  ── gate
-                │
-   ┌────────────┼──────────────┐
-M2  Incident    M3  Learning &  M4  Stack
-    Engine          Assessment      Expansion        P0/P1
-   └────────────┴──────────────┘
-                │
-M5  Multi-Env & Day-2 Ops                            P2
-M6  Team Mode & New Runtimes                         P2
-```
+**Runbooks:** `R04-lab-lifecycle`, `R05-platform-components`
 
 ---
 
-## M1 — Scenario Engine v2 `[P0 — the gate for everything]`
+## Wave 4 — Simulation: scenarios, incidents, traffic
 
-**Goal:** scenarios become verifiable simulations. Introduce `stages`,
-`objectives`, and machine-checkable `checks` to the scenario format; add the
-traffic generator, lab snapshot/reset, and external scenario packs.
+**Goal:** The core product loop — stage a situation, break it, verify the fix —
+works end to end and is graded objectively.
 
-**Tasks**
+| ID | Task |
+|---|---|
+| W4-T01 | `internal/service/scenario`: activate by stage, deactivate, status, verify |
+| W4-T02 | Objectives and per-stage checks surfaced in results |
+| W4-T03 | `internal/service/incident`: inject, resolve, status, auto-detect resolution via checks |
+| W4-T04 | Progressive hints with scoring cost; MTTD/MTTR measurement |
+| W4-T05 | Traffic generator (k6 profiles: steady, spike, soak) as a managed run |
+| W4-T06 | Snapshot/reset fast-path so a scenario retry takes seconds |
+| W4-T07 | Curate and harden the verified content set (~6 scenarios, ~8 incidents) |
+| W4-T08 | Mark remaining content `unverified`; UI and CLI display the distinction |
+| W4-T09 | On-call drill: alerts route through Alertmanager to the pager service |
 
-| Id | Title | Priority |
-|----|-------|----------|
-| 040 | Scenario format v2: stages, objectives, checks schema + parser | P0 |
-| 041 | Verification engine: `labctl scenario verify` with http/kubectl/promql/script check runners | P0 |
-| 042 | Traffic generator: k6-based load profiles as a platform service | P1 |
-| 043 | Lab snapshot & reset: `labctl lab snapshot/restore/reset` | P1 |
-| 044 | Scenario catalog: `labctl scenario install <git-url>` for external packs | P2 |
+**Exit criteria**
+- Each verified scenario activates, passes its checks, and tears down cleanly on
+  a fresh k3d cluster — automated in the nightly kind e2e job.
+- Each verified incident injects, is detected by its own check, and resolves —
+  same automation.
+- MTTD/MTTR are recorded and reproducible across two runs of the same incident.
+- Hint consumption reduces the recorded score by the declared amount.
+- Traffic generator runs are cancellable and leave no stray pods.
 
-**Exit criterion:** every existing scenario has at least 3 checks and
-`labctl scenario verify <name>` passes on a freshly activated scenario and
-fails when a component is deleted. Traffic profiles run against go-api.
-`lab reset` returns a dirty cluster to the post-init state in < 5 minutes.
-
-**Runbook:** `docs/runbooks/07-scenario-engine-v2.md`
-
----
-
-## M2 — Incident Engine (game days) `[P0/P1 — depends on M1]`
-
-**Goal:** realistic, reversible production faults with guided resolution,
-MTTR measurement, and on-call drills.
-
-**Tasks**
-
-| Id | Title | Priority |
-|----|-------|----------|
-| 045 | Fault library: `incidents/<name>/` contract (inject.sh, resolve.sh, fault.yaml, hints.md) + first 6 faults | P0 |
-| 046 | `labctl incident` command group: inject / list / status / resolve / --random | P0 |
-| 047 | Progressive hints + solution walkthroughs (`labctl incident hint`) | P1 |
-| 048 | MTTR tracking: time-to-detect / time-to-resolve recorded per run | P1 |
-| 049 | On-call drill: Alertmanager → webhook receiver, full page-triage-fix loop | P2 |
-
-**Exit criterion:** `labctl incident inject --random` breaks the lab in a
-way that fires an alert; `incident status` detects resolution via the
-fault's check; MTTR is recorded and queryable. All faults are reversible
-via `resolve.sh` (the escape hatch).
-
-**Runbook:** `docs/runbooks/08-incident-engine.md`
+**Runbooks:** `R06-scenario-loop`, `R07-game-day-and-incidents`
 
 ---
 
-## M3 — Learning & Assessment `[P1 — depends on M1; M2 enriches it]`
+## Wave 5 — API v2 & security hardening
 
-**Goal:** guided learning paths and timed, auto-graded challenges with
-persistent scores — usable by individuals and by teams testing skills.
+**Goal:** A versioned, consistent, hardened HTTP surface that the UI and third
+parties can rely on.
 
-**Tasks**
+| ID | Task |
+|---|---|
+| W5-T01 | `/api/v2` routing, request IDs, structured access logging |
+| W5-T02 | RFC 7807 `problem+json` error envelope with stable type slugs, applied uniformly |
+| W5-T03 | Cursor pagination + ETag/`If-None-Match` on catalog reads |
+| W5-T04 | WS + SSE streaming from cursor; reconnect semantics documented and tested |
+| W5-T05 | Auth v2: Argon2id, SQLite-backed sessions, secure cookie flags |
+| W5-T06 | CSRF protection, auth rate limiting, constant-time comparison |
+| W5-T07 | Refuse non-loopback bind without auth; TLS support |
+| W5-T08 | Audit log of all mutating operations, queryable |
+| W5-T09 | Optional Prometheus `/metrics` |
+| W5-T10 | Full contract test suite + OpenAPI document generated from it |
 
-| Id | Title | Priority |
-|----|-------|----------|
-| 050 | Learning path format (`learn/<path>/path.yaml`) + `labctl learn` command | P1 |
-| 051 | Challenge mode: timed runs, hidden hints, grade from checks (`labctl challenge`) | P1 |
-| 052 | Score & progress persistence in `.labctl/` + REST API endpoints | P1 |
-| 053 | Web UI: Learn, Challenges, and Leaderboard views | P2 |
+**Exit criteria**
+- Every endpoint has a contract test asserting success shape *and* error
+  envelope; the OpenAPI doc is generated, not hand-written.
+- `--bind 0.0.0.0` without `FLIGHTDECK_AUTH=true` exits non-zero with an
+  explanation.
+- Sessions survive a server restart; logout invalidates server-side.
+- Rate limiting demonstrably blocks a credential-stuffing loop in test.
+- `gosec` and `govulncheck` clean; a security review runbook is completed.
 
-**Exit criterion:** a new user can `labctl learn start kubernetes-foundations`
-and complete a module with verified checks; a challenge produces a score
-(checks passed, time, hints used) that survives restarts and shows in the UI.
-
-**Runbook:** `docs/runbooks/09-learning-and-challenges.md`
-
----
-
-## M4 — Stack Expansion `[P1/P2 — depends on M1]`
-
-**Goal:** swap and compare real-world stacks on identical workloads. Every
-new platform category ships with a scenario that uses it.
-
-**Tasks**
-
-| Id | Title | Priority |
-|----|-------|----------|
-| 054 | `platform/mesh` category: istio + linkerd providers | P1 |
-| 055 | `platform/data` category: kafka (strimzi) + postgres (cnpg) providers | P1 |
-| 056 | `platform/secrets` category: vault + external-secrets providers | P2 |
-| 057 | `platform/autoscaling` category: keda provider + scale-on-load scenario | P2 |
-| 058 | New scenarios: mesh-traffic-management, event-driven-arch, secrets-management | P1 |
-
-**Exit criterion:** `MESH_PROVIDER=istio labctl platform up mesh` then swap
-to linkerd on the same workload; the three new scenarios activate, verify,
-and deactivate cleanly on k3d.
-
-**Runbook:** `docs/runbooks/10-stack-expansion.md`
+**Runbooks:** `R08-api-and-security`
 
 ---
 
-## M5 — Multi-Env & Day-2 Ops `[P2 — depends on M1, M4 (gitops)]`
+## Wave 6 — UI rebuild: shell, design system, operational views
 
-**Goal:** simulate release engineering across environments and the scary
-day-2 operations, locally and for free.
+**Goal:** A genuinely pleasant operational interface — deep-linkable, honest
+about state, with a run console people want to watch.
 
-**Tasks**
+| ID | Task |
+|---|---|
+| W6-T01 | New Vite/React/TS-strict app skeleton; React Router with real URLs |
+| W6-T02 | TanStack Query data layer: caching, retry, invalidation on run completion |
+| W6-T03 | Design system: Tailwind tokens, light/dark, typography scale, Radix primitives |
+| W6-T04 | App shell: navigation, command palette, connection status, notifications |
+| W6-T05 | Run console: step timeline, live cursor-based log stream, cancel, failure summary |
+| W6-T06 | Overview view: cluster health, active scenario, recent runs, next suggested action |
+| W6-T07 | Labs view: lifecycle controls, component inventory, snapshot/reset |
+| W6-T08 | Catalog view: browse/search scenarios and incidents with rich descriptions |
+| W6-T09 | Designed loading/empty/error/offline states for every view |
+| W6-T10 | Accessibility pass: keyboard nav, ARIA, WCAG AA contrast both themes |
+| W6-T11 | Vitest + Testing Library component tests; MSW API mocking |
+| W6-T12 | Playwright journeys: run a scenario, watch logs, cancel a run |
 
-| Id | Title | Priority |
-|----|-------|----------|
-| 059 | Multi-cluster env promotion: dev → staging → prod via GitOps, as a scenario | P2 | ✅ done |
-| 060 | Day-2 drills: cluster upgrade, node drain under load, backup/restore — as checked scenarios | P2 | ✅ done |
-| 061 | Cost & capacity: opencost provider + right-sizing exercise scenario | P2 | ✅ done |
+**Exit criteria**
+- Every view is reachable by URL and survives a page refresh with state intact.
+- Killing the backend mid-session produces a designed offline state and
+  automatic recovery, not a blank page or an infinite spinner.
+- Log streaming has no gaps across a forced disconnect (Playwright asserts it).
+- Axe accessibility scan reports zero serious/critical violations.
+- Vitest ≥80% statement coverage on components; Playwright journeys green in CI.
 
-**Exit criterion:** an image promoted dev → prod purely via Git; the upgrade
-drill records measured downtime via checks; opencost shows per-namespace cost.
-
-**Runbook:** `docs/runbooks/11-multi-env-day2.md`
-
----
-
-## M6 — Team Mode & New Runtimes `[P2 — last]`
-
-**Goal:** teams share one simulator deployment; broaden runtime support.
-
-**Tasks**
-
-| Id | Title | Priority |
-|----|-------|----------|
-| 062 | Optional auth + per-user RBAC on REST API / UI | P2 | ✅ done |
-| 063 | Team sessions: labctl server Helm chart for shared remote deploy + shared leaderboard | P2 | ✅ done |
-| 064 | New runtimes: kind (CI-friendly) and GKE | P2 | ✅ done |
-
-**Exit criterion:** two users with separate identities use one deployed
-simulator; their challenge scores appear on a shared leaderboard; `labctl
-runtime up --profile kind` works headless in CI.
-
-**Runbook:** `docs/runbooks/12-team-mode.md`
+**Runbooks:** `R09-ui-operational-walkthrough`
 
 ---
 
-## Task ↔ milestone index (Part II)
+## Wave 7 — UI: learning, challenges, results
 
-| Milestone | Priority | Task ids |
-|-----------|----------|----------|
-| M1 | P0 | 040, 041, 042, 043, 044 |
-| M2 | P0/P1 | 045, 046, 047, 048, 049 |
-| M3 | P1 | 050, 051, 052, 053 |
-| M4 | P1/P2 | 054, 055, 056, 057, 058 |
-| M5 | P2 | 059, 060, 061 |
-| M6 | P2 | 062, 063, 064 |
+**Goal:** The assessment loop is visible, motivating and clear.
 
-**Picking the next task:** take the lowest-numbered unblocked task of the
-highest-priority milestone in `.ai/state.json` (`milestones` block tracks
-per-milestone status; `next` points at the recommended pick).
+| ID | Task |
+|---|---|
+| W7-T01 | Learn view: path browser, module progression, inline prose and objectives |
+| W7-T02 | Guided scenario walkthrough: objectives, live check status, contextual hints |
+| W7-T03 | Challenges view: timer, hidden hints with cost, submission and grading |
+| W7-T04 | Results view: history, score breakdown, per-check detail, MTTR trend charts |
+| W7-T05 | Leaderboard (server mode) with team aggregation |
+| W7-T06 | Progress visualisation: completion, streaks, weak-area suggestions |
+| W7-T07 | Component + Playwright coverage for the full assessment journey |
+
+**Exit criteria**
+- A user can complete a learning path start to finish entirely in the UI.
+- A challenge run records score, elapsed time and hints used, and the score is
+  reproducible from the stored result.
+- Charts render correctly with 0, 1 and 1000 results (empty/degenerate/scale).
+- Playwright covers: start path → run scenario → verify → complete → see result.
+
+**Runbooks:** `R10-learning-and-assessment`
 
 ---
 
-# Part III — OSS & Commercial Evolution (milestones M7–M9)
+## Wave 8 — Team server, packaging, release
 
-> Full plan of record: [`docs/strategy/OSS-COMMERCIAL-STRATEGY.md`](strategy/OSS-COMMERCIAL-STRATEGY.md).
-> Part III turns the simulator into a community OSS project (Apache-2.0, CLA,
-> "Flightdeck", org `snowops`) with a clean public SDK and a pack ecosystem, then
-> layers entitled premium content/services on the **same engine** — never a fork.
+**Goal:** Flightdeck ships as a trustworthy artifact and runs for a team.
 
-## M7 — OSS & Ecosystem Foundation `[P0 — ✅ complete]`
+| ID | Task |
+|---|---|
+| W8-T01 | In-cluster server mode on the v2 stack; PVC-backed SQLite |
+| W8-T02 | Helm chart rebuild with SA/RBAC least-privilege, probes, resource limits |
+| W8-T03 | Multi-arch container image; non-root, distroless-based |
+| W8-T04 | Release automation: goreleaser, checksums, SBOM, cosign signing |
+| W8-T05 | Nightly e2e on kind gating the verified content set |
+| W8-T06 | Upgrade path: schema migration test across versions |
+| W8-T07 | Install docs, quickstart, troubleshooting guide |
 
-| Task | Title | Status |
-|------|-------|--------|
-| 065 | OSS governance & licensing baseline (Apache-2.0, CLA) | ✅ done |
-| 066 | Public SDK boundary — `pkg/checks`, `pkg/scenario`, schemas, RFC 0001 | ✅ done |
-| 067 | Scenario-pack format (`pack.yaml`) + `labctl pack` | ✅ done |
-| 068 | OCI pack distribution + cosign signing | ✅ done |
-| 069 | Registry index & discovery (`labctl pack search`) | ✅ done |
-| 070 | Entitlement / extension interface | ✅ done |
-| 071 | Module path & brand alignment | ✅ done |
-| 072 | Contributor experience (scaffolds, walkthrough) | ✅ done |
+**Exit criteria**
+- `helm install` on a fresh kind cluster yields a working UI in under 5 minutes.
+- Two users on the shared server see consistent leaderboard state and cannot
+  clobber each other's runs (lock keys enforced).
+- Release artifacts verify: checksums match, cosign signature validates, SBOM
+  present.
+- Upgrading from the previous release migrates the database without data loss —
+  asserted by an automated cross-version test.
 
-## M8 — Marketplace `[P2 — deferred, depends on M7]`
+**Runbooks:** `R11-team-server`, `R12-release-verification`
 
-Tasks 073–075: hosted catalog API, premium pack repo + entitlement, marketplace
-UI. Premium content lives outside the OSS tree.
+---
 
-## M9 — Commercial / Hosted `[P2 — deferred, depends on M7]`
+## Runbook index
 
-Tasks 076–078: edition packaging, SaaS control-plane spike, certification &
-training framework. Same engine + entitled content/services.
+Runbooks are the human validation gate. They live in `docs/runbooks/` and are
+written to be followed by a person on real hardware, with expected output stated
+for every step and explicit failure signatures.
 
-## Task ↔ milestone index (Part III)
+| ID | Runbook | Wave |
+|---|---|---|
+| R00 | Environment & build | W0 |
+| R01 | Run engine & cancellation | W1 |
+| R02 | Doctor & preflight | W1 |
+| R03 | Content authoring & validation | W2 |
+| R04 | Lab lifecycle | W3 |
+| R05 | Platform components | W3 |
+| R06 | Scenario loop | W4 |
+| R07 | Game day & incidents | W4 |
+| R08 | API & security | W5 |
+| R09 | UI operational walkthrough | W6 |
+| R10 | Learning & assessment | W7 |
+| R11 | Team server | W8 |
+| R12 | Release verification | W8 |
 
-| Milestone | Priority | Task ids |
-|-----------|----------|----------|
-| M7 | P0 | 065, 066, 067, 068, 069, 070, 071, 072 |
-| M8 | P2 | 073, 074, 075 |
-| M9 | P2 | 076, 077, 078 |
+## Open items for the maintainer
+
+Not automatable — they need a human with accounts or authority:
+
+- **`go.flightdeck.dev` domain.** The module path depends on a domain that is not
+  yet owned. Either register and host the vanity import metadata, or accept a
+  rename before the first tagged release.
+- **Repository name.** The repo is still `Sagars-Laboratory` while the product
+  is Flightdeck. Rename when convenient; v2 assumes the Flightdeck name.
+- **Branch protection and CI required-checks** on `main`.
+- **Trademark search** before promoting the Flightdeck name publicly.

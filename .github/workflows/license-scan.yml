@@ -31,11 +31,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: cmd/labctl/go.mod
+          go-version-file: go.mod
       - name: Install go-licenses
         run: go install github.com/google/go-licenses@latest
       - name: Check disallowed licenses
-        working-directory: cmd/labctl
         # forbidden + restricted == GPL/AGPL/LGPL family and similar copyleft.
         run: go-licenses check ./... --disallowed_types=forbidden,restricted
 

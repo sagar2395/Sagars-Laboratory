@@ -21,7 +21,10 @@ CRDS_VERSION="${LINKERD_CRDS_CHART_VERSION:-1.8.0}"
 CP_VERSION="${LINKERD_CONTROL_PLANE_CHART_VERSION:-1.16.11}"
 MESH_NAMESPACE="${MESH_NAMESPACE:-go-api}"
 
-command -v openssl >/dev/null 2>&1 || { echo "openssl is required for Linkerd cert generation" >&2; exit 1; }
+command -v openssl >/dev/null 2>&1 || {
+  echo "openssl is required for Linkerd cert generation" >&2
+  exit 1
+}
 
 CERT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/linkerd-certs.XXXXXX")"
 trap 'rm -rf "$CERT_DIR"' EXIT
@@ -34,17 +37,17 @@ helm repo update linkerd
 # --- mTLS identity certificates ------------------------------------------------
 # Reuse the existing trust anchor + issuer if the control plane is already
 # installed; otherwise generate a fresh ECDSA P-256 hierarchy.
-if helm status linkerd-control-plane -n "$SYSTEM_NS" >/dev/null 2>&1 \
-   && kubectl get secret linkerd-identity-issuer -n "$SYSTEM_NS" >/dev/null 2>&1; then
+if helm status linkerd-control-plane -n "$SYSTEM_NS" >/dev/null 2>&1 &&
+  kubectl get secret linkerd-identity-issuer -n "$SYSTEM_NS" >/dev/null 2>&1; then
   echo "Reusing existing Linkerd identity certificates..."
   # kubectl decodes (base64decode template fn) so we don't depend on a host
   # base64 whose decode flag differs across macOS (-D) and Linux (-d).
   kubectl get cm linkerd-identity-trust-roots -n "$SYSTEM_NS" \
-    -o jsonpath='{.data.ca-bundle\.crt}' > "$CERT_DIR/ca.crt"
+    -o jsonpath='{.data.ca-bundle\.crt}' >"$CERT_DIR/ca.crt"
   kubectl get secret linkerd-identity-issuer -n "$SYSTEM_NS" \
-    -o go-template='{{index .data "tls.crt" | base64decode}}' > "$CERT_DIR/issuer.crt"
+    -o go-template='{{index .data "tls.crt" | base64decode}}' >"$CERT_DIR/issuer.crt"
   kubectl get secret linkerd-identity-issuer -n "$SYSTEM_NS" \
-    -o go-template='{{index .data "tls.key" | base64decode}}' > "$CERT_DIR/issuer.key"
+    -o go-template='{{index .data "tls.key" | base64decode}}' >"$CERT_DIR/issuer.key"
 else
   echo "Generating Linkerd trust anchor + issuer (ECDSA P-256)..."
   # Trust anchor (self-signed root CA).

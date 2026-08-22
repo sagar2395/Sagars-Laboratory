@@ -9,32 +9,32 @@ set -euo pipefail
 
 NAMESPACE="${NAMESPACE:-go-api}"
 APP="${APP:-go-api}"
-MAX_CPU_MILLICORES=100   # threshold in millicores
+MAX_CPU_MILLICORES=100 # threshold in millicores
 
 raw=$(kubectl get deployment "$APP" -n "$NAMESPACE" \
-    -o jsonpath='{.spec.template.spec.containers[0].resources.requests.cpu}' \
-    2>/dev/null || true)
+  -o jsonpath='{.spec.template.spec.containers[0].resources.requests.cpu}' \
+  2>/dev/null || true)
 
 if [ -z "$raw" ]; then
-    echo "FAIL: could not read CPU request from ${NAMESPACE}/${APP}. Is the deployment running?" >&2
-    exit 1
+  echo "FAIL: could not read CPU request from ${NAMESPACE}/${APP}. Is the deployment running?" >&2
+  exit 1
 fi
 
 # Convert to millicores: "4000m" -> 4000, "4" -> 4000, "0.5" -> 500, "50m" -> 50
 to_millicores() {
-    local q="$1"
-    case "$q" in
-        *m) echo "${q%m}" ;;
-        *)  echo "$q" | awk '{printf "%d", $1 * 1000}' ;;
-    esac
+  local q="$1"
+  case "$q" in
+    *m) echo "${q%m}" ;;
+    *) echo "$q" | awk '{printf "%d", $1 * 1000}' ;;
+  esac
 }
 
 actual_mc=$(to_millicores "$raw")
 
 if [ "$actual_mc" -le "$MAX_CPU_MILLICORES" ]; then
-    echo "OK: CPU request ${raw} (${actual_mc}m) is within the right-sized threshold (<= ${MAX_CPU_MILLICORES}m)."
+  echo "OK: CPU request ${raw} (${actual_mc}m) is within the right-sized threshold (<= ${MAX_CPU_MILLICORES}m)."
 else
-    echo "FAIL: CPU request ${raw} (${actual_mc}m) is over the right-sized threshold (<= ${MAX_CPU_MILLICORES}m)." >&2
-    echo "Right-size with: kubectl -n ${NAMESPACE} set resources deployment ${APP} --requests=cpu=50m,memory=32Mi" >&2
-    exit 1
+  echo "FAIL: CPU request ${raw} (${actual_mc}m) is over the right-sized threshold (<= ${MAX_CPU_MILLICORES}m)." >&2
+  echo "Right-size with: kubectl -n ${NAMESPACE} set resources deployment ${APP} --requests=cpu=50m,memory=32Mi" >&2
+  exit 1
 fi

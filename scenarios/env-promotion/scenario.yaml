@@ -10,8 +10,7 @@ prerequisites:
     - go-api
 runtimes:
   - k3d
-  - aks
-  - eks
+  - kind
 
 objectives:
   - "Understand environment separation as Kubernetes namespace isolation"

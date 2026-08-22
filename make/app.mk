@@ -3,7 +3,14 @@
 # BUILD_STRATEGY, DEPLOY_STRATEGY and any strategy-specific variables.  make
 # targets simply load that file and invoke the corresponding script.
 
-APPS := $(shell ls apps)
+# Apps are the sub-directories of apps/ only. Enumerate directories, not files,
+# so loose files like README.md or app.env.example are never mistaken for an
+# app (which made `destroy-all-apps`/`deploy-all` try to act on `README.md`).
+#
+# `filter %/` keeps only the trailing-slash (directory) entries: GNU make 3.81
+# that Apple ships returns files from `wildcard apps/*/` too, but only real
+# directories carry the trailing slash — so this is correct on make 3.81 and 4.x.
+APPS := $(notdir $(patsubst %/,%,$(filter %/,$(wildcard apps/*/))))
 
 
 .PHONY: build local-run deploy destroy-app lint validate \

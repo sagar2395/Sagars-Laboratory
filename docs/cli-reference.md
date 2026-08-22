@@ -62,7 +62,7 @@ Manage the underlying Kubernetes cluster.
 
 #### `labctl runtime up`
 
-Create the cluster using the configured runtime profile (k3d, aks, or eks).
+Create the cluster using the configured runtime profile (k3d or kind).
 
 ```bash
 labctl runtime up
@@ -177,7 +177,7 @@ Manage declarative lab scenarios (observability, security, chaos, etc.).
 
 Scaffold `scenarios/<name>/` with a valid v2 `scenario.yaml` and a passing
 readiness check — green under `scenario verify` immediately. `--force` overwrites.
-See `docs/authoring/first-pack.md`.
+See `docs/authoring/first-scenario.md`.
 
 ```bash
 labctl scenario new my-first-scenario
@@ -250,52 +250,6 @@ default; override with the `PROMETHEUS_URL` environment variable.
 
 The REST equivalent is `POST /api/scenarios/{name}/verify` (synchronous,
 bounded to ~12s — use the CLI's `--watch` for long convergence).
-
----
-
-#### `labctl scenario install <git-url>[@ref]`
-
-Install a scenario pack from a git repository into `.labctl/catalog/`.
-Every scenario in the pack is schema-validated before it becomes visible.
-Flags: `--name` (default: repo basename), `--force` (replace an installed
-pack). Companion commands: `labctl scenario packs` (list installed packs)
-and `labctl scenario uninstall <pack-name>`. See "Scenario Packs" in
-`docs/scenarios.md` — including the security note: packs run scripts on
-your cluster, install only trusted sources.
-
----
-
-### `labctl pack` — Scenario packs (content add-ons)
-
-First-class commands for versioned scenario packs. A pack may carry a `pack.yaml`
-manifest (`apiVersion: packs.flightdeck.dev/v1`) declaring name, version (SemVer),
-publisher, license, tier, and engine compatibility; the CLI validates it and
-refuses incompatible packs. `labctl scenario install|packs|uninstall` remain as
-aliases. Authoring guide: `docs/authoring/packs.md`.
-
-```bash
-labctl pack init <name>                    # scaffold a new pack (--dir, --force)
-labctl pack search [term]                  # find packs in the registry index
-labctl pack add <name>                     # resolve a name via the index, then install
-labctl pack add <git-url>[@ref]            # install from git (flags: --name, --force)
-labctl pack add oci://<reg>/<repo>[:tag]   # install from an OCI registry
-    # OCI verification flags: --require-signature, --cosign-key,
-    #                         --certificate-identity, --certificate-oidc-issuer
-labctl pack publish <dir> oci://<reg>/<repo>[:tag]   # publish (flags: --sign, --cosign-key)
-labctl pack list                  # installed: PACK / VERSION / TIER / SCENARIOS
-labctl pack info <name>           # installed manifest, else registry entry
-labctl pack remove <pack-name>    # uninstall (must deactivate its scenarios first)
-labctl pack validate-index <file> # validate a registry index (PR gate)
-```
-
-`pack search`/`info`/`add <name>` read the registry index (`PACK_REGISTRY_INDEX`,
-cached with a 1h TTL; `PACK_REGISTRY_KEY` verifies its cosign signature).
-OCI publish/install shells out to `oras` (and `cosign` when signing/verifying).
-Signature verification is fail-closed and runs before any content is extracted.
-Guides: `docs/authoring/publishing.md`, `docs/authoring/registry.md`.
-
-> Packs run scripts and apply manifests on your cluster — install only trusted
-> sources; prefer signed OCI packs pinned by digest.
 
 ---
 
@@ -688,6 +642,5 @@ Both interfaces work. Use whichever you prefer:
 | Activate scenario | `labctl scenario up observability-sre` | N/A (CLI only) |
 | Web dashboard | `labctl ui` | N/A (CLI only) |
 | Deploy all apps | N/A | `make deploy-all` |
-| Terraform | N/A | `make terraform-apply TF_ENV=dev` |
 
-The CLI adds scenario management, the web UI, and a unified status view. Make targets are more granular and support Terraform operations directly.
+The CLI adds scenario management, the web UI, and a unified status view. Make targets are more granular.

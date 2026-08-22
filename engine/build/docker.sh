@@ -8,11 +8,13 @@ APP_NAME="${1:?Error: APP_NAME not provided}"
 
 # source any app-specific configuration (optional)
 if [ -f "apps/${APP_NAME}/app.env" ]; then
-    # shellcheck disable=SC1090
-    set -a; . "apps/${APP_NAME}/app.env"; set +a
+  set -a
+  # shellcheck source=/dev/null
+  . "apps/${APP_NAME}/app.env"
+  set +a
 fi
 
-CLUSTER_NAME="${CLUSTER_NAME:-sagars-cluster}"
+CLUSTER_NAME="${CLUSTER_NAME:-flightdeck}"
 PROFILE="${PROFILE:-k3d}"
 
 echo "Building Docker image for ${APP_NAME}..."
@@ -23,21 +25,21 @@ docker build -t "${APP_NAME}:latest" "apps/${APP_NAME}/"
 # detect whether the image already exists and only import if necessary.
 # (this also handles the case where Make passes --import explicitly.)
 if [ "${PROFILE}" == "k3d" ]; then
+  need_import=true
+  if k3d image list -c "${CLUSTER_NAME}" 2>/dev/null | grep -q "^${APP_NAME}:latest"; then
+    need_import=false
+  fi
+  if [ "${2:-}" == "--import" ]; then
     need_import=true
-    if k3d image list -c "${CLUSTER_NAME}" 2>/dev/null | grep -q "^${APP_NAME}:latest"; then
-        need_import=false
-    fi
-    if [ "${2:-}" == "--import" ]; then
-        need_import=true
-    fi
+  fi
 
-    if [ "$need_import" = true ]; then
-        echo "Importing Docker image into k3d cluster '${CLUSTER_NAME}'..."
-        k3d image import "${APP_NAME}:latest" -c "${CLUSTER_NAME}"
-        echo "✓ Image imported successfully"
-    else
-        echo "Docker image already present in k3d, skipping import"
-    fi
+  if [ "$need_import" = true ]; then
+    echo "Importing Docker image into k3d cluster '${CLUSTER_NAME}'..."
+    k3d image import "${APP_NAME}:latest" -c "${CLUSTER_NAME}"
+    echo "✓ Image imported successfully"
+  else
+    echo "Docker image already present in k3d, skipping import"
+  fi
 fi
 
 echo "✓ Docker build complete"

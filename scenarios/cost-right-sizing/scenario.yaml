@@ -12,8 +12,7 @@ prerequisites:
     - go-api
 runtimes:
   - k3d
-  - aks
-  - eks
+  - kind
 
 objectives:
   - "Observe go-api's inflated cost in OpenCost and relate it to over-provisioned CPU/memory requests"

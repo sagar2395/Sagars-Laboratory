@@ -379,7 +379,7 @@ prerequisites:
 
 runtimes:                            # Compatible runtimes (optional)
   - k3d
-  - aks
+  - kind
 
 components:                          # What to install (in order)
   - name: my-chart
@@ -503,47 +503,42 @@ labctl scenario verify my-scenario --watch    # poll until green or timeout
 ```
 
 The same checks are the grading primitive for the upcoming incident engine
-and challenge mode (see `docs/SIMULATOR.md`) — write them as "what must be
+and challenge mode (see `docs/PRODUCT.md`) — write them as "what must be
 true when this scenario is healthy".
 
-## Scenario Packs — share scenarios via git
+## Sharing scenarios — external content roots
 
-Scenarios don't have to live in this repo. A **pack** is a git repository
-containing either one scenario (`scenario.yaml` at the root) or a
-collection of scenario directories. Install one with:
+Scenarios do not have to live in this repo. Because a scenario is just a
+directory, sharing one is git and nothing else — there is no pack format,
+registry or publish step (see
+[ADR-0008](adr/0008-content-extensibility-seam.md)).
+
+Keep your scenarios in your own repository, laid out one directory per
+scenario, then point Flightdeck at it:
 
 ```bash
-labctl scenario install https://github.com/org/chaos-pack.git          # default name: chaos-pack
-labctl scenario install https://github.com/org/chaos-pack.git@v1.2.0   # pin a tag/branch
-labctl scenario install <url> --name my-pack --force                   # rename / replace
-labctl scenario packs                                                  # list installed packs
-labctl scenario uninstall chaos-pack
+git clone https://github.com/org/our-scenarios ~/our-scenarios
+export FLIGHTDECK_CONTENT_PATH=~/our-scenarios
+labctl scenario list        # your scenarios appear, badged as external
 ```
 
-How it behaves:
+`FLIGHTDECK_CONTENT_PATH` accepts several roots separated by the OS path
+separator. How it behaves:
 
-- Packs are cloned into `.labctl/catalog/<pack>/` (runtime state, never
-  committed) and **validated wholesale before becoming visible** — one
-  invalid scenario rejects the entire pack, and nothing is left behind.
-- Pack scenarios appear in `scenario list` with their pack in the SOURCE
-  column and work with `up`, `down`, `verify`, `info` exactly like in-repo
-  scenarios.
-- Name collisions resolve in favor of in-repo scenarios; installing a pack
-  that collides is refused with the conflict named.
-- Asset paths in pack scenarios must stay inside the scenario directory —
-  absolute paths and `..` traversal are rejected at validation.
-- Packs are content snapshots (no auto-update). Upgrade by reinstalling
-  with `--force`. Uninstalling is refused while a pack scenario is active.
+- Each root is scanned for directories containing a `scenario.yaml`, and every
+  one is schema-validated. An invalid scenario is reported by name and skipped;
+  it never hides the rest.
+- External scenarios work with `up`, `down`, `verify` and `info` exactly like
+  in-repo ones, and show their root in the SOURCE column of `scenario list`.
+- **In-repo scenarios win name collisions.** An external scenario with a
+  colliding name is skipped with the conflict named.
+- Asset paths must stay inside the scenario directory — absolute paths and `..`
+  traversal are rejected at validation.
 
-**Security:** a pack's components run scripts and apply manifests on your
-cluster with your credentials. Only install packs from sources you trust,
-and review them first (`ls .labctl/catalog/<pack>` after install, or read
-the repo before installing).
-
-**Publishing a pack** is just publishing a git repo: lay out one directory
-per scenario, each with a `scenario.yaml` (prefer format v2 with checks so
-consumers can `scenario verify`), and tag releases. Test locally with
-`labctl scenario install file:///path/to/your/pack`.
+**Security:** a scenario's components run scripts and apply manifests on your
+cluster with your credentials. Only point `FLIGHTDECK_CONTENT_PATH` at sources
+you trust, and read them first. This is the same trust level as running any
+script from that repository.
 
 ## Creating a New Scenario
 
@@ -554,5 +549,5 @@ consumers can `scenario verify`), and tag releases. Test locally with
 
 The scenario engine auto-discovers any directory under `scenarios/` that
 contains a valid `scenario.yaml`. Schema validation runs in CI for every
-scenario in the repo (`cmd/labctl/internal/scenario/repo_test.go`), so a
+scenario in the repo (`internal/scenario/repo_test.go`), so a
 malformed scenario cannot merge to main.

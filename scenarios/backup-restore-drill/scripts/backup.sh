@@ -18,14 +18,14 @@ BACKUP_DIR="${BACKUP_DIR:-.labctl/backups}"
 RESOURCES="${RESOURCES:-deployment,service,configmap,secret,serviceaccount,ingress,pdb,horizontalpodautoscaler}"
 
 if ! command -v jq >/dev/null 2>&1; then
-    echo "ERROR: 'jq' is required to scrub manifests but was not found." >&2
-    echo "       Install it: brew install jq  (macOS) | apt-get install jq (Debian/Ubuntu)" >&2
-    exit 1
+  echo "ERROR: 'jq' is required to scrub manifests but was not found." >&2
+  echo "       Install it: brew install jq  (macOS) | apt-get install jq (Debian/Ubuntu)" >&2
+  exit 1
 fi
 
 if ! kubectl get namespace "$NS" >/dev/null 2>&1; then
-    echo "ERROR: namespace '${NS}' not found." >&2
-    exit 1
+  echo "ERROR: namespace '${NS}' not found." >&2
+  exit 1
 fi
 
 mkdir -p "$BACKUP_DIR"
@@ -42,8 +42,8 @@ echo "==> Backing up namespace '${NS}' (${RESOURCES})"
 #   - Service spec.clusterIP(s) so the restore gets a fresh allocation
 # and we skip objects that controllers recreate or that are environment-bound:
 #   - the default ServiceAccount, its token Secrets, and Helm release Secrets.
-kubectl get "$RESOURCES" -n "$NS" -o json 2>/dev/null \
-  | jq '
+kubectl get "$RESOURCES" -n "$NS" -o json 2>/dev/null |
+  jq '
       .items
       | map(select(
             (.kind == "ServiceAccount" and .metadata.name == "default") or
@@ -64,7 +64,7 @@ kubectl get "$RESOURCES" -n "$NS" -o json 2>/dev/null \
           | if .kind == "Service" then del(.spec.clusterIP, .spec.clusterIPs) else . end
         )
       | {apiVersion: "v1", kind: "List", items: .}
-    ' > "$ARCHIVE"
+    ' >"$ARCHIVE"
 
 COUNT=$(jq '.items | length' "$ARCHIVE")
 cp "$ARCHIVE" "$LATEST"

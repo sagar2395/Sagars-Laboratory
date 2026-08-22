@@ -25,35 +25,35 @@ kubectl -n "$APP_NAMESPACE" rollout status deployment go-api --timeout=120s
 # Pick a worker node to drain: prefer a node WITHOUT the control-plane role so
 # we never evict the API server. Fall back to any node if roles are unlabeled.
 pick_node() {
-    local n
-    n=$(kubectl get nodes \
-        -l '!node-role.kubernetes.io/control-plane,!node-role.kubernetes.io/master' \
-        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-    if [ -z "$n" ]; then
-        n=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
-    fi
-    echo "$n"
+  local n
+  n=$(kubectl get nodes \
+    -l '!node-role.kubernetes.io/control-plane,!node-role.kubernetes.io/master' \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+  if [ -z "$n" ]; then
+    n=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+  fi
+  echo "$n"
 }
 
 NODE="${NODE:-$(pick_node)}"
 if [ -z "$NODE" ]; then
-    echo "ERROR: could not determine a node to drain" >&2
-    exit 1
+  echo "ERROR: could not determine a node to drain" >&2
+  exit 1
 fi
 
 NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
 if [ "$NODE_COUNT" -lt 2 ]; then
-    echo "ERROR: only ${NODE_COUNT} node(s) in the cluster — a drain has nowhere" >&2
-    echo "       to reschedule pods. Recreate the cluster with >=2 agents:" >&2
-    echo "       AGENTS=2 labctl runtime up" >&2
-    exit 1
+  echo "ERROR: only ${NODE_COUNT} node(s) in the cluster — a drain has nowhere" >&2
+  echo "       to reschedule pods. Recreate the cluster with >=2 agents:" >&2
+  echo "       AGENTS=2 labctl runtime up" >&2
+  exit 1
 fi
 
 # Always uncordon on exit so the cluster never gets stuck SchedulingDisabled,
 # even if the drain fails or the script is interrupted.
 cleanup() {
-    echo "==> Uncordoning ${NODE}"
-    kubectl uncordon "$NODE" || true
+  echo "==> Uncordoning ${NODE}"
+  kubectl uncordon "$NODE" || true
 }
 trap cleanup EXIT
 
@@ -62,9 +62,9 @@ kubectl cordon "$NODE"
 
 echo "==> Draining ${NODE} (evicting pods, respecting PodDisruptionBudgets)"
 kubectl drain "$NODE" \
-    --ignore-daemonsets \
-    --delete-emptydir-data \
-    --timeout="$DRAIN_TIMEOUT"
+  --ignore-daemonsets \
+  --delete-emptydir-data \
+  --timeout="$DRAIN_TIMEOUT"
 
 echo "==> Waiting for go-api to settle on the remaining nodes"
 kubectl -n "$APP_NAMESPACE" rollout status deployment go-api --timeout=120s

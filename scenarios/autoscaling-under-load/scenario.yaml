@@ -13,8 +13,7 @@ prerequisites:
     - go-api
 runtimes:
   - k3d
-  - aks
-  - eks
+  - kind
 
 objectives:
   - "Declare metric-driven autoscaling for go-api with a KEDA ScaledObject"

@@ -8,11 +8,14 @@ set -euo pipefail
 
 COMMAND="${1:?Usage: $0 <command> <app-name>}"
 APP_NAME="${2:?Usage: $0 <command> <app-name>}"
-shift 2 || true  # Remove COMMAND and APP_NAME, pass remaining args to strategy
+shift 2 || true # Remove COMMAND and APP_NAME, pass remaining args to strategy
 
 # Load app configuration to get DEPLOY_STRATEGY
 if [ -f "apps/${APP_NAME}/app.env" ]; then
-    set -a; . "apps/${APP_NAME}/app.env"; set +a
+  set -a
+  # shellcheck source=/dev/null
+  . "apps/${APP_NAME}/app.env"
+  set +a
 fi
 
 # Use explicit override if provided, otherwise use app.env default, otherwise fail

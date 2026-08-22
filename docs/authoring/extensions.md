@@ -1,57 +1,22 @@
-# Extension Seams (entitlement, resolvers, hooks)
+# Extension Seams (resolvers, hooks)
 
-Flightdeck is designed so premium content and hosted/SaaS builds plug in
-**without forking the engine**. The open core ships only interfaces and
-allow-everything/no-op defaults; richer implementations are *injected at
-construction* and live in a private repo. Building these seams early is the key
-anti-lock-in decision (task 070) — no premium or business logic ever enters the
-OSS engine.
+Flightdeck keeps a small, documented seam so custom or private builds can plug
+in behaviour without forking the engine. Everything in the open repository
+behaves identically whether or not anything is injected — no business logic ever
+enters the open engine.
 
-These packages are part of the public SDK and are CODEOWNERS-locked to the lead
-maintainer:
+This package is part of the public SDK and is CODEOWNERS-locked:
 
-- [`pkg/entitlement`](../../cmd/labctl/pkg/entitlement/) — who may use a pack.
-- [`pkg/extension`](../../cmd/labctl/pkg/extension/) — where a pack comes from
-  (resolvers) and optional lifecycle hooks.
+- [`pkg/extension`](../../pkg/extension/) — where content comes from
+  (resolvers) and what happens around lifecycle phases (hooks).
 
-## Entitlement
+> The entitlement seam and the OCI/pack resolver that used to live here were
+> removed in v2 — see
+> [ADR-0001](../adr/0001-cut-cloud-and-commercial-scope.md) and
+> [ADR-0008](../adr/0008-content-extensibility-seam.md). Content distribution is
+> now plain directories plus `FLIGHTDECK_CONTENT_PATH`.
 
-```go
-type Entitlement interface {
-    Authorize(ctx context.Context, req Request) error // nil = allowed
-}
-```
-
-The OSS default is `entitlement.AllowAll` (`entitlement.Default()`): every pack
-is permitted, every tier runs identically. The engine consults it on the
-install path (`installFetched`), so the seam is *exercised* in OSS but changes
-nothing.
-
-A premium build injects its own implementation:
-
-```go
-engine := scenario.NewEngine(root, domain, profile)
-engine.Entitlement = mylicense.New(token) // private impl; gates premium/enterprise
-```
-
-A denial should return an `*entitlement.DeniedError` (use `entitlement.Denied`)
-so callers can distinguish policy from operational failures. Example test-double
-(see `pkg/entitlement/entitlement_test.go`):
-
-```go
-type denyTier struct{ hasToken bool }
-func (d denyTier) Authorize(_ context.Context, req entitlement.Request) error {
-    if req.Tier == "" || req.Tier == "community" || d.hasToken {
-        return nil
-    }
-    return entitlement.Denied(req.Name, "tier "+req.Tier+" requires a license token")
-}
-```
-
-License tokens themselves are verified through the `TokenVerifier` *seam* — the
-OSS core ships the interface only, never a concrete verifier.
-
-## Resolvers — where a pack comes from
+## Resolvers — where content comes from
 
 ```go
 type Resolver interface {
@@ -60,45 +25,42 @@ type Resolver interface {
 }
 ```
 
-Built-in open resolvers: `OCIResolver` (oci://, via oras/cosign), `GitResolver`
-(git URLs), `LocalResolver` (dirs / file://). `DefaultResolver(opts)` returns the
-chain `OCI → git → local`. The engine installs through the seam with
-`engine.InstallVia(ctx, resolver, ref, name, force)`, which resolves into a temp
-dir then runs the shared validate → entitle → rename install path.
+A `Chain` tries each resolver in order and uses the first that reports
+`CanResolve`. The built-in open resolvers are:
 
-A private/hosted source is just another resolver added to a `Chain` — no engine
-change:
+| Resolver | Handles |
+|---|---|
+| `GitResolver` | `https://…`, `git+https://…@ref`, ssh URLs — clones a shallow content snapshot and drops `.git` |
+| `LocalResolver` | `file://…` and existing local directories — copies the tree |
+
+`DefaultResolver()` returns `Chain{GitResolver{}, LocalResolver{}}`.
+
+To add a source, implement the interface and put it ahead of the chain:
 
 ```go
-chain := append(extension.DefaultResolver(opts), myHostedCatalogResolver{})
-engine.InstallVia(ctx, chain, "hub://acme/kafka-drills", "kafka-drills", false)
+chain := append(extension.Chain{myResolver{}}, extension.DefaultResolver()...)
 ```
 
-## Lifecycle hooks
+`GitResolver` takes a `GitRunner` so tests can inject a stub instead of shelling
+out to real `git`.
+
+## Hooks — around lifecycle phases
 
 ```go
 type Hooks interface {
-    PreStage(ctx, Event) error;  PostStage(ctx, Event) error
-    PreCheck(ctx, Event) error;  PostCheck(ctx, Event) error
+    PreStage(ctx context.Context, ev Event) error
+    PostStage(ctx context.Context, ev Event) error
 }
 ```
 
-The OSS default is `extension.NoopHooks` (`extension.DefaultHooks()`); the engine
-invokes them around each scenario stage (`Up`) and around checks (`Verify`). A
-`Pre*` hook returning an error aborts the phase, so premium policy can fail
-closed; the no-op default never errors and never changes behavior.
+`DefaultHooks()` is a no-op. A `Pre*` hook returning an error aborts the phase,
+so a custom build can enforce policy without the engine knowing the policy
+exists. Hooks receive an `Event` naming the scenario and stage.
 
-```go
-engine.Hooks = myTelemetryHooks{} // record stage timings, gate checks, etc.
-```
+## Rules for anything built on these seams
 
-Hooks are advisory and data/script-driven by design — Flightdeck never loads
-compiled Go plugins.
-
-## Rules
-
-- OSS defaults must be **open** (allow-all / no-op) and behavior-preserving.
-- Premium/business logic lives in a **private** repo and is injected — never
-  compiled into the OSS binary.
-- These interfaces are **stable SDK**; changes go through an RFC
-  (`docs/rfcs/`) and the lead maintainer (CODEOWNERS).
+- The open engine must behave identically with the default implementations.
+- Custom logic lives in a **separate** repository and is injected at
+  construction — never merged into the open engine.
+- Changes to these interfaces follow the
+  [SDK & Schema Stability Policy](sdk-stability-policy.md).

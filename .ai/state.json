@@ -1,222 +1,538 @@
 {
-  "_comment": "Single source of truth for task progress. Plan of record: docs/ROADMAP.md (Part I phases, Part II milestones); vision: docs/SIMULATOR.md. Move ids between todo/in_progress/done/blocked as work proceeds, keep each milestone's status field in sync, and update 'next' to the recommended pick: lowest-numbered unblocked task of the highest-priority non-done milestone.",
-  "next": "038-verify-aks-end-to-end",
-  "_note": "M8 and M9 complete. Only remaining automatable work is cloud verification (038/039/gke) which requires real cloud accounts.",
-  "milestones": {
-    "M1-scenario-engine-v2": {
-      "priority": "P0",
-      "status": "done",
-      "tasks": [
-        "040",
-        "041",
-        "042",
-        "043",
-        "044"
+  "_comment": "Flightdeck v2 delivery state. Single source of truth for wave/task progress. Plan of record: docs/ROADMAP.md. Product: docs/PRODUCT.md. Design: docs/architecture/ARCHITECTURE.md. Test policy: docs/TESTING.md. Move task status between todo/in_progress/done/blocked as work proceeds, keep each wave's status in sync, and point 'next' at the lowest-numbered todo task of the current wave. The v1 state and its 79 task files are archived under .ai/archive/.",
+  "schemaVersion": 2,
+  "plan": "docs/ROADMAP.md",
+  "updated": "2026-08-22",
+  "currentWave": "W1",
+  "next": "W2-T01",
+  "taskStatuses": [
+    "todo",
+    "in_progress",
+    "done",
+    "blocked"
+  ],
+  "definitionOfDone": [
+    "code implements the task and nothing beyond it",
+    "go tests: table-driven, hermetic, happy path + 2 error cases per exported func + cancellation; >=80% statement coverage; race clean",
+    "shell tests: bats coverage for any script with branching logic, kubectl/helm stubbed",
+    "api/cli tests: contract test per endpoint incl. error envelope; golden files for CLI output",
+    "ui tests: vitest for components, playwright for journeys",
+    "docs updated in the same commit (reference docs, architecture, ADR if a decision was made)",
+    "runbook written or updated",
+    "state updated: task status + next pointer"
+  ],
+  "waves": {
+    "W0": {
+      "title": "Ground clearing & foundations",
+      "goal": "A clean, correctly-structured repository with CI that enforces the new quality bar, before any feature work begins.",
+      "status": "awaiting-runbook",
+      "runbooks": [
+        "R00-environment-and-build"
       ],
-      "note": "Complete: checks/verify, traffic generator, lab snapshot/reset, scenario catalog."
+      "exitCriteria": [
+        "go build ./... and go test -race ./... pass from the repo root",
+        "CI fails a PR that drops any package below 80% coverage",
+        "CI fails a PR with a lint, shellcheck, gosec or govulncheck finding",
+        "no reference to AKS/EKS/GKE/marketplace remains outside docs/archive/",
+        "bats, vitest and playwright each run in CI"
+      ],
+      "tasks": {
+        "W0-T01": {
+          "title": "Delete cloud runtimes, Terraform, and cloud build strategies",
+          "status": "done"
+        },
+        "W0-T02": {
+          "title": "Delete marketplace/entitlement/edition/credential surfaces; keep pkg/extension seam",
+          "status": "done"
+        },
+        "W0-T03": {
+          "title": "Move Go module to repo root; restructure into internal/{cli,httpapi,service,...}",
+          "status": "done"
+        },
+        "W0-T04": {
+          "title": "Rebuild Makefile + make/*.mk for the v2 target set",
+          "status": "done"
+        },
+        "W0-T05": {
+          "title": "CI pipeline: golangci-lint, gosec, govulncheck, shellcheck, shfmt, race tests, coverage gate",
+          "status": "done"
+        },
+        "W0-T06": {
+          "title": "Test harness scaffolding: bats runner + kubectl/helm stubs, Vitest + MSW, Playwright",
+          "status": "done"
+        },
+        "W0-T07": {
+          "title": "Rewrite .ai/state.json to wave-based v2 schema; archive v1 tasks",
+          "status": "done"
+        },
+        "W0-T08": {
+          "title": "Rewrite CLAUDE.md, README.md, CONTRIBUTING.md for v2",
+          "status": "done"
+        }
+      },
+      "note": "All W0 tasks implemented. R00 executed end-to-end on macOS 15 (Apple Silicon, Go 1.26, Node 26) on 2026-08-22: every step green, including the gate-bites checks (coverage, portability). Fixes made during the run, all in W0-owned harness code: (1) macOS bash 3.2 could not build a reliably SIGTERM-ignoring process for the toolchain cancellation test — replaced the bash fixture with a Go helper-process (exec_unix_test.go); (2) the doctor missing-tool test hardcoded the Linux install hint — made GOOS-aware (cli/doctor_test.go); (3) make lint-shell was red — 34 tracked scripts were not shfmt -i2 clean, loki/install.sh had a dead RETENTION var (SC2034), and five engine/*.sh had SC1090 that newer shellcheck no longer suppressed via the old directive placement (fixed with `# shellcheck source=/dev/null`); the lint-shell find() also scanned ui/node_modules (fixed to */node_modules/*); (4) Playwright webServer bound vite preview to localhost which is IPv6-only on macOS while the healthcheck used 127.0.0.1 — pinned --host 127.0.0.1 (ui/playwright.config.ts); (5) removed dead marketplace/credential references (auth/policy.go + test, httpapi/server.go stubs) so the ADR-0001 grep is clean. Maintainer sign-off is the only thing outstanding: the AI ran the automatable steps; a human tick of the results table completes the wave."
     },
-    "M2-incident-engine": {
-      "priority": "P0",
-      "status": "done",
-      "tasks": [
-        "045",
-        "046",
-        "047",
-        "048",
-        "049"
+    "W1": {
+      "title": "Durable core: store, run engine, toolchain",
+      "goal": "Every operation Flightdeck performs is cancellable, time-bounded, serialised against conflicts, and durably recorded.",
+      "status": "awaiting-runbook",
+      "dependsOn": [
+        "W0"
       ],
-      "note": "Complete: fault library, incident command/API, hints, MTTR, on-call drill (PrometheusRule + pager service)."
+      "runbooks": [
+        "R01-run-engine-and-cancellation",
+        "R02-doctor-and-preflight"
+      ],
+      "exitCriteria": [
+        "a run cancelled mid-helm-install leaves no orphaned child processes",
+        "killing the server mid-run and restarting shows the run cancelled with its partial log intact",
+        "a conflicting lock key is rejected in <100ms naming the holder",
+        "log stream reconnect with ?after=<seq> returns zero gaps and zero duplicates",
+        "labctl doctor distinguishes missing binary, outdated binary and unreachable cluster with actionable messages"
+      ],
+      "tasks": {
+        "W1-T01": {
+          "title": "internal/store: SQLite open/migrate/close, embedded forward-only migrations, schema-version guard",
+          "status": "done"
+        },
+        "W1-T02": {
+          "title": "Store repositories: runs, run_logs, run_steps, audit with transactional writes",
+          "status": "done"
+        },
+        "W1-T03": {
+          "title": "internal/toolchain: bash/kubectl/helm/k3d/kind adapters, argv-only, containment-checked script resolution",
+          "status": "done"
+        },
+        "W1-T04": {
+          "title": "Toolchain preflight (min versions, actionable errors) + labctl doctor",
+          "status": "done"
+        },
+        "W1-T05": {
+          "title": "toolchain.Fake for hermetic tests across all layers",
+          "status": "done"
+        },
+        "W1-T06": {
+          "title": "internal/run: submit/queue/worker pool, exclusive lock keys, 409-on-conflict",
+          "status": "done"
+        },
+        "W1-T07": {
+          "title": "Cancellation: process groups, SIGTERM to grace to SIGKILL, graceful server shutdown",
+          "status": "done"
+        },
+        "W1-T08": {
+          "title": "Timeouts per run kind; timed_out terminal state",
+          "status": "done"
+        },
+        "W1-T09": {
+          "title": "Durable log capture with monotonic sequence + cursor replay API",
+          "status": "done"
+        },
+        "W1-T10": {
+          "title": "Step marker parsing to structured step timeline",
+          "status": "done"
+        },
+        "W1-T11": {
+          "title": "labctl runs list/logs/cancel",
+          "status": "done"
+        }
+      },
+      "note": "All W1 tasks implemented. internal/store 84.3%, internal/toolchain 95.0%, internal/run 87.3% \u2014 all race-clean and hermetic. R01 executed on macOS on 2026-08-22: every step green, including the three blocking ones \u2014 no process survives cancellation (pgrep clean), an interrupted run recovers with its log intact and lock released, and no log line is lost across a disconnect or a slow reader. Process-group SIGTERM->grace->SIGKILL confirmed on macOS. R02 executed on macOS 2026-08-22: steps 1-5, 7, 8 all green with good message quality (missing names tool+reason+fix, outdated shows both versions, unparseable does not block, optional tools warn only, broken PATH does not crash). Only R02 step 6 (stop Docker/Colima and confirm doctor does not hang) is outstanding \u2014 it is disruptive to the host and needs the maintainer to run it. Maintainer sign-off (that step + the message-quality judgement) completes the wave."
     },
-    "M3-learning-assessment": {
-      "priority": "P1",
-      "status": "done",
-      "tasks": [
-        "050",
-        "051",
-        "052",
-        "053"
+    "W2": {
+      "title": "Content model & check engine v2",
+      "goal": "All declarative content is schema-validated, cross-referenced and verifiable, and checks report why they failed.",
+      "status": "ready",
+      "dependsOn": [
+        "W1"
       ],
-      "blocked_by": [
-        "M1-scenario-engine-v2",
-        "M2-incident-engine"
+      "runbooks": [
+        "R03-content-authoring-and-validation"
       ],
-      "note": "Complete: learning paths, challenge mode, unified results store + REST API, UI Learn/Challenges/Results views."
+      "exitCriteria": [
+        "all content passes labctl validate; CI fails otherwise",
+        "a path referencing a missing scenario fails at load naming file, line and reference",
+        "a failing check prints observed and expected values",
+        "fuzz corpus runs clean on all YAML parsers",
+        "an external content root is discovered and usable without forking"
+      ],
+      "tasks": {
+        "W2-T01": {
+          "title": "v2 YAML schemas for scenario, incident, path, challenge (sdk/schemas/)",
+          "status": "todo"
+        },
+        "W2-T02": {
+          "title": "internal/catalog: load, validate, index, atomic hot-reload",
+          "status": "todo"
+        },
+        "W2-T03": {
+          "title": "Cross-reference integrity checking",
+          "status": "todo"
+        },
+        "W2-T04": {
+          "title": "Typed template resolution; unknown key is an error",
+          "status": "todo"
+        },
+        "W2-T05": {
+          "title": "pkg/checks v2: eventually with backoff + deadline, per-check timeout, independent execution",
+          "status": "todo"
+        },
+        "W2-T06": {
+          "title": "Check results carry observed vs expected and a human-readable explanation",
+          "status": "todo"
+        },
+        "W2-T07": {
+          "title": "labctl validate + CI gate; fuzz tests on all YAML parsers",
+          "status": "todo"
+        },
+        "W2-T08": {
+          "title": "Migrate existing content to v2 schemas",
+          "status": "todo"
+        },
+        "W2-T09": {
+          "title": "FLIGHTDECK_CONTENT_PATH external content roots",
+          "status": "todo"
+        }
+      }
     },
-    "M4-stack-expansion": {
-      "priority": "P1",
-      "status": "done",
-      "tasks": [
-        "054",
-        "055",
-        "056",
-        "057",
-        "058"
-      ],
-      "blocked_by": [
-        "M1-scenario-engine-v2"
-      ],
-      "note": "Complete: mesh (istio/linkerd), data (kafka/postgres), secrets (vault/external-secrets), autoscaling (keda). platform up/down/status take a category or category/provider target. Four new v2 scenarios: autoscaling-under-load, mesh-traffic-management, event-driven-arch, secrets-management."
-    },
-    "M5-multi-env-day2": {
-      "priority": "P2",
-      "status": "done",
-      "tasks": [
-        "059",
-        "060",
-        "061"
-      ],
-      "blocked_by": [
-        "M1-scenario-engine-v2"
-      ],
-      "note": "All tasks done: 059 (env-promotion scenario + labctl env), 060 (day-2 drills: node-drain-drill, cluster-upgrade-drill, backup-restore-drill \u2014 availability graded via promql), 061 (platform/cost/opencost provider, cost-right-sizing scenario with script checks for resource quantity comparison, CostProvider in config)."
-    },
-    "M6-team-mode-runtimes": {
-      "priority": "P2",
-      "status": "done",
-      "tasks": [
-        "062",
-        "063",
-        "064"
-      ],
-      "blocked_by": [
-        "M3-learning-assessment"
-      ],
-      "note": "COMPLETE. 062 (auth+RBAC), 063 (team sessions: leaderboard + labctl-server Helm chart + incluster runtime), 064 (kind + GKE runtimes): runtimes/kind (headless, CI-friendly, mirrors k3d port exposure + ingress-ready), runtimes/gke (terraform-backed) + foundation/terraform/modules/gke wired into environments/dev (runtime=gke), nightly e2e-kind GitHub Actions job running scenario verify (env-promotion). GKE unverified against a real project (verify-once caveat like 038/039)."
-    },
-    "part1-cloud-verification": {
-      "priority": "P2",
+    "W3": {
+      "title": "Lab & platform lifecycle on the new engine",
+      "goal": "Cluster and platform-component lifecycle runs entirely through the durable engine, with exact teardown and instant status.",
       "status": "todo",
-      "tasks": [
-        "038",
-        "039"
+      "dependsOn": [
+        "W1",
+        "W2"
       ],
-      "note": "Leftover Part I Phase 6 \u2014 requires real cloud accounts and spend; do deliberately."
+      "runbooks": [
+        "R04-lab-lifecycle",
+        "R05-platform-components"
+      ],
+      "exitCriteria": [
+        "platform up interrupted at any step boundary, then re-run, converges",
+        "lab down removes every recorded component and reports what it could not remove",
+        "lab status answers in <200ms from the store, with a --live flag for a real query",
+        "every shell script with branching logic has a bats test; make test-shell passes"
+      ],
+      "tasks": {
+        "W3-T01": {
+          "title": "internal/service/lab: up/down/status/snapshot/reset on the run engine",
+          "status": "todo"
+        },
+        "W3-T02": {
+          "title": "Runtime profiles reduced to k3d, kind, incluster; profile contract documented",
+          "status": "todo"
+        },
+        "W3-T03": {
+          "title": "internal/service/platform: install/uninstall/status per category and provider",
+          "status": "todo"
+        },
+        "W3-T04": {
+          "title": "Component state recorded in the store; down uninstalls exactly what was installed",
+          "status": "todo"
+        },
+        "W3-T05": {
+          "title": "Idempotency + partial-failure recovery",
+          "status": "todo"
+        },
+        "W3-T06": {
+          "title": "bats coverage for every platform provider script with stubbed helm/kubectl",
+          "status": "todo"
+        },
+        "W3-T07": {
+          "title": "bats coverage for runtimes/* and bootstrap/ scripts",
+          "status": "todo"
+        },
+        "W3-T08": {
+          "title": "labctl lab / labctl platform CLI with golden-file output tests",
+          "status": "todo"
+        }
+      }
     },
-    "M7-oss-ecosystem-foundation": {
-      "priority": "P0",
-      "status": "done",
-      "tasks": [
-        "065",
-        "066",
-        "067",
-        "068",
-        "069",
-        "070",
-        "071",
-        "072"
+    "W4": {
+      "title": "Simulation: scenarios, incidents, traffic",
+      "goal": "The core product loop - stage a situation, break it, verify the fix - works end to end and is graded objectively.",
+      "status": "todo",
+      "dependsOn": [
+        "W3"
       ],
-      "note": "Part III: community OSS simulator (Flightdeck, org snowops, Apache-2.0, CLA). Plan: docs/strategy/OSS-COMMERCIAL-STRATEGY.md. DONE: 065 governance/license, 066 public SDK boundary (pkg/checks, pkg/scenario, apiVersion, JSON Schemas, RFC 0001), 067 pack format (pkg/pack pack.yaml + labctl pack), 068 OCI distribution + cosign signing (pkg/pack oci/archive, labctl pack publish + add oci://, GHCR release workflow, runbook 13), 069 registry index + discovery (pkg/pack index, labctl pack search/info/add <name>/validate-index, sdk/schemas/index.schema.json, registry/ seed + validate-index CI), 070 entitlement/extension seams (pkg/entitlement allow-all default + TokenVerifier seam, pkg/extension Resolver chain + OCI/git/local built-ins + no-op Hooks; engine routes install through entitlement and run/verify through hooks; CODEOWNERS-locked), 071 module path + brand alignment (module go.flightdeck.dev/labctl across all Go files, CLI/README/CLAUDE rebranded Flightdeck, vanity meta-tag page), 072 contributor experience (labctl scenario new + pack init scaffolds via internal/scaffold, sdk/{scenario,pack}-template, .vscode schema validation, docs/authoring/first-pack.md, .github/labels.yml). M7 COMPLETE. Next 059 (M5 env-promotion). Maintainer still owes: CLA app, branch protection, org/teams, trademark search (manual actions B/C); publish the registry repo + Pages; host go.flightdeck.dev; seed good-first-issues."
+      "runbooks": [
+        "R06-scenario-loop",
+        "R07-game-day-and-incidents"
+      ],
+      "exitCriteria": [
+        "each verified scenario activates, passes checks and tears down cleanly in the nightly kind job",
+        "each verified incident injects, is detected by its check, and resolves",
+        "MTTD/MTTR recorded and reproducible across two runs",
+        "hint consumption reduces the recorded score by the declared amount",
+        "traffic generator runs are cancellable and leave no stray pods"
+      ],
+      "tasks": {
+        "W4-T01": {
+          "title": "internal/service/scenario: activate by stage, deactivate, status, verify",
+          "status": "todo"
+        },
+        "W4-T02": {
+          "title": "Objectives and per-stage checks surfaced in results",
+          "status": "todo"
+        },
+        "W4-T03": {
+          "title": "internal/service/incident: inject, resolve, status, auto-detect resolution via checks",
+          "status": "todo"
+        },
+        "W4-T04": {
+          "title": "Progressive hints with scoring cost; MTTD/MTTR measurement",
+          "status": "todo"
+        },
+        "W4-T05": {
+          "title": "Traffic generator (k6 profiles: steady, spike, soak) as a managed run",
+          "status": "todo"
+        },
+        "W4-T06": {
+          "title": "Snapshot/reset fast-path so a scenario retry takes seconds",
+          "status": "todo"
+        },
+        "W4-T07": {
+          "title": "Curate and harden the verified content set (~6 scenarios, ~8 incidents)",
+          "status": "todo"
+        },
+        "W4-T08": {
+          "title": "Mark remaining content unverified; UI and CLI display the distinction",
+          "status": "todo"
+        },
+        "W4-T09": {
+          "title": "On-call drill: alerts route through Alertmanager to the pager service",
+          "status": "todo"
+        }
+      }
     },
-    "M8-marketplace": {
-      "priority": "P2",
-      "status": "done",
-      "tasks": [
-        "073",
-        "074",
-        "075"
+    "W5": {
+      "title": "API v2 & security hardening",
+      "goal": "A versioned, consistent, hardened HTTP surface that the UI and third parties can rely on.",
+      "status": "todo",
+      "dependsOn": [
+        "W4"
       ],
-      "blocked_by": [
-        "M7-oss-ecosystem-foundation"
+      "runbooks": [
+        "R08-api-and-security"
       ],
-      "note": "COMPLETE: 073 (hosted catalog API client seam \u2014 CatalogClient with TTL cache, hosted-first/static-index-fallback search; GET /api/packs, /api/packs/installed, /api/packs/{name}, /api/packs/{name}/install, DELETE /api/packs/{name}); 074 (TokenEntitlement in pkg/entitlement \u2014 premium tier gating behind TokenVerifier seam; community packs always free); 075 (Marketplace UI tab \u2014 browse/search/install/remove packs, pack detail view with tier/verified badge, installed state, ratings). Premium content and hosted catalog server live outside the OSS tree (private repo). Static registry index remains offline-capable fallback."
+      "exitCriteria": [
+        "every endpoint has a contract test asserting success shape and error envelope; OpenAPI generated not hand-written",
+        "--bind 0.0.0.0 without auth exits non-zero with an explanation",
+        "sessions survive a server restart; logout invalidates server-side",
+        "rate limiting blocks a credential-stuffing loop in test",
+        "gosec and govulncheck clean; security review runbook completed"
+      ],
+      "tasks": {
+        "W5-T01": {
+          "title": "/api/v2 routing, request IDs, structured access logging",
+          "status": "todo"
+        },
+        "W5-T02": {
+          "title": "RFC 7807 problem+json error envelope with stable type slugs",
+          "status": "todo"
+        },
+        "W5-T03": {
+          "title": "Cursor pagination + ETag/If-None-Match on catalog reads",
+          "status": "todo"
+        },
+        "W5-T04": {
+          "title": "WS + SSE streaming from cursor; reconnect semantics documented and tested",
+          "status": "todo"
+        },
+        "W5-T05": {
+          "title": "Auth v2: Argon2id, SQLite-backed sessions, secure cookie flags",
+          "status": "todo"
+        },
+        "W5-T06": {
+          "title": "CSRF protection, auth rate limiting, constant-time comparison",
+          "status": "todo"
+        },
+        "W5-T07": {
+          "title": "Refuse non-loopback bind without auth; TLS support",
+          "status": "todo"
+        },
+        "W5-T08": {
+          "title": "Audit log of all mutating operations, queryable",
+          "status": "todo"
+        },
+        "W5-T09": {
+          "title": "Optional Prometheus /metrics",
+          "status": "todo"
+        },
+        "W5-T10": {
+          "title": "Full contract test suite + OpenAPI document generated from it",
+          "status": "todo"
+        }
+      }
     },
-    "M9-commercial-hosted": {
-      "priority": "P2",
-      "status": "done",
-      "tasks": [
-        "076",
-        "077",
-        "078"
+    "W6": {
+      "title": "UI rebuild: shell, design system, operational views",
+      "goal": "A genuinely pleasant operational interface - deep-linkable, honest about state, with a run console people want to watch.",
+      "status": "todo",
+      "dependsOn": [
+        "W5"
       ],
-      "blocked_by": [
-        "M7-oss-ecosystem-foundation"
+      "runbooks": [
+        "R09-ui-operational-walkthrough"
       ],
-      "note": "COMPLETE: 076 (pkg/edition CE/Pro/Enterprise \u2014 Current() reads LABCTL_EDITION, FeatureLine() documents CE-vs-paid boundary, labctl edition command, GET /api/edition); 077 (SaaS RFC \u2014 docs/strategy/RFC-0002-saas-control-plane.md: tenancy model, lab lifecycle, auth seam, billing, engine invariant validated; no OSS engine changes required); 078 (pkg/credential certification framework \u2014 Certificate with HMAC-SHA256 Sign/Verify, GradeForScore, Evidence, Store with Save/All/Get; labctl credential issue/list/verify; GET /api/credentials, POST /api/credentials/issue, GET /api/credentials/{id}, POST /api/credentials/{id}/verify). Exam delivery and certification content live in premium packs (private repo)."
+      "exitCriteria": [
+        "every view is reachable by URL and survives a refresh with state intact",
+        "killing the backend mid-session produces a designed offline state and automatic recovery",
+        "log streaming has no gaps across a forced disconnect (asserted by Playwright)",
+        "axe scan reports zero serious/critical violations",
+        "vitest >=80% statement coverage on components; playwright journeys green in CI"
+      ],
+      "tasks": {
+        "W6-T01": {
+          "title": "New Vite/React/TS-strict app skeleton; React Router with real URLs",
+          "status": "todo"
+        },
+        "W6-T02": {
+          "title": "TanStack Query data layer: caching, retry, invalidation on run completion",
+          "status": "todo"
+        },
+        "W6-T03": {
+          "title": "Design system: Tailwind tokens, light/dark, typography scale, Radix primitives",
+          "status": "todo"
+        },
+        "W6-T04": {
+          "title": "App shell: navigation, command palette, connection status, notifications",
+          "status": "todo"
+        },
+        "W6-T05": {
+          "title": "Run console: step timeline, live cursor-based log stream, cancel, failure summary",
+          "status": "todo"
+        },
+        "W6-T06": {
+          "title": "Overview view: cluster health, active scenario, recent runs, next suggested action",
+          "status": "todo"
+        },
+        "W6-T07": {
+          "title": "Labs view: lifecycle controls, component inventory, snapshot/reset",
+          "status": "todo"
+        },
+        "W6-T08": {
+          "title": "Catalog view: browse/search scenarios and incidents with rich descriptions",
+          "status": "todo"
+        },
+        "W6-T09": {
+          "title": "Designed loading/empty/error/offline states for every view",
+          "status": "todo"
+        },
+        "W6-T10": {
+          "title": "Accessibility pass: keyboard nav, ARIA, WCAG AA contrast both themes",
+          "status": "todo"
+        },
+        "W6-T11": {
+          "title": "Vitest + Testing Library component tests; MSW API mocking",
+          "status": "todo"
+        },
+        "W6-T12": {
+          "title": "Playwright journeys: run a scenario, watch logs, cancel a run",
+          "status": "todo"
+        }
+      }
+    },
+    "W7": {
+      "title": "UI: learning, challenges, results",
+      "goal": "The assessment loop is visible, motivating and clear.",
+      "status": "todo",
+      "dependsOn": [
+        "W6"
+      ],
+      "runbooks": [
+        "R10-learning-and-assessment"
+      ],
+      "exitCriteria": [
+        "a user can complete a learning path start to finish entirely in the UI",
+        "a challenge run records score, elapsed time and hints used, reproducible from the stored result",
+        "charts render correctly with 0, 1 and 1000 results",
+        "playwright covers start path to run scenario to verify to complete to result"
+      ],
+      "tasks": {
+        "W7-T01": {
+          "title": "Learn view: path browser, module progression, inline prose and objectives",
+          "status": "todo"
+        },
+        "W7-T02": {
+          "title": "Guided scenario walkthrough: objectives, live check status, contextual hints",
+          "status": "todo"
+        },
+        "W7-T03": {
+          "title": "Challenges view: timer, hidden hints with cost, submission and grading",
+          "status": "todo"
+        },
+        "W7-T04": {
+          "title": "Results view: history, score breakdown, per-check detail, MTTR trend charts",
+          "status": "todo"
+        },
+        "W7-T05": {
+          "title": "Leaderboard (server mode) with team aggregation",
+          "status": "todo"
+        },
+        "W7-T06": {
+          "title": "Progress visualisation: completion, streaks, weak-area suggestions",
+          "status": "todo"
+        },
+        "W7-T07": {
+          "title": "Component + Playwright coverage for the full assessment journey",
+          "status": "todo"
+        }
+      }
+    },
+    "W8": {
+      "title": "Team server, packaging, release",
+      "goal": "Flightdeck ships as a trustworthy artifact and runs for a team.",
+      "status": "todo",
+      "dependsOn": [
+        "W7"
+      ],
+      "runbooks": [
+        "R11-team-server",
+        "R12-release-verification"
+      ],
+      "exitCriteria": [
+        "helm install on a fresh kind cluster yields a working UI in under 5 minutes",
+        "two users on the shared server see consistent leaderboard state and cannot clobber each other's runs",
+        "release artifacts verify: checksums match, cosign signature validates, SBOM present",
+        "upgrading from the previous release migrates the database without data loss"
+      ],
+      "tasks": {
+        "W8-T01": {
+          "title": "In-cluster server mode on the v2 stack; PVC-backed SQLite",
+          "status": "todo"
+        },
+        "W8-T02": {
+          "title": "Helm chart rebuild with SA/RBAC least-privilege, probes, resource limits",
+          "status": "todo"
+        },
+        "W8-T03": {
+          "title": "Multi-arch container image; non-root, distroless-based",
+          "status": "todo"
+        },
+        "W8-T04": {
+          "title": "Release automation: goreleaser, checksums, SBOM, cosign signing",
+          "status": "todo"
+        },
+        "W8-T05": {
+          "title": "Nightly e2e on kind gating the verified content set",
+          "status": "todo"
+        },
+        "W8-T06": {
+          "title": "Upgrade path: schema migration test across versions",
+          "status": "todo"
+        },
+        "W8-T07": {
+          "title": "Install docs, quickstart, troubleshooting guide",
+          "status": "todo"
+        }
+      }
     }
   },
-  "todo": [
-    "038-verify-aks-end-to-end",
-    "039-verify-eks-end-to-end"
+  "maintainerOpenItems": [
+    "register/host go.flightdeck.dev vanity import metadata, or rename the module before the first tagged release",
+    "rename the GitHub repository from Sagars-Laboratory to flightdeck",
+    "enable branch protection and required CI checks on main",
+    "trademark search before promoting the Flightdeck name publicly"
   ],
-  "in_progress": [],
-  "done": [
-    "078-certification-training-framework",
-    "077-saas-control-plane-spike",
-    "076-edition-packaging",
-    "075-marketplace-ui",
-    "074-premium-pack-repo-entitlement",
-    "073-hosted-catalog-api",
-    "064-kind-gke-runtimes",
-    "063-team-sessions-shared-deploy",
-    "062-auth-rbac",
-    "061-cost-capacity-scenario",
-    "060-day2-ops-drills",
-    "059-env-promotion-simulation",
-    "079-comprehensive-test-suite",
-    "072-contributor-experience",
-    "071-module-path-brand-alignment",
-    "070-entitlement-extension-interface",
-    "069-registry-index-discovery",
-    "068-oci-pack-distribution",
-    "067-scenario-pack-format",
-    "066-public-sdk-boundary",
-    "065-oss-governance-baseline",
-    "058-new-stack-scenarios",
-    "057-autoscaling-category",
-    "056-secrets-platform-category",
-    "055-data-platform-category",
-    "054-mesh-platform-category",
-    "040-scenario-format-v2",
-    "041-scenario-verification-engine",
-    "042-traffic-generator",
-    "043-lab-snapshot-reset",
-    "044-scenario-catalog",
-    "045-fault-library",
-    "046-incident-command-group",
-    "047-progressive-hints",
-    "048-mttr-tracking",
-    "049-oncall-drill",
-    "050-learning-paths",
-    "051-challenge-mode",
-    "052-score-persistence-api",
-    "053-ui-learn-challenge-views",
-    "004-improve-runtime-detection-and-status-reporting",
-    "005-make-platform-targets-provider-aware",
-    "009-add-helm-pre-deploy-lint-and-readiness-wait",
-    "013-add-version-endpoint-to-apps",
-    "014-wire-verbose-flag-to-logger",
-    "001-fix-platform-category-resolution-and-status",
-    "030-cross-platform-tool-bootstrap",
-    "031-remove-committed-binary-and-portable-build",
-    "032-etc-hosts-helper",
-    "033-macos-container-runtime-support",
-    "034-shell-portability-sweep",
-    "002-add-scenario-preflight-validation",
-    "007-fix-echo-server-readiness-probe",
-    "008-add-request-timeout-and-input-validation",
-    "015-fix-k8s-version-parsing",
-    "016-add-echo-server-body-size-limit",
-    "003-stream-action-events-for-all-api-operations",
-    "012-fix-engine-strategy-script-validation",
-    "017-return-job-id-from-async-actions",
-    "019-add-scenario-up-idempotency",
-    "020-fix-kubectl-pod-output-parsing",
-    "022-add-structured-error-responses",
-    "029-validate-profile-and-app-name",
-    "010-add-kubernetes-dashboard-uninstall",
-    "025-fix-argocd-hardcoded-domain",
-    "006-expand-ci-validation-for-infra-and-shell-assets",
-    "011-add-container-image-security-scanning",
-    "023-enable-argocd-sync-in-cd-pipeline",
-    "018-make-observability-namespace-configurable",
-    "021-add-redis-cache-ttl-config",
-    "024-add-kyverno-clusterpolicy-manifests",
-    "028-add-loki-log-retention-policy",
-    "026-fix-chaos-mesh-containerd-socket",
-    "027-configure-terraform-remote-state",
-    "035-ui-spa-scaffold",
-    "036-ui-spa-views",
-    "037-ui-spa-embed-and-build"
-  ],
-  "blocked": []
+  "coverageRatchet": ".coverage-exceptions lets packages awaiting rewrite sit below the 80% bar at a recorded floor they can never regress past. The gate fails if a listed package drops, if it clears 80% and the entry was not removed, or if an entry is stale. Adding an entry requires naming the wave that deletes it."
 }

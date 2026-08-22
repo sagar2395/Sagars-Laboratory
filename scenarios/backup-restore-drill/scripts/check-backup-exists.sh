@@ -14,9 +14,9 @@ NAMESPACE="${NAMESPACE:-go-api}"
 LATEST="${BACKUP_DIR}/${NAMESPACE}-latest.json"
 
 if [ ! -f "$LATEST" ]; then
-    echo "FAIL: no backup archive found at ${LATEST}" >&2
-    echo "Run: bash scenarios/backup-restore-drill/scripts/backup.sh ${NAMESPACE}" >&2
-    exit 1
+  echo "FAIL: no backup archive found at ${LATEST}" >&2
+  echo "Run: bash scenarios/backup-restore-drill/scripts/backup.sh ${NAMESPACE}" >&2
+  exit 1
 fi
 
 echo "OK: backup archive present (${LATEST})."

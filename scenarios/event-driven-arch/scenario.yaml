@@ -10,8 +10,7 @@ prerequisites:
     - go-api
 runtimes:
   - k3d
-  - aks
-  - eks
+  - kind
 
 objectives:
   - "Run a producer/consumer event flow through a Kafka topic"

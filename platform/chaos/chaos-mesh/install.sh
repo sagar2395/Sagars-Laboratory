@@ -10,9 +10,9 @@ SCRIPT_DIR="$(dirname "$0")"
 #   aks  → /run/containerd/containerd.sock       (standard containerd on Azure nodes)
 #   eks  → /run/containerd/containerd.sock       (standard containerd on Bottlerocket/AL2 nodes)
 case "${PROFILE:-k3d}" in
-  k3d)     CONTAINERD_SOCKET="/run/k3s/containerd/containerd.sock" ;;
-  aks|eks) CONTAINERD_SOCKET="/run/containerd/containerd.sock" ;;
-  *)       CONTAINERD_SOCKET="/run/containerd/containerd.sock" ;;
+  k3d) CONTAINERD_SOCKET="/run/k3s/containerd/containerd.sock" ;;
+  aks | eks) CONTAINERD_SOCKET="/run/containerd/containerd.sock" ;;
+  *) CONTAINERD_SOCKET="/run/containerd/containerd.sock" ;;
 esac
 
 echo "Installing Chaos Mesh (profile=${PROFILE:-k3d}, containerd socket=${CONTAINERD_SOCKET})..."
