@@ -43,6 +43,30 @@ ensure_install_dir() {
     fi
 }
 
+# version_ge <have> <want> — succeeds when <have> >= <want> as a semver.
+#
+# The pinned versions in versions.env are MINIMUMS, not exact matches. A user
+# who brought their own newer helm (via brew, apt, whatever) should not have
+# their tool replaced by an older one — and on Apple Silicon that "replacement"
+# would fail anyway because brew's /opt/homebrew/bin shadows /usr/local/bin.
+#
+# A leading 'v' is stripped from both sides, because tools disagree about it
+# ('helm version --short' emits it, 'kubectl' does not) and sort -V would
+# otherwise treat "v3.14.0" as textually greater than "4.2.3" — the leading 'v'
+# sorts after any digit.
+#
+# Uses sort -V, which is portable across macOS and modern Linux.
+version_ge() {
+    [ -z "$1" ] && return 1
+    [ -z "$2" ] && return 0
+    local have="${1#v}" want="${2#v}"
+    # If sorting the two versions numerically puts <want> first, then <have>
+    # >= <want>. `printf '%s\n%s\n' | sort -V | head -1` returns the smaller.
+    local smallest
+    smallest="$(printf '%s\n%s\n' "$have" "$want" | sort -V | head -n 1)"
+    [ "$smallest" = "$want" ]
+}
+
 # Block until Docker daemon responds or timeout.
 _wait_for_docker() {
     local retries=0
@@ -63,16 +87,16 @@ _wait_for_docker() {
 # ---------------------------------------------------------------------------
 
 install_kubectl() {
-    echo -e "${YELLOW}Installing kubectl (v${KUBECTL_VERSION})...${NC}"
+    echo -e "${YELLOW}Checking kubectl (minimum v${KUBECTL_VERSION})...${NC}"
 
     if command -v kubectl &>/dev/null; then
         current_version=$(kubectl version --client 2>/dev/null \
             | grep "Client Version:" | awk '{print $NF}' | sed 's/v//')
-        if [ "$current_version" = "${KUBECTL_VERSION}" ]; then
-            echo -e "${GREEN}kubectl v${KUBECTL_VERSION} already installed${NC}"
+        if version_ge "$current_version" "${KUBECTL_VERSION}"; then
+            echo -e "${GREEN}kubectl v${current_version} already installed (meets minimum v${KUBECTL_VERSION})${NC}"
             return 0
         fi
-        echo -e "${YELLOW}kubectl version mismatch (have v${current_version}, want v${KUBECTL_VERSION})${NC}"
+        echo -e "${YELLOW}kubectl v${current_version} is below the minimum v${KUBECTL_VERSION} — installing a newer one${NC}"
     fi
 
     ensure_install_dir
@@ -84,26 +108,26 @@ install_kubectl() {
 
     installed=$(kubectl version --client 2>/dev/null \
         | grep "Client Version:" | awk '{print $NF}' | sed 's/v//')
-    if [ "$installed" = "${KUBECTL_VERSION}" ]; then
-        echo -e "${GREEN}kubectl v${KUBECTL_VERSION} installed and verified${NC}"
+    if version_ge "$installed" "${KUBECTL_VERSION}"; then
+        echo -e "${GREEN}kubectl v${installed} installed and verified${NC}"
     else
-        echo -e "${RED}ERROR: kubectl version mismatch after install (got v${installed})${NC}" >&2
+        echo -e "${RED}ERROR: kubectl v${installed} still below the minimum v${KUBECTL_VERSION} — is another kubectl earlier on PATH?${NC}" >&2
         exit 1
     fi
 }
 
 install_k3d() {
-    echo -e "${YELLOW}Installing k3d (v${K3D_VERSION})...${NC}"
+    echo -e "${YELLOW}Checking k3d (minimum v${K3D_VERSION})...${NC}"
 
     if command -v k3d &>/dev/null; then
         current_version=$(k3d version 2>/dev/null \
             | grep 'k3d version' \
             | sed 's/.*k3d version v\([^ -]*\).*/\1/')
-        if [ "$current_version" = "${K3D_VERSION}" ]; then
-            echo -e "${GREEN}k3d v${K3D_VERSION} already installed${NC}"
+        if version_ge "$current_version" "${K3D_VERSION}"; then
+            echo -e "${GREEN}k3d v${current_version} already installed (meets minimum v${K3D_VERSION})${NC}"
             return 0
         fi
-        echo -e "${YELLOW}k3d version mismatch (have v${current_version}, want v${K3D_VERSION})${NC}"
+        echo -e "${YELLOW}k3d v${current_version} is below the minimum v${K3D_VERSION} — installing a newer one${NC}"
     fi
 
     ensure_install_dir
@@ -116,25 +140,25 @@ install_k3d() {
     installed=$(k3d version 2>/dev/null \
         | grep 'k3d version' \
         | sed 's/.*k3d version v\([^ -]*\).*/\1/')
-    if [ "$installed" = "${K3D_VERSION}" ]; then
-        echo -e "${GREEN}k3d v${K3D_VERSION} installed and verified${NC}"
+    if version_ge "$installed" "${K3D_VERSION}"; then
+        echo -e "${GREEN}k3d v${installed} installed and verified${NC}"
     else
-        echo -e "${RED}ERROR: k3d version mismatch after install (got v${installed})${NC}" >&2
+        echo -e "${RED}ERROR: k3d v${installed} still below the minimum v${K3D_VERSION} — is another k3d earlier on PATH?${NC}" >&2
         exit 1
     fi
 }
 
 install_helm() {
-    echo -e "${YELLOW}Installing Helm (v${HELM_VERSION})...${NC}"
+    echo -e "${YELLOW}Checking Helm (minimum v${HELM_VERSION})...${NC}"
 
     if command -v helm &>/dev/null; then
         current_version=$(helm version --short 2>/dev/null \
             | sed 's/v\([^+]*\).*/\1/')
-        if [ "$current_version" = "${HELM_VERSION}" ]; then
-            echo -e "${GREEN}Helm v${HELM_VERSION} already installed${NC}"
+        if version_ge "$current_version" "${HELM_VERSION}"; then
+            echo -e "${GREEN}Helm v${current_version} already installed (meets minimum v${HELM_VERSION})${NC}"
             return 0
         fi
-        echo -e "${YELLOW}Helm version mismatch (have v${current_version}, want v${HELM_VERSION})${NC}"
+        echo -e "${YELLOW}Helm v${current_version} is below the minimum v${HELM_VERSION} — installing a newer one${NC}"
     fi
 
     ensure_install_dir
@@ -148,10 +172,18 @@ install_helm() {
     rm -rf "${helm_tmp}"
 
     installed=$(helm version --short 2>/dev/null | sed 's/v\([^+]*\).*/\1/')
-    if [ "$installed" = "${HELM_VERSION}" ]; then
-        echo -e "${GREEN}Helm v${HELM_VERSION} installed and verified${NC}"
+    if version_ge "$installed" "${HELM_VERSION}"; then
+        echo -e "${GREEN}Helm v${installed} installed and verified${NC}"
     else
-        echo -e "${RED}ERROR: Helm version mismatch after install (got v${installed})${NC}" >&2
+        # This is the shadowed-PATH case: brew's /opt/homebrew/bin/helm wins
+        # over the /usr/local/bin/helm we just wrote. Say so, don't just fail.
+        actual_path="$(command -v helm)"
+        echo -e "${RED}ERROR: helm on PATH is v${installed}, below the minimum v${HELM_VERSION}.${NC}" >&2
+        echo -e "${RED}  Found: ${actual_path}${NC}" >&2
+        echo -e "${RED}  Just installed: ${INSTALL_DIR}/helm${NC}" >&2
+        echo -e "${YELLOW}  A newer helm at ${actual_path} is shadowing it. Either:${NC}" >&2
+        echo -e "${YELLOW}    - upgrade the one on PATH: 'brew upgrade helm' (macOS) / your package manager${NC}" >&2
+        echo -e "${YELLOW}    - or reorder PATH so ${INSTALL_DIR} comes first${NC}" >&2
         exit 1
     fi
 }
@@ -322,16 +354,16 @@ install_docker() {
 # ---------------------------------------------------------------------------
 
 install_kind() {
-    echo -e "${YELLOW}Installing kind (v${KIND_VERSION})...${NC}"
+    echo -e "${YELLOW}Checking kind (minimum v${KIND_VERSION})...${NC}"
 
     if command -v kind &>/dev/null; then
         current_version=$(kind version 2>/dev/null \
             | sed 's/.*kind v\([^ ]*\).*/\1/')
-        if [ "$current_version" = "${KIND_VERSION}" ]; then
-            echo -e "${GREEN}kind v${KIND_VERSION} already installed${NC}"
+        if version_ge "$current_version" "${KIND_VERSION}"; then
+            echo -e "${GREEN}kind v${current_version} already installed (meets minimum v${KIND_VERSION})${NC}"
             return 0
         fi
-        echo -e "${YELLOW}kind version mismatch (have v${current_version}, want v${KIND_VERSION})${NC}"
+        echo -e "${YELLOW}kind v${current_version} is below the minimum v${KIND_VERSION} — installing a newer one${NC}"
     fi
 
     ensure_install_dir
@@ -342,10 +374,10 @@ install_kind() {
     sudo mv /tmp/kind "${INSTALL_DIR}/kind"
 
     installed=$(kind version 2>/dev/null | sed 's/.*kind v\([^ ]*\).*/\1/')
-    if [ "$installed" = "${KIND_VERSION}" ]; then
-        echo -e "${GREEN}kind v${KIND_VERSION} installed and verified${NC}"
+    if version_ge "$installed" "${KIND_VERSION}"; then
+        echo -e "${GREEN}kind v${installed} installed and verified${NC}"
     else
-        echo -e "${RED}ERROR: kind version mismatch after install (got v${installed})${NC}" >&2
+        echo -e "${RED}ERROR: kind v${installed} still below the minimum v${KIND_VERSION} — is another kind earlier on PATH?${NC}" >&2
         exit 1
     fi
 }
