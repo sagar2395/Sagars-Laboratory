@@ -3,6 +3,13 @@
 // Contract tests for the API client's failure handling. Every view depends on
 // `req()` turning transport problems into messages a human can act on, so its
 // error branches matter more than its happy path.
+//
+// @vitest-environment node
+//
+// This suite exercises the real fetch path, not the DOM. It must run in the
+// `node` environment because jsdom substitutes an AbortController whose signals
+// Node's fetch rejects with a TypeError — which would mask every assertion here
+// behind a spurious "cannot reach the server". See src/test/setup.ts.
 
 import { describe, expect, it } from 'vitest'
 import { http, HttpResponse } from 'msw'

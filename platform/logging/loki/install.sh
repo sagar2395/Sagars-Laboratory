@@ -2,7 +2,6 @@
 set -euo pipefail
 
 NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
-RETENTION="${LOKI_RETENTION_HOURS:-168}h"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOKI_VALUES_FILE="$(mktemp "${TMPDIR:-/tmp}/loki-values.XXXXXX")"
 PROMTAIL_VALUES_FILE="$(mktemp "${TMPDIR:-/tmp}/promtail-values.XXXXXX")"

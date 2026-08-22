@@ -166,12 +166,6 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/runtimes/{name}/activate", s.handleRuntimeActivate).Methods("POST", "OPTIONS")
 	api.HandleFunc("/runtimes/{name}/deactivate", s.handleRuntimeDeactivate).Methods("POST", "OPTIONS")
 
-	// Pack marketplace (tasks 073, 075)
-
-	// Credentials (task 078)
-
-	// Edition info (task 076)
-
 	api.HandleFunc("/ws", s.handleWebSocket)
 
 	// Serve UI — use embedded FS if available, fall back to filesystem for dev

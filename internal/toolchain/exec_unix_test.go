@@ -11,13 +11,47 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 )
+
+// TestHelperProcess is not a real test: it is a controlled child process that
+// the cancellation tests re-invoke via os.Args[0]. When asked, it installs an
+// ignored SIGTERM disposition with a real sigaction, announces readiness, then
+// blocks — a deterministic stand-in for a long-running tool that traps SIGTERM.
+// Without the env marker it is an immediate no-op, so a normal suite run of it
+// costs nothing.
+func TestHelperProcess(t *testing.T) {
+	switch os.Getenv("FLIGHTDECK_HELPER") {
+	case "ignore-sigterm":
+		signal.Ignore(syscall.SIGTERM)
+		// The parent waits for this line before cancelling, so SIGTERM cannot
+		// arrive before the ignore is established.
+		fmt.Fprintln(os.Stdout, "ready")
+		time.Sleep(60 * time.Second)
+	default:
+		// Not invoked as a helper; do nothing.
+	}
+}
+
+// closeOnFirstWrite closes ch the first time it is written to. The cancellation
+// test uses it to learn, from the helper's own stdout, that the helper has
+// installed its SIGTERM ignore.
+type closeOnFirstWrite struct {
+	once sync.Once
+	ch   chan struct{}
+}
+
+func (c *closeOnFirstWrite) Write(p []byte) (int, error) {
+	c.once.Do(func() { close(c.ch) })
+	return len(p), nil
+}
 
 // writeScript creates an executable script and returns its path.
 func writeScript(t *testing.T, body string) string {
@@ -308,20 +342,36 @@ wait
 	})
 
 	t.Run("SIGKILLs a process that ignores SIGTERM", func(t *testing.T) {
-		// A script that traps SIGTERM must still die: grace period, then kill.
+		// A process that ignores SIGTERM must still die: grace period, then kill.
+		//
+		// The fixture re-invokes the test binary as a helper (TestHelperProcess)
+		// rather than running a shell script. macOS ships bash 3.2, whose
+		// `trap '' TERM` does not reliably establish an ignored disposition —
+		// not for the shell itself, and not for a foreground child across exec —
+		// so a bash-based fixture is genuinely flaky there. A Go helper installs
+		// SIG_IGN with a real sigaction and blocks, which is deterministic on
+		// every platform. It prints a line once the ignore is in place so the
+		// test can cancel only after SIGTERM is guaranteed to be swallowed.
 		e := &Exec{GracePeriod: 300 * time.Millisecond}
-		script := writeScript(t, `
-trap '' TERM
-sleep 60
-`)
+
+		ready := &closeOnFirstWrite{ch: make(chan struct{})}
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
 		go func() {
-			_, err := e.Run(ctx, Command{Path: script})
+			_, err := e.Run(ctx, Command{
+				Path:   os.Args[0],
+				Args:   []string{"-test.run=^TestHelperProcess$"},
+				Env:    map[string]string{"FLIGHTDECK_HELPER": "ignore-sigterm"},
+				Stdout: ready,
+			})
 			done <- err
 		}()
 
-		time.Sleep(200 * time.Millisecond)
+		select {
+		case <-ready.ch:
+		case <-time.After(5 * time.Second):
+			t.Fatal("helper never reported that it had ignored SIGTERM")
+		}
 		start := time.Now()
 		cancel()
 

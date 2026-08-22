@@ -86,9 +86,9 @@ lint-shell:
 	@command -v shellcheck >/dev/null 2>&1 || { \
 	  echo "shellcheck not found (brew install shellcheck / apt install shellcheck)"; exit 1; }
 	@echo "==> shellcheck"
-	@find . -name '*.sh' -not -path './.git/*' -not -path './node_modules/*' -print0 \
+	@find . -name '*.sh' -not -path './.git/*' -not -path '*/node_modules/*' -print0 \
 	  | xargs -0 shellcheck --severity=warning
-	@command -v shfmt >/dev/null 2>&1 && { echo "==> shfmt"; shfmt -d -i 2 -ci $$(find . -name '*.sh' -not -path './.git/*' -not -path './node_modules/*'); } || \
+	@command -v shfmt >/dev/null 2>&1 && { echo "==> shfmt"; shfmt -d -i 2 -ci $$(find . -name '*.sh' -not -path './.git/*' -not -path '*/node_modules/*'); } || \
 	  echo "shfmt not found — skipping format check (install: go install mvdan.cc/sh/v3/cmd/shfmt@latest)"
 	@$(MAKE) --no-print-directory lint-portability
 

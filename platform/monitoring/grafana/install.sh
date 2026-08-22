@@ -10,7 +10,7 @@ trap 'rm -f "$VALUES_FILE"' EXIT
 DOMAIN_SUFFIX="${DOMAIN_SUFFIX:-k3d.local}"
 
 echo "Installing Grafana..."
-sed "s/\\.monitoring\\.svc/.$NAMESPACE.svc/g" "$SCRIPT_DIR/values.yaml" > "$VALUES_FILE"
+sed "s/\\.monitoring\\.svc/.$NAMESPACE.svc/g" "$SCRIPT_DIR/values.yaml" >"$VALUES_FILE"
 
 # Create namespace if it doesn't exist
 kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -

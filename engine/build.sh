@@ -7,11 +7,14 @@
 set -euo pipefail
 
 APP_NAME="${1:?Usage: $0 <app-name> [strategy-options]}"
-shift || true  # Remove APP_NAME, pass remaining args to strategy script
+shift || true # Remove APP_NAME, pass remaining args to strategy script
 
 # Load app configuration to get BUILD_STRATEGY
 if [ -f "apps/${APP_NAME}/app.env" ]; then
-    set -a; . "apps/${APP_NAME}/app.env"; set +a
+  set -a
+  # shellcheck source=/dev/null
+  . "apps/${APP_NAME}/app.env"
+  set +a
 fi
 
 # Use explicit override if provided, otherwise use app.env default, otherwise fail

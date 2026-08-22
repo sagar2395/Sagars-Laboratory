@@ -18,8 +18,8 @@ if kubectl get pod vault-0 -n "$NAMESPACE" >/dev/null 2>&1; then
   ready=$(kubectl get pod vault-0 -n "$NAMESPACE" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
   echo "  vault-0 Ready: ${ready:-Unknown}"
   sealed=$(kubectl exec -n "$NAMESPACE" vault-0 -- sh -c \
-    "VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json 2>/dev/null" 2>/dev/null \
-    | grep -o '"sealed"[: ]*[a-z]*' | head -1 || echo "")
+    "VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json 2>/dev/null" 2>/dev/null |
+    grep -o '"sealed"[: ]*[a-z]*' | head -1 || echo "")
   [ -n "$sealed" ] && echo "  ${sealed}"
 else
   echo "  vault-0 pod not found"

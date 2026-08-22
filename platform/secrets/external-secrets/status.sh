@@ -36,8 +36,8 @@ echo ""
 # The synced k8s Secret produced by the ExternalSecret
 echo "Synced Secret '${TARGET_NS}/go-api-secrets':"
 if kubectl get secret go-api-secrets -n "$TARGET_NS" >/dev/null 2>&1; then
-  keys=$(kubectl get secret go-api-secrets -n "$TARGET_NS" -o jsonpath='{.data}' 2>/dev/null \
-    | grep -o '"[^"]*":' | tr -d '":' | tr '\n' ' ' || echo "")
+  keys=$(kubectl get secret go-api-secrets -n "$TARGET_NS" -o jsonpath='{.data}' 2>/dev/null |
+    grep -o '"[^"]*":' | tr -d '":' | tr '\n' ' ' || echo "")
   echo "  present (keys: ${keys:-?})"
   echo "  reveal: kubectl -n $TARGET_NS get secret go-api-secrets -o go-template='{{index .data \"api-key\" | base64decode}}{{\"\\n\"}}'"
 else

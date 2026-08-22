@@ -46,7 +46,13 @@ is the signal you would see in production.
 
 ## Prerequisites
 
-- Docker running
+- Docker running with **at least 4 CPUs and 8 GB of memory** available to the
+  engine. `make init` runs a 3-node k3d cluster plus the full platform stack
+  (Prometheus, Grafana, Alertmanager, Loki, …); the 2 GB a fresh Docker Desktop
+  or Colima VM ships with is not enough and shows up as API-server "TLS
+  handshake timeout" errors partway through the install.
+  - **Colima:** `colima start --cpu 4 --memory 8`
+  - **Docker Desktop:** Settings → Resources → raise Memory to 8 GB
 - `kubectl`, `helm` 3, and `k3d`
 - Go 1.24+ and Node 22+ to build from source
 

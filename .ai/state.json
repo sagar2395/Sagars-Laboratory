@@ -2,7 +2,7 @@
   "_comment": "Flightdeck v2 delivery state. Single source of truth for wave/task progress. Plan of record: docs/ROADMAP.md. Product: docs/PRODUCT.md. Design: docs/architecture/ARCHITECTURE.md. Test policy: docs/TESTING.md. Move task status between todo/in_progress/done/blocked as work proceeds, keep each wave's status in sync, and point 'next' at the lowest-numbered todo task of the current wave. The v1 state and its 79 task files are archived under .ai/archive/.",
   "schemaVersion": 2,
   "plan": "docs/ROADMAP.md",
-  "updated": "2026-07-26",
+  "updated": "2026-08-22",
   "currentWave": "W1",
   "next": "W2-T01",
   "taskStatuses": [
@@ -70,7 +70,7 @@
           "status": "done"
         }
       },
-      "note": "All W0 tasks implemented. The wave is not complete until R00 (docs/runbooks/R00-environment-and-build.md) has been run by the maintainer on real hardware."
+      "note": "All W0 tasks implemented. R00 executed end-to-end on macOS 15 (Apple Silicon, Go 1.26, Node 26) on 2026-08-22: every step green, including the gate-bites checks (coverage, portability). Fixes made during the run, all in W0-owned harness code: (1) macOS bash 3.2 could not build a reliably SIGTERM-ignoring process for the toolchain cancellation test — replaced the bash fixture with a Go helper-process (exec_unix_test.go); (2) the doctor missing-tool test hardcoded the Linux install hint — made GOOS-aware (cli/doctor_test.go); (3) make lint-shell was red — 34 tracked scripts were not shfmt -i2 clean, loki/install.sh had a dead RETENTION var (SC2034), and five engine/*.sh had SC1090 that newer shellcheck no longer suppressed via the old directive placement (fixed with `# shellcheck source=/dev/null`); the lint-shell find() also scanned ui/node_modules (fixed to */node_modules/*); (4) Playwright webServer bound vite preview to localhost which is IPv6-only on macOS while the healthcheck used 127.0.0.1 — pinned --host 127.0.0.1 (ui/playwright.config.ts); (5) removed dead marketplace/credential references (auth/policy.go + test, httpapi/server.go stubs) so the ADR-0001 grep is clean. Maintainer sign-off is the only thing outstanding: the AI ran the automatable steps; a human tick of the results table completes the wave."
     },
     "W1": {
       "title": "Durable core: store, run engine, toolchain",
@@ -136,7 +136,7 @@
           "status": "done"
         }
       },
-      "note": "All W1 tasks implemented. internal/store 84.3%, internal/toolchain 95.0%, internal/run 87.0% \u2014 all race-clean and hermetic. The wave is not complete until R01 and R02 have been run by the maintainer on real hardware; the process-group cancellation behaviour in particular is OS-specific and must be exercised on macOS as well as Linux."
+      "note": "All W1 tasks implemented. internal/store 84.3%, internal/toolchain 95.0%, internal/run 87.3% \u2014 all race-clean and hermetic. R01 executed on macOS on 2026-08-22: every step green, including the three blocking ones \u2014 no process survives cancellation (pgrep clean), an interrupted run recovers with its log intact and lock released, and no log line is lost across a disconnect or a slow reader. Process-group SIGTERM->grace->SIGKILL confirmed on macOS. R02 executed on macOS 2026-08-22: steps 1-5, 7, 8 all green with good message quality (missing names tool+reason+fix, outdated shows both versions, unparseable does not block, optional tools warn only, broken PATH does not crash). Only R02 step 6 (stop Docker/Colima and confirm doctor does not hang) is outstanding \u2014 it is disruptive to the host and needs the maintainer to run it. Maintainer sign-off (that step + the message-quality judgement) completes the wave."
     },
     "W2": {
       "title": "Content model & check engine v2",

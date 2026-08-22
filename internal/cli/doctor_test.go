@@ -5,6 +5,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -71,8 +72,14 @@ func TestRunDoctor(t *testing.T) {
 		if !strings.Contains(text, "Problems to fix") {
 			t.Errorf("output should have a problems section:\n%s", text)
 		}
-		// Name the tool, why it matters, and how to fix it.
-		for _, want := range []string{"helm", "PATH", "installing platform components", "helm.sh"} {
+		// Name the tool, why it matters, and how to fix it. The install hint is
+		// platform-specific (Homebrew on macOS, the helm.sh docs on Linux), so
+		// pick the expectation to match the host the test is running on.
+		installHint := "helm.sh"
+		if runtime.GOOS == "darwin" {
+			installHint = "brew install helm"
+		}
+		for _, want := range []string{"helm", "PATH", "installing platform components", installHint} {
 			if !strings.Contains(text, want) {
 				t.Errorf("output should mention %q:\n%s", want, text)
 			}

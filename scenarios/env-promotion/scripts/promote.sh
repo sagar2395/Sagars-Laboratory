@@ -21,38 +21,38 @@ FROM_NS="env-${FROM_ENV}"
 TO_NS="env-${TO_ENV}"
 
 valid_env() {
-    case "$1" in dev|staging|prod) return 0 ;; *) return 1 ;; esac
+  case "$1" in dev | staging | prod) return 0 ;; *) return 1 ;; esac
 }
 
 if ! valid_env "$FROM_ENV"; then
-    echo "ERROR: unknown environment '${FROM_ENV}'. Valid values: dev, staging, prod" >&2
-    exit 1
+  echo "ERROR: unknown environment '${FROM_ENV}'. Valid values: dev, staging, prod" >&2
+  exit 1
 fi
 if ! valid_env "$TO_ENV"; then
-    echo "ERROR: unknown environment '${TO_ENV}'. Valid values: dev, staging, prod" >&2
-    exit 1
+  echo "ERROR: unknown environment '${TO_ENV}'. Valid values: dev, staging, prod" >&2
+  exit 1
 fi
 if [ "$FROM_ENV" = "$TO_ENV" ]; then
-    echo "ERROR: source and destination environments must be different" >&2
-    exit 1
+  echo "ERROR: source and destination environments must be different" >&2
+  exit 1
 fi
 
 # Read the source declared tag
 SRC_TAG=$(kubectl get cm env-metadata -n "$FROM_NS" \
-    -o jsonpath='{.data.image_tag}' 2>/dev/null || true)
+  -o jsonpath='{.data.image_tag}' 2>/dev/null || true)
 if [ -z "$SRC_TAG" ]; then
-    echo "ERROR: could not read image_tag from ${FROM_NS}/env-metadata" >&2
-    echo "       Activate the scenario first: labctl scenario up env-promotion" >&2
-    exit 1
+  echo "ERROR: could not read image_tag from ${FROM_NS}/env-metadata" >&2
+  echo "       Activate the scenario first: labctl scenario up env-promotion" >&2
+  exit 1
 fi
 
 # Read the destination's current tag (for display only)
 DST_TAG=$(kubectl get cm env-metadata -n "$TO_NS" \
-    -o jsonpath='{.data.image_tag}' 2>/dev/null || echo "(none)")
+  -o jsonpath='{.data.image_tag}' 2>/dev/null || echo "(none)")
 
 if [ "$SRC_TAG" = "$DST_TAG" ]; then
-    echo "${TO_ENV} is already on ${SRC_TAG} — nothing to promote."
-    exit 0
+  echo "${TO_ENV} is already on ${SRC_TAG} — nothing to promote."
+  exit 0
 fi
 
 PROMOTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -61,14 +61,14 @@ echo "Promoting ${APP}: ${FROM_ENV} (${SRC_TAG}) → ${TO_ENV} (${DST_TAG} → $
 
 # Update destination env-metadata ConfigMap
 kubectl patch cm env-metadata -n "$TO_NS" \
-    --type=merge \
-    -p "{\"data\":{\"image_tag\":\"${SRC_TAG}\",\"promoted_from\":\"${FROM_ENV}\",\"promoted_at\":\"${PROMOTED_AT}\"}}"
+  --type=merge \
+  -p "{\"data\":{\"image_tag\":\"${SRC_TAG}\",\"promoted_from\":\"${FROM_ENV}\",\"promoted_at\":\"${PROMOTED_AT}\"}}"
 
 # Patch the deployment label so 'kubectl get deploy' shows the declared tag
 kubectl patch deployment "$APP" -n "$TO_NS" \
-    --type=merge \
-    -p "{\"metadata\":{\"labels\":{\"flightdeck.dev/image-tag\":\"${SRC_TAG}\"}}}" \
-    2>/dev/null || true
+  --type=merge \
+  -p "{\"metadata\":{\"labels\":{\"flightdeck.dev/image-tag\":\"${SRC_TAG}\"}}}" \
+  2>/dev/null || true
 
 echo ""
 echo "  ${FROM_ENV}: ${SRC_TAG}  (unchanged)"

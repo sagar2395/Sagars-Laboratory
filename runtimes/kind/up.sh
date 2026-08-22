@@ -21,23 +21,23 @@ AGENTS="${AGENTS:-1}"
 KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-}"
 
 for bin in docker kind kubectl; do
-    if ! command -v "$bin" >/dev/null 2>&1; then
-        echo "ERROR: '$bin' is required but not installed." >&2
-        echo "       kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation" >&2
-        exit 1
-    fi
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    echo "ERROR: '$bin' is required but not installed." >&2
+    echo "       kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation" >&2
+    exit 1
+  fi
 done
 
 if ! docker info >/dev/null 2>&1; then
-    echo "ERROR: Docker daemon is not reachable. Start Docker and retry." >&2
-    exit 1
+  echo "ERROR: Docker daemon is not reachable. Start Docker and retry." >&2
+  exit 1
 fi
 
 # Skip if the cluster already exists (idempotent).
 if kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
-    echo "Cluster '$CLUSTER_NAME' already exists, skipping creation."
-    kubectl config use-context "kind-$CLUSTER_NAME"
-    exit 0
+  echo "Cluster '$CLUSTER_NAME' already exists, skipping creation."
+  kubectl config use-context "kind-$CLUSTER_NAME"
+  exit 0
 fi
 
 # Build the kind config. The control-plane node carries the ingress-ready label
@@ -45,38 +45,38 @@ fi
 # to reschedule pods.
 node_image_line=""
 if [ -n "$KIND_NODE_IMAGE" ]; then
-    node_image_line="  image: ${KIND_NODE_IMAGE}"
+  node_image_line="  image: ${KIND_NODE_IMAGE}"
 fi
 
 config_file="$(mktemp)"
 trap 'rm -f "$config_file"' EXIT
 
 {
-    echo "kind: Cluster"
-    echo "apiVersion: kind.x-k8s.io/v1alpha4"
-    echo "nodes:"
-    echo "  - role: control-plane"
+  echo "kind: Cluster"
+  echo "apiVersion: kind.x-k8s.io/v1alpha4"
+  echo "nodes:"
+  echo "  - role: control-plane"
+  [ -n "$node_image_line" ] && echo "$node_image_line"
+  echo "    kubeadmConfigPatches:"
+  echo "      - |"
+  echo "        kind: InitConfiguration"
+  echo "        nodeRegistration:"
+  echo "          kubeletExtraArgs:"
+  echo '            node-labels: "ingress-ready=true"'
+  echo "    extraPortMappings:"
+  echo "      - containerPort: 80"
+  echo "        hostPort: ${HTTP_PORT}"
+  echo "        protocol: TCP"
+  echo "      - containerPort: 443"
+  echo "        hostPort: ${HTTPS_PORT}"
+  echo "        protocol: TCP"
+  i=0
+  while [ "$i" -lt "$AGENTS" ]; do
+    echo "  - role: worker"
     [ -n "$node_image_line" ] && echo "$node_image_line"
-    echo "    kubeadmConfigPatches:"
-    echo "      - |"
-    echo "        kind: InitConfiguration"
-    echo "        nodeRegistration:"
-    echo "          kubeletExtraArgs:"
-    echo '            node-labels: "ingress-ready=true"'
-    echo "    extraPortMappings:"
-    echo "      - containerPort: 80"
-    echo "        hostPort: ${HTTP_PORT}"
-    echo "        protocol: TCP"
-    echo "      - containerPort: 443"
-    echo "        hostPort: ${HTTPS_PORT}"
-    echo "        protocol: TCP"
-    i=0
-    while [ "$i" -lt "$AGENTS" ]; do
-        echo "  - role: worker"
-        [ -n "$node_image_line" ] && echo "$node_image_line"
-        i=$((i + 1))
-    done
-} > "$config_file"
+    i=$((i + 1))
+  done
+} >"$config_file"
 
 echo "Creating kind cluster '$CLUSTER_NAME' (control-plane + ${AGENTS} worker(s))..."
 kind create cluster --name "$CLUSTER_NAME" --config "$config_file" --wait 120s

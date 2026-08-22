@@ -17,8 +17,6 @@ var operatorOnlyPrefixes = []string{
 	"/api/lab",
 	"/api/apps",
 	"/api/services",
-	"/api/packs",       // pack install/remove requires operator; search is GET (open)
-	"/api/credentials", // issuing credentials requires operator; listing is GET (open)
 }
 
 // RequiresOperator reports whether a request to the given API path with the

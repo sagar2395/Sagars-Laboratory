@@ -52,7 +52,13 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run build && npx vite preview --port ${PORT} --strictPort`,
+    // Bind the preview to 127.0.0.1 explicitly. Left to its default host,
+    // `vite preview` binds `localhost`, which on macOS resolves to IPv6 `::1`
+    // only — while `url`/`baseURL` below reach for IPv4 `127.0.0.1`, so the
+    // health check never connects and the run times out. Pinning the host to
+    // 127.0.0.1 keeps server and client on the same address on macOS and Linux
+    // alike (golden rule 1).
+    command: `npm run build && npx vite preview --port ${PORT} --strictPort --host 127.0.0.1`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
